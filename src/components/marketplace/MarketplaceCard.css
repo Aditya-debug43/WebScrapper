@@ -1,0 +1,96 @@
+.marketplace-card {
+  padding: 20px 22px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.marketplace-card.cheapest {
+  border-color: var(--status-good);
+  box-shadow: 0 0 0 1px var(--status-good) inset, var(--shadow-sm);
+}
+
+.marketplace-card-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.marketplace-dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.marketplace-card-name {
+  font-weight: 600;
+  font-size: var(--text-base);
+  color: var(--ink-900);
+  flex: 1;
+}
+
+.marketplace-card-price {
+  font-family: var(--font-sans);
+  font-size: var(--text-2xl);
+  color: var(--ink-900);
+}
+
+.marketplace-card-price-sub {
+  font-size: 0.75rem;
+  color: var(--ink-400);
+  margin-bottom: 16px;
+}
+
+.marketplace-card-stats {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
+  padding: 14px 0;
+  border-top: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 14px;
+}
+
+.marketplace-card-stats > div {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.marketplace-card-stat-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 0.6875rem;
+  color: var(--ink-400);
+  white-space: nowrap;
+}
+
+.marketplace-card-stat-value {
+  font-size: var(--text-sm);
+  font-weight: 600;
+  color: var(--ink-900);
+}
+
+.marketplace-card-stat-value small {
+  font-weight: 500;
+  color: var(--ink-400);
+}
+
+.marketplace-card-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: var(--text-sm);
+  font-weight: 600;
+  color: var(--accent-600);
+  margin-top: auto;
+}
+
+.marketplace-card-link:hover {
+  text-decoration: underline;
+}

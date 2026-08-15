@@ -1,0 +1,21 @@
+.mc-summary {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 14px;
+  max-width: 520px;
+  margin-bottom: 20px;
+}
+
+.mc-explainer {
+  font-size: var(--text-sm);
+  color: var(--ink-500);
+  max-width: 68ch;
+  line-height: 1.6;
+  margin-bottom: 24px;
+}
+
+.mc-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 16px;
+}

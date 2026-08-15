@@ -1,0 +1,31 @@
+.status-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  padding: 3px 10px 3px 8px;
+  border-radius: var(--radius-pill);
+  white-space: nowrap;
+}
+
+.status-good {
+  background: var(--status-good-tint);
+  color: var(--status-good-ink);
+}
+.status-warning {
+  background: var(--status-warning-tint);
+  color: var(--status-warning-ink);
+}
+.status-serious {
+  background: var(--status-serious-tint);
+  color: var(--status-serious-ink);
+}
+.status-critical {
+  background: var(--status-critical-tint);
+  color: var(--status-critical-ink);
+}
+.status-neutral {
+  background: var(--canvas-alt);
+  color: var(--ink-500);
+}

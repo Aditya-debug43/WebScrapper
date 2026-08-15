@@ -1,0 +1,107 @@
+/*
+  Design tokens — corrected to match the two reference UIs exactly
+  (BizLink CRM, Creatica course platform), not a broader synthesis:
+  a light, near-white canvas with a light sidebar (NOT dark), separated by
+  a hairline border rather than a contrasting fill; black as the dominant
+  interactive accent (primary buttons, active nav pill); a warm orange used
+  sparingly as a secondary highlight (active tab pill, one CTA), exactly as
+  Creatica uses it; pure sans-serif typography throughout — neither
+  reference uses a display serif anywhere.
+*/
+
+:root {
+  color-scheme: light;
+
+  /* ---- surfaces: canvas and sidebar sit close in tone, split by a hairline ---- */
+  --canvas: #f7f6f1;
+  --canvas-alt: #efeee7;
+  --sidebar-bg: #fcfbf8;
+  --surface: #ffffff;
+  --surface-sunken: #f7f6f1;
+  --surface-chart: #fcfcfb;
+
+  /* legacy aliases kept so raised/dark-panel components (rare) still resolve */
+  --sidebar-bg-raised: #efeee7;
+  --sidebar-text: #6b6a63;
+  --sidebar-text-active: #ffffff;
+  --sidebar-border: rgba(17, 17, 17, 0.08);
+
+  /* ---- ink ---- */
+  --ink-900: #171716;
+  --ink-700: #43423d;
+  --ink-500: #78766e;
+  --ink-400: #9a988f;
+  --ink-300: #d3d1c7;
+  --ink-on-dark: #ffffff;
+
+  /* ---- borders (thin, everywhere — this design leans on hairlines, not shadow) ---- */
+  --border: rgba(17, 17, 17, 0.09);
+  --border-strong: rgba(17, 17, 17, 0.16);
+  --border-on-dark: rgba(255, 255, 255, 0.12);
+
+  /* ---- accent: black is primary (BizLink), warm orange is the secondary
+     highlight used only for active tabs / one CTA (Creatica) ---- */
+  --accent: #111110;
+  --accent-600: #000000;
+  --accent-ink: #ffffff;
+  --accent-tint: #ececea;
+  --accent-tint-ink: #171716;
+
+  --accent-2: #ea5a34;
+  --accent-2-600: #d14b28;
+  --accent-2-ink: #ffffff;
+  --accent-2-tint: #fde3da;
+  --accent-2-tint-ink: #a5391c;
+
+  /* ---- status (fixed, reserved — from validated dataviz status scale) ---- */
+  --status-good: #0c8a2f;
+  --status-good-tint: #e1f2e2;
+  --status-good-ink: #0c5c20;
+  --status-warning: #b97600;
+  --status-warning-tint: #fbeacb;
+  --status-warning-ink: #7a4e00;
+  --status-serious: #c65a34;
+  --status-serious-tint: #f8e1d4;
+  --status-serious-ink: #8a3c1e;
+  --status-critical: #b23434;
+  --status-critical-tint: #f7dcdc;
+  --status-critical-ink: #7c2222;
+
+  /* ---- chart categorical series (validated palette, fixed order, subset used) ---- */
+  --series-1: #2a78d6;
+  --series-2: #eb6834;
+  --series-3: #1baf7a;
+  --series-reference: #ab9f88;
+
+  /* ---- typography — sans-serif only; neither reference uses a display serif ---- */
+  --font-serif: "Inter", -apple-system, "Segoe UI", sans-serif;
+  --font-sans: "Inter", -apple-system, "Segoe UI", sans-serif;
+  --font-mono: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+
+  --text-xs: 0.75rem;
+  --text-sm: 0.8125rem;
+  --text-base: 0.9375rem;
+  --text-md: 1.0625rem;
+  --text-lg: 1.1875rem;
+  --text-xl: 1.375rem;
+  --text-2xl: 1.625rem;
+  --text-3xl: 2.125rem;
+  --text-4xl: 2.75rem;
+
+  /* ---- radius — cards ~16px, pills full, small chips ~10px (BizLink/Creatica) ---- */
+  --radius-sm: 8px;
+  --radius-md: 10px;
+  --radius-lg: 16px;
+  --radius-xl: 22px;
+  --radius-pill: 999px;
+
+  /* ---- shadow — this system leans on borders; shadows are barely-there ---- */
+  --shadow-sm: 0 1px 1px rgba(17, 17, 17, 0.03);
+  --shadow-md: 0 2px 8px rgba(17, 17, 17, 0.04);
+  --shadow-lg: 0 8px 24px rgba(17, 17, 17, 0.08);
+
+  /* ---- layout ---- */
+  --sidebar-w: 248px;
+  --header-h: 72px;
+  --content-max: 1320px;
+}

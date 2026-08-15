@@ -1,0 +1,48 @@
+/* Pill tabs, matching Creatica's Overview / Notes / Transcript / Q&A / Discussion
+   treatment: plain text + muted count bubble when inactive, solid accent pill
+   + white text + lighter count bubble on the active tab. No underline. */
+
+.workspace-tabs {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 28px;
+  flex-wrap: wrap;
+}
+
+.workspace-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 8px 16px;
+  border-radius: var(--radius-pill);
+  font-size: var(--text-sm);
+  font-weight: 500;
+  color: var(--ink-500);
+  transition: background 0.15s ease, color 0.15s ease;
+}
+
+.workspace-tab:hover {
+  background: var(--canvas-alt);
+  color: var(--ink-900);
+}
+
+.workspace-tab.active {
+  background: var(--accent-2);
+  color: #fff;
+  font-weight: 600;
+}
+
+.workspace-tab-count {
+  font-size: 0.6875rem;
+  font-weight: 600;
+  background: var(--canvas-alt);
+  color: var(--ink-500);
+  border-radius: var(--radius-pill);
+  padding: 1px 8px;
+}
+
+.workspace-tab.active .workspace-tab-count {
+  background: rgba(255, 255, 255, 0.24);
+  color: #fff;
+}

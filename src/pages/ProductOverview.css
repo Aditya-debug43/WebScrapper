@@ -1,0 +1,137 @@
+.po-layout {
+  display: grid;
+  grid-template-columns: 1fr 300px;
+  gap: 32px;
+  align-items: start;
+}
+
+.po-main {
+  display: flex;
+  flex-direction: column;
+  gap: 32px;
+  min-width: 0;
+}
+
+.po-identity {
+  padding: 6px 22px;
+}
+
+.po-identity-grid {
+  display: flex;
+  flex-direction: column;
+}
+
+.po-identity-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 13px 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.po-identity-row:last-child {
+  border-bottom: none;
+}
+
+.po-identity-row dt {
+  font-size: var(--text-sm);
+  color: var(--ink-400);
+}
+
+.po-identity-row dd {
+  margin: 0;
+  font-size: var(--text-sm);
+  font-weight: 600;
+  color: var(--ink-900);
+  text-align: right;
+}
+
+.po-siblings {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.po-sibling {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 18px;
+  gap: 14px;
+}
+
+.po-sibling:hover {
+  border-color: var(--border-strong);
+}
+
+.po-sibling-name {
+  font-weight: 600;
+  font-size: var(--text-sm);
+  color: var(--ink-900);
+}
+
+.po-sibling-sub {
+  font-size: var(--text-xs);
+  color: var(--ink-400);
+  margin-top: 2px;
+}
+
+.po-sibling-price {
+  font-family: var(--font-sans);
+  font-size: var(--text-md);
+  color: var(--ink-900);
+}
+
+.po-aside-card {
+  padding: 18px;
+  position: sticky;
+  top: calc(var(--header-h) + 24px);
+}
+
+.po-listing-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin-bottom: 14px;
+}
+
+.po-listing-row {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 9px 8px;
+  border-radius: var(--radius-md);
+  font-size: var(--text-sm);
+  transition: background 0.12s ease;
+}
+
+.po-listing-row:hover {
+  background: var(--surface-sunken);
+}
+
+.po-listing-name {
+  flex: 1;
+  font-weight: 500;
+  color: var(--ink-700);
+}
+
+.po-listing-price {
+  font-weight: 600;
+  color: var(--ink-900);
+}
+
+.po-aside-btn {
+  width: 100%;
+  margin-top: 8px;
+  justify-content: center;
+}
+
+@media (max-width: 900px) {
+  .po-layout {
+    grid-template-columns: 1fr;
+  }
+  .po-aside-card {
+    position: static;
+  }
+}
