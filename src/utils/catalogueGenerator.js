@@ -225,6 +225,20 @@ function buildAll() {
   const observations = [];
   const reviews = [];
 
+  // Seed ids are the primary key for everything generated below — product,
+  // listing, offer and observation ids are all derived from them. A duplicate
+  // therefore does not throw; it quietly produces two products sharing one id,
+  // whose offers and price series merge into each other. That happened once and
+  // was only caught by an audit noticing a price-history/current-price
+  // mismatch, which is far too indirect a symptom for the cause. Fail loudly.
+  const seen = new Set();
+  const duplicates = catalogueSeed.map((s) => s.id).filter((id) => (seen.has(id) ? true : (seen.add(id), false)));
+  if (duplicates.length > 0) {
+    throw new Error(
+      `catalogueSeed contains duplicate id(s): ${[...new Set(duplicates)].join(", ")}. Seed ids must be unique — every generated entity id derives from them.`
+    );
+  }
+
   for (const seed of catalogueSeed) {
     const pt = productTypeInfo(seed.ptype);
     const productId = `prod_${seed.id}`;

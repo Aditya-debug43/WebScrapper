@@ -25,11 +25,19 @@ export const brands = [
   { id: "brand_sony", name: "Sony", aliasNames: ["SONY"], tier: "premium", parentCompany: "Sony Group Corporation" },
   { id: "brand_sennheiser", name: "Sennheiser", aliasNames: ["SENNHEISER"], tier: "premium", parentCompany: "Sennheiser electronic" },
   { id: "brand_noise", name: "Noise", aliasNames: ["NOISE", "Go Noise"], tier: "value", parentCompany: "Nexxbase Marketing" },
+  { id: "brand_boult", name: "Boult", aliasNames: ["BOULT", "Boult Audio"], tier: "value", parentCompany: "Boult Audio" },
+  { id: "brand_amazfit", name: "Amazfit", aliasNames: ["AMAZFIT", "Zepp"], tier: "mid", parentCompany: "Zepp Health" },
+  { id: "brand_redmi", name: "Redmi", aliasNames: ["REDMI"], tier: "value", parentCompany: "Xiaomi Corporation" },
+  { id: "brand_poco", name: "POCO", aliasNames: ["Poco"], tier: "value", parentCompany: "Xiaomi Corporation" },
+  { id: "brand_infinix", name: "Infinix", aliasNames: ["INFINIX"], tier: "value", parentCompany: "Transsion Holdings" },
+  { id: "brand_iqoo", name: "iQOO", aliasNames: ["IQOO", "iqoo"], tier: "mid", parentCompany: "vivo Communication" },
 
   // ---- power / accessories ----
   { id: "brand_anker", name: "Anker", aliasNames: ["ANKER", "Anker Soundcore"], tier: "mid", parentCompany: "Anker Innovations" },
   { id: "brand_ambrane", name: "Ambrane", aliasNames: ["AMBRANE"], tier: "value", parentCompany: "Ambrane India" },
   { id: "brand_mi", name: "Mi", aliasNames: ["Xiaomi", "MI"], tier: "value", parentCompany: "Xiaomi Corporation" },
+  { id: "brand_syska", name: "Syska", aliasNames: ["SYSKA"], tier: "value", parentCompany: "Syska Group" },
+  { id: "brand_urban", name: "URBN", aliasNames: ["Urbn", "URBAN"], tier: "value", parentCompany: "URBN Retail" },
   { id: "brand_zebronics", name: "Zebronics", aliasNames: ["ZEBRONICS", "Zeb"], tier: "value", parentCompany: "Zebronics India" },
   { id: "brand_portronics", name: "Portronics", aliasNames: ["PORTRONICS"], tier: "value", parentCompany: "Portronics Digital" },
   { id: "brand_duracell", name: "Duracell", aliasNames: ["DURACELL"], tier: "mid", parentCompany: "Berkshire Hathaway" },
@@ -43,17 +51,26 @@ export const brands = [
   { id: "brand_ifb", name: "IFB", aliasNames: ["Ifb"], tier: "mid", parentCompany: "IFB Industries" },
   { id: "brand_godrej", name: "Godrej", aliasNames: ["GODREJ"], tier: "value", parentCompany: "Godrej Group" },
   { id: "brand_haier", name: "Haier", aliasNames: ["HAIER"], tier: "value", parentCompany: "Haier Group" },
+  { id: "brand_voltas", name: "Voltas Beko", aliasNames: ["VOLTAS", "Voltas"], tier: "value", parentCompany: "Tata Group" },
+  { id: "brand_vu", name: "VU", aliasNames: ["Vu Televisions"], tier: "value", parentCompany: "Vu Technologies" },
+  { id: "brand_crompton", name: "Crompton", aliasNames: ["CROMPTON"], tier: "value", parentCompany: "Crompton Greaves" },
 
   // ---- kitchen ----
   { id: "brand_philips", name: "Philips", aliasNames: ["PHILIPS"], tier: "mid", parentCompany: "Koninklijke Philips" },
   { id: "brand_bajaj", name: "Bajaj", aliasNames: ["BAJAJ"], tier: "value", parentCompany: "Bajaj Electricals" },
   { id: "brand_prestige", name: "Prestige", aliasNames: ["PRESTIGE", "TTK Prestige"], tier: "mid", parentCompany: "TTK Prestige" },
   { id: "brand_havells", name: "Havells", aliasNames: ["HAVELLS"], tier: "mid", parentCompany: "Havells India" },
+  { id: "brand_pigeon", name: "Pigeon", aliasNames: ["PIGEON"], tier: "value", parentCompany: "Stovekraft Limited" },
+  { id: "brand_butterfly", name: "Butterfly", aliasNames: ["BUTTERFLY"], tier: "value", parentCompany: "Butterfly Gandhimathi" },
+  { id: "brand_usha", name: "Usha", aliasNames: ["USHA"], tier: "mid", parentCompany: "Usha International" },
 
   // ---- furniture ----
   { id: "brand_green_soul", name: "Green Soul", aliasNames: ["GREEN SOUL"], tier: "mid", parentCompany: "Green Soul Ergonomics" },
   { id: "brand_featherlite", name: "Featherlite", aliasNames: ["FEATHERLITE"], tier: "premium", parentCompany: "Featherlite Products" },
   { id: "brand_nilkamal", name: "Nilkamal", aliasNames: ["NILKAMAL"], tier: "value", parentCompany: "Nilkamal Limited" },
+  { id: "brand_wakefit", name: "Wakefit", aliasNames: ["WAKEFIT"], tier: "value", parentCompany: "Wakefit Innovations" },
+  { id: "brand_cellbell", name: "CellBell", aliasNames: ["CELLBELL"], tier: "value", parentCompany: "CellBell India" },
+  { id: "brand_da_urban", name: "Da URBAN", aliasNames: ["DA URBAN"], tier: "value", parentCompany: "Da URBAN Furniture" },
 
   // ---- fashion / footwear ----
   { id: "brand_nike", name: "Nike", aliasNames: ["NIKE"], tier: "premium", parentCompany: "Nike Inc." },
@@ -65,12 +82,23 @@ export const brands = [
   { id: "brand_us_polo", name: "U.S. Polo Assn.", aliasNames: ["US POLO ASSN", "USPA"], tier: "mid", parentCompany: "Arvind Fashions" },
   { id: "brand_roadster", name: "Roadster", aliasNames: ["ROADSTER"], tier: "value", parentCompany: "Myntra Designs" },
   { id: "brand_allen_solly", name: "Allen Solly", aliasNames: ["ALLEN SOLLY"], tier: "mid", parentCompany: "Aditya Birla Fashion" },
+  { id: "brand_hrx", name: "HRX", aliasNames: ["Hrx"], tier: "value", parentCompany: "Myntra Designs" },
+  { id: "brand_wrogn", name: "WROGN", aliasNames: ["Wrogn"], tier: "mid", parentCompany: "Universal Sportsbiz" },
+  { id: "brand_jockey", name: "Jockey", aliasNames: ["JOCKEY"], tier: "mid", parentCompany: "Page Industries" },
+  { id: "brand_sparx", name: "Sparx", aliasNames: ["SPARX"], tier: "value", parentCompany: "Relaxo Footwears" },
+  { id: "brand_reebok", name: "Reebok", aliasNames: ["REEBOK"], tier: "mid", parentCompany: "Authentic Brands Group" },
+  { id: "brand_skechers", name: "Skechers", aliasNames: ["SKECHERS"], tier: "premium", parentCompany: "Skechers USA" },
+  { id: "brand_bata", name: "Bata", aliasNames: ["BATA"], tier: "value", parentCompany: "Bata India" },
 
   // ---- beauty ----
   { id: "brand_fogg", name: "Fogg", aliasNames: ["FOGG"], tier: "value", parentCompany: "Vini Cosmetics" },
   { id: "brand_wild_stone", name: "Wild Stone", aliasNames: ["WILD STONE"], tier: "value", parentCompany: "McNROE Consumer Products" },
   { id: "brand_park_avenue", name: "Park Avenue", aliasNames: ["PARK AVENUE"], tier: "mid", parentCompany: "Raymond Consumer Care" },
   { id: "brand_calvin_klein", name: "Calvin Klein", aliasNames: ["CALVIN KLEIN", "CK"], tier: "premium", parentCompany: "PVH Corp." },
+  { id: "brand_engage", name: "Engage", aliasNames: ["ENGAGE"], tier: "value", parentCompany: "ITC Limited" },
+  { id: "brand_denver", name: "Denver", aliasNames: ["DENVER"], tier: "value", parentCompany: "Denver India" },
+  { id: "brand_beardo", name: "Beardo", aliasNames: ["BEARDO"], tier: "mid", parentCompany: "Marico Limited" },
+  { id: "brand_villain", name: "Villain", aliasNames: ["VILLAIN"], tier: "mid", parentCompany: "Villain Lifestyle" },
 
   // ---- wearables ----
   { id: "brand_titan", name: "Titan", aliasNames: ["TITAN"], tier: "mid", parentCompany: "Titan Company" },

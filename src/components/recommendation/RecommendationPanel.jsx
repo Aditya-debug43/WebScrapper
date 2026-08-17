@@ -115,6 +115,68 @@ function ExcludedTable({ excluded }) {
   );
 }
 
+/**
+ * How much competitive evidence stands behind this recommendation, stated
+ * plainly. The point is that "5 competitors found" answers almost nothing: the
+ * reader needs to know how many genuinely contest the same purchase, what that
+ * evidence is worth once relevance and data quality are accounted for, and —
+ * when the target is missed — WHY, in terms of the market rather than the
+ * database.
+ */
+function CoveragePanel({ coverage, diversity }) {
+  const pct = Math.min((coverage.directCount / coverage.target) * 100, 100);
+  return (
+    <div className={`rec-coverage ${coverage.level}`}>
+      <div className="rec-coverage-head">
+        <div className="rec-coverage-count">
+          <strong className="tabular">{coverage.directCount}</strong>
+          <span>of {coverage.target} direct competitors</span>
+        </div>
+        <span className={`rec-coverage-badge ${coverage.level}`}>{coverage.level} coverage</span>
+      </div>
+
+      <div className="rec-coverage-bar" role="img" aria-label={`${coverage.directCount} of ${coverage.target} direct competitors`}>
+        <span style={{ width: `${pct}%` }} />
+      </div>
+
+      <p className="rec-coverage-summary">{coverage.summary}</p>
+
+      <dl className="rec-coverage-facts">
+        <div>
+          <dt>Effective comparables</dt>
+          <dd className="tabular">{coverage.effectiveComparables.toFixed(1)}</dd>
+        </div>
+        <div>
+          <dt>Brands represented</dt>
+          <dd className="tabular">{diversity?.brandCount ?? "—"}</dd>
+        </div>
+        <div>
+          <dt>Marketplaces covered</dt>
+          <dd className="tabular">{diversity?.marketplaceCount ?? "—"}</dd>
+        </div>
+        <div>
+          <dt>Competitor price spread</dt>
+          <dd className="tabular">{diversity ? `${diversity.priceSpreadPct.toFixed(0)}%` : "—"}</dd>
+        </div>
+      </dl>
+
+      {coverage.shortfall && (
+        <p className="rec-coverage-shortfall">
+          <Info size={13} strokeWidth={2} />
+          {coverage.shortfall}
+        </p>
+      )}
+
+      {diversity?.notes?.map((n) => (
+        <p className="rec-coverage-note" key={n}>
+          <AlertTriangle size={13} strokeWidth={2} />
+          {n}
+        </p>
+      ))}
+    </div>
+  );
+}
+
 export default function RecommendationPanel({ rec }) {
   const [selectedKey, setSelectedKey] = useState("balanced");
 
@@ -124,6 +186,7 @@ export default function RecommendationPanel({ rec }) {
     stats, strength, history, competition, commercial, strategies, bounds, confidence,
     comps, compMethod, excludedComps, constraints, mrp, evidence, currentPriceLayers, collapsed,
     anchor, ownMarket, normalMinor, distortion, wtp, zones, viability, sanityChecks,
+    coverage, diversity, competitiveSet,
   } = rec;
   const selected = strategies.find((s) => s.key === selectedKey) ?? strategies[1];
   const failedChecks = (sanityChecks ?? []).filter((c) => !c.passed);
@@ -551,30 +614,93 @@ export default function RecommendationPanel({ rec }) {
         </div>
       </section>
 
-      {/* ------------------------- comparable set ------------------------- */}
+      {/* ---------------------- competitive evidence ---------------------- */}
       <section>
         <div className="rec-section-head">
           <div>
-            <h2 className="section-title">Comparable set</h2>
+            <h2 className="section-title">Competitive evidence</h2>
             <p className="rec-section-sub">
               {compMethod
-                ? `${compMethod.selected} of ${compMethod.candidatePool} ${compMethod.productTypeName.toLowerCase()} kept, ${compMethod.excludedCount} screened out. Scored on specifications (${compMethod.weights.specifications * 100}%), price segment (${compMethod.weights.priceSegment * 100}%) and brand tier (${compMethod.weights.brandTier * 100}%), then filtered for price coherence. Compared on ${compMethod.comparisonBasis}.`
+                ? `${compMethod.selected} of ${compMethod.candidatePool} ${compMethod.productTypeName.toLowerCase()} kept, ${compMethod.excludedCount} screened out. Scored on specifications (${compMethod.policy.weights.specifications * 100}%), price segment (${compMethod.policy.weights.priceSegment * 100}%), brand tier (${compMethod.policy.weights.brandTier * 100}%) and marketplace overlap (${compMethod.policy.weights.marketplaceOverlap * 100}%). ${compMethod.identityRule.charAt(0).toUpperCase() + compMethod.identityRule.slice(1)}. Compared on ${compMethod.comparisonBasis}.`
                 : null}
             </p>
           </div>
         </div>
+
+        {coverage && <CoveragePanel coverage={coverage} diversity={diversity} />}
+
         <DataTable
           columns={[
-            { key: "name", header: "Product", render: (c) => c.product.canonicalName },
+            {
+              key: "tier",
+              header: "Role",
+              render: (c) => (
+                <span className={`comp-tier ${c.tier}`} title={c.tierReason ?? "contests the same purchase decision"}>
+                  {c.tier === "direct" ? "Direct competitor" : "Comparable"}
+                </span>
+              ),
+            },
+            {
+              key: "name",
+              header: "Product",
+              render: (c) => (
+                <>
+                  {c.product.canonicalName}
+                  {c.familyAlternates?.length > 0 && (
+                    <span className="comp-note"> · {c.familyAlternates.length} other variant counted once</span>
+                  )}
+                </>
+              ),
+            },
             { key: "brand", header: "Brand", render: (c) => `${c.brand?.name ?? "—"} · ${c.brand?.tier ?? "—"}` },
             { key: "price", header: "Effective price", align: "right", render: (c) => formatMinor(c.currentPriceMinor) },
             { key: "rating", header: "Rating", align: "right", render: (c) => (c.rating != null ? `${c.rating.toFixed(1)}★` : "—") },
             { key: "sim", header: "Similarity", align: "right", render: (c) => `${Math.round(c.similarity * 100)}%` },
+            {
+              key: "weight",
+              header: "Evidence weight",
+              align: "right",
+              render: (c) => (
+                <span title={c.quality?.notes?.length ? c.quality.notes.join("; ") : "full data quality"}>
+                  {c.evidenceWeight?.toFixed(2) ?? "—"}
+                </span>
+              ),
+            },
           ]}
           rows={comps}
           rowKey={(c) => c.product.id}
         />
+        <p className="rec-table-note">
+          Evidence weight is relevance × data quality, and comparables count for {compMethod?.policy?.comparableWeightFactor ?? 0.6} of a
+          direct competitor. Market statistics are weighted by it, so a loosely-matched product we hold thin data on moves
+          the median less than a close, well-observed rival — which is why adding competitors to reach a target cannot buy
+          confidence.
+        </p>
       </section>
+
+      {competitiveSet?.reference?.length > 0 && (
+        <section>
+          <div className="rec-section-head">
+            <div>
+              <h2 className="section-title">Wider market, for context only</h2>
+              <p className="rec-section-sub">
+                Same product type, but outside the comparable range. These describe the shape of the market and never
+                anchor a price.
+              </p>
+            </div>
+          </div>
+          <DataTable
+            columns={[
+              { key: "name", header: "Product", render: (c) => c.product.canonicalName },
+              { key: "price", header: "Effective price", align: "right", render: (c) => formatMinor(c.currentPriceMinor) },
+              { key: "sim", header: "Similarity", align: "right", render: (c) => `${Math.round(c.similarity * 100)}%` },
+              { key: "why", header: "Why it is not a competitor", render: (c) => c.tierReason },
+            ]}
+            rows={competitiveSet.reference}
+            rowKey={(c) => c.product.id}
+          />
+        </section>
+      )}
 
       {excludedComps?.length > 0 && <ExcludedTable excluded={excludedComps} />}
     </div>

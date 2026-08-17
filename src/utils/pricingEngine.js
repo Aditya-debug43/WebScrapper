@@ -6,8 +6,14 @@ import { getBrand, TIER_RANK } from "../data/brands";
 import { getSeller, getLatestSellerRating } from "../data/sellers";
 import { getCurrentFeeRule, computeBreakEvenPriceMinor } from "../data/feeRules";
 import { getSellerCost } from "../data/sellerInputs";
-import { getAttributeDefinitions, getPricingRelevantAttributes } from "../data/attributeDefinitions";
+import { getPricingRelevantAttributes } from "../data/attributeDefinitions";
 import { getProductReviewMetrics } from "../utils/productMetrics";
+import {
+  buildCompetitiveSet,
+  competitiveIdentityOf,
+  weightedDistribution,
+  COMPETITOR_POLICY,
+} from "./competitiveSet";
 import { getCategoryPath, productTypes } from "../data/categories";
 import { marketplaces } from "../data/marketplaces";
 import { buildPriceLayers } from "./priceLayers";
@@ -48,18 +54,11 @@ const formatPctLocal = (v) => `${(v * 100).toFixed(1)}%`;
 const TODAY = "2026-08-14";
 
 // Tunables, named so their intent is auditable rather than buried as magic numbers.
-const MIN_SIMILARITY = 0.45; // below this a product is not a comparable, it is merely same-category
-const MAX_COMPARABLES = 8;
-const PRICE_BAND = { lower: 0.45, upper: 2.2 }; // relative to the target's own price
-const IQR_FENCE = 1.5;
-const MIN_COMPARABLES_FOR_RECOMMENDATION = 2;
-const MIN_COMPARABLES_FOR_OUTLIER_FENCE = 3;
+// Everything governing WHO counts as a competitor now lives in COMPETITOR_POLICY
+// (utils/competitiveSet.js), so the selection rules are stated once.
+const MIN_COMPARABLES_FOR_RECOMMENDATION = COMPETITOR_POLICY.minimumForRecommendation;
+const COMPETITOR_TARGET = COMPETITOR_POLICY.target;
 const HEALTHY_DISPERSION = 0.35; // IQR / median at or below this reads as a coherent market
-
-// How a candidate's closeness is composed. Marketplace overlap is a first-class
-// term because a product sold somewhere else is not something a buyer weighs
-// this one against.
-const COMP_WEIGHTS = { specifications: 0.45, priceSegment: 0.25, brandTier: 0.15, marketplaceOverlap: 0.15 };
 
 // How far above the product's OWN observed market a Premium price may sit.
 // These are the numbers that make CF-1 impossible to reproduce: without a
@@ -298,303 +297,21 @@ function snapWithin(minor, floorMinor, ceilingMinor) {
 }
 
 // ---------------------------------------------------------------------------
-// Specification similarity — numeric, boolean AND categorical
+// Competitive evidence set
 // ---------------------------------------------------------------------------
 
 /**
- * The previous implementation scored numeric attributes only and returned a
- * flat 0.6 whenever a product type had none. Whole categories fell through
- * that hole: a T-Shirt's entire spec schema is text, so every candidate scored
- * exactly 0.6 against every other and the 50%-weighted specification term did
- * nothing at all — similarity collapsed to price and brand tier.
+ * Comparable selection, similarity scoring, identity de-duplication and
+ * evidence weighting all live in utils/competitiveSet.js. That subsystem grew
+ * large enough to reason about on its own terms — what counts as a competitor,
+ * what merely informs price, and how much each is worth as evidence — and the
+ * engine reads better consuming a competitive set than computing one inline.
  *
- * Each attribute is now compared according to its declared dataType, and each
- * comparison yields one of four verdicts:
- *
- *   match          both sides present and equivalent
- *   partial        both present, meaningfully overlapping but not equal
- *                  (a numeric near-miss, or shared tokens: "Cotton" vs
- *                  "Cotton Blend", "Core i5-1235U" vs "Core i5-1334U")
- *   differ         both present and unrelated
- *   missing        one or both sides do not carry the attribute
- *
- * `missing` is NOT scored as zero — an absent spec is unknown, not different,
- * and scoring it as a difference would penalise sparsely-captured products for
- * a gap in our data rather than a gap in the product. It is tracked separately
- * as coverage, and coverage is what degrades confidence.
- *
- * Similarity runs over the FULL attribute schema, not just the pricing-relevant
- * subset: "is this the same kind of product?" and "does this attribute move the
- * price?" are different questions. Pricing-relevant attributes are weighted
- * double, because they are the ones a buyer trades off. The pricing-relevant
- * subset still governs strength scoring and the hedonic model, unchanged.
+ * This wrapper keeps the price basis in exactly one place: competitiveSet never
+ * decides which rung of the price ladder to compare on, it is handed one.
  */
-const NON_COMPARABLE_TEXT = new Set(["", "-", "na", "n/a", "none", "unknown"]);
-
-function normalizeText(v) {
-  return String(v).toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
-}
-
-function tokenOverlap(a, b) {
-  const A = new Set(normalizeText(a).split(" ").filter(Boolean));
-  const B = new Set(normalizeText(b).split(" ").filter(Boolean));
-  if (A.size === 0 || B.size === 0) return null;
-  let shared = 0;
-  for (const t of A) if (B.has(t)) shared++;
-  return shared / (A.size + B.size - shared);
-}
-
-function compareAttribute(attr, rawA, rawB) {
-  const present = (v) => v !== undefined && v !== null && !(typeof v === "string" && NON_COMPARABLE_TEXT.has(normalizeText(v)));
-  if (!present(rawA) || !present(rawB)) return { verdict: "missing", score: null };
-
-  if (attr.dataType === "boolean") {
-    const a = rawA === true || rawA === "true";
-    const b = rawB === true || rawB === "true";
-    return a === b ? { verdict: "match", score: 1 } : { verdict: "differ", score: 0 };
-  }
-
-  if (attr.dataType === "integer" || attr.dataType === "decimal") {
-    const a = Number(rawA);
-    const b = Number(rawB);
-    if (!Number.isFinite(a) || !Number.isFinite(b)) return { verdict: "missing", score: null };
-    const scale = Math.max(Math.abs(a), Math.abs(b), 1);
-    const score = 1 - Math.min(Math.abs(a - b) / scale, 1);
-    return { verdict: score >= 0.98 ? "match" : score > 0.15 ? "partial" : "differ", score };
-  }
-
-  // text (and anything else declared): exact equivalence first, then token
-  // overlap so related values are not treated as total strangers.
-  const na = normalizeText(rawA);
-  const nb = normalizeText(rawB);
-  if (na === nb) return { verdict: "match", score: 1 };
-  const overlap = tokenOverlap(rawA, rawB);
-  if (overlap === null) return { verdict: "missing", score: null };
-  return { verdict: overlap > 0 ? "partial" : "differ", score: overlap };
-}
-
-function specSimilarity(target, candidate, attrs, pricingKeys) {
-  let weighted = 0;
-  let weightTotal = 0;
-  const tally = { match: 0, partial: 0, differ: 0, missing: 0 };
-
-  for (const attr of attrs) {
-    const result = compareAttribute(
-      attr,
-      target.specifications?.[attr.attributeKey],
-      candidate.specifications?.[attr.attributeKey]
-    );
-    tally[result.verdict]++;
-    if (result.score === null) continue;
-    const w = pricingKeys.has(attr.attributeKey) ? 2 : 1;
-    weighted += result.score * w;
-    weightTotal += w;
-  }
-
-  const compared = tally.match + tally.partial + tally.differ;
-  return {
-    // null, not a made-up constant: when nothing is comparable the caller must
-    // redistribute the weight rather than pretend to a middling score.
-    score: weightTotal > 0 ? weighted / weightTotal : null,
-    compared,
-    coverage: attrs.length ? compared / attrs.length : 0,
-    ...tally,
-  };
-}
-
-function priceProximity(a, b) {
-  if (!a || !b) return 0;
-  return 1 - Math.min(Math.abs(Math.log(a / b)) / Math.log(3), 1);
-}
-
-// ---------------------------------------------------------------------------
-// Marketplace compatibility
-// ---------------------------------------------------------------------------
-
-/**
- * A product is only a competitor where a buyer can actually choose between the
- * two. The audit found 10 of 60 sampled products benchmarked against
- * comparables sharing NO marketplace — a vivo T3x listed only on Amazon was
- * priced against four products that are not sold on Amazon at all.
- *
- * Behaviour, in two parts:
- *   1. HARD GATE — zero shared marketplaces excludes the candidate outright,
- *      with the marketplaces on both sides named in the exclusion reason.
- *   2. SCORE — among survivors, Jaccard overlap of the two marketplace sets
- *      feeds the similarity score, so a product competing on all the same
- *      platforms outranks one competing on some of them.
- */
-function marketplaceSetOf(productId) {
-  return new Set(getListingsForProduct(productId).map((l) => l.marketplaceId));
-}
-
-function marketplaceOverlap(targetSet, candidateSet) {
-  let shared = 0;
-  for (const id of candidateSet) if (targetSet.has(id)) shared++;
-  const union = targetSet.size + candidateSet.size - shared;
-  return { shared, score: union > 0 ? shared / union : 0 };
-}
-
-const marketplaceNames = (set) =>
-  [...set].map((id) => marketplaces.find((m) => m.id === id)?.name ?? id).join(", ") || "none";
-
-// ---------------------------------------------------------------------------
-// Comparable set — scored, then trimmed for price coherence, with reasons
-// ---------------------------------------------------------------------------
-
 export function buildComparableSet(targetProductId, { mrpMinor = null } = {}) {
-  const target = getProduct(targetProductId);
-  if (!target?.specifications || !target.productTypeId) {
-    return { members: [], excluded: [], method: null };
-  }
-
-  const targetPrice = getCurrentEffectivePrice(targetProductId)?.universalEffectiveMinor ?? null;
-  // Similarity scores the whole schema; pricing-relevance only re-weights it.
-  const attrs = getAttributeDefinitions(target.productTypeId);
-  const pricingKeys = new Set(getPricingRelevantAttributes(target.productTypeId).map((a) => a.attributeKey));
-  const targetTier = TIER_RANK[getBrand(target.brandId)?.tier] ?? 1;
-  const targetMarketplaces = marketplaceSetOf(targetProductId);
-
-  const excluded = [];
-
-  const scored = products
-    .filter((p) => p.id !== target.id && p.isPurchasable && p.productTypeId === target.productTypeId && p.specifications)
-    .map((product) => {
-      const price = getCurrentEffectivePrice(product.id);
-      if (!price) return null;
-      // Rating comes from the shared product-level aggregation, so the figure
-      // quoted inside a recommendation is the figure on the product page.
-      const review = getProductReviewMetrics(product.id);
-      const brand = getBrand(product.brandId);
-      const spec = specSimilarity(target, product, attrs, pricingKeys);
-      const candidateMarketplaces = marketplaceSetOf(product.id);
-      const mp = marketplaceOverlap(targetMarketplaces, candidateMarketplaces);
-      const tierScore = 1 - Math.abs((TIER_RANK[brand?.tier] ?? 1) - targetTier) / 2;
-      const priceScore = priceProximity(targetPrice, price.universalEffectiveMinor);
-
-      // When no specification is comparable at all, its weight is redistributed
-      // across the remaining terms rather than filled with an invented score.
-      const terms = [
-        { key: "spec", weight: COMP_WEIGHTS.specifications, score: spec.score },
-        { key: "price", weight: COMP_WEIGHTS.priceSegment, score: priceScore },
-        { key: "tier", weight: COMP_WEIGHTS.brandTier, score: tierScore },
-        { key: "marketplace", weight: COMP_WEIGHTS.marketplaceOverlap, score: mp.score },
-      ].filter((t) => t.score != null);
-      const weightSum = terms.reduce((s, t) => s + t.weight, 0);
-      const similarity = weightSum > 0 ? terms.reduce((s, t) => s + t.weight * t.score, 0) / weightSum : 0;
-
-      return {
-        product,
-        brand,
-        currentPriceMinor: price.universalEffectiveMinor,
-        hasUniversalPromo: (price.layers?.universalDiscountMinor ?? 0) > 0,
-        rating: review.rating,
-        reviewCount: review.reviewCount,
-        marketplaceIds: [...candidateMarketplaces],
-        sharedMarketplaces: mp.shared,
-        similarity,
-        specDetail: spec,
-        breakdown: { specScore: spec.score, tierScore, priceScore, marketplaceScore: mp.score },
-      };
-    })
-    .filter(Boolean)
-    .sort((a, b) => b.similarity - a.similarity);
-
-  // Gate 0 — marketplace compatibility. A product a buyer cannot encounter
-  // alongside this one is not a competitor, however well its specs score.
-  let kept = [];
-  for (const c of scored) {
-    if (targetMarketplaces.size > 0 && c.sharedMarketplaces === 0) {
-      excluded.push({
-        ...c,
-        reason: `sold on ${marketplaceNames(new Set(c.marketplaceIds))} — no marketplace in common with this product (${marketplaceNames(targetMarketplaces)}), so no buyer chooses between the two`,
-      });
-    } else kept.push(c);
-  }
-
-  // Gate 1 — similarity. Same category is not the same thing as comparable.
-  {
-    const survived = [];
-    for (const c of kept) {
-      if (c.similarity < MIN_SIMILARITY) {
-        excluded.push({ ...c, reason: `similarity ${Math.round(c.similarity * 100)}% is below the ${MIN_SIMILARITY * 100}% threshold` });
-      } else survived.push(c);
-    }
-    kept = survived;
-  }
-
-  // Gate 2 — absolute price band around the target. A product at 4× the price
-  // is not a comparable regardless of how its specs score.
-  if (targetPrice) {
-    const lo = targetPrice * PRICE_BAND.lower;
-    const hi = targetPrice * PRICE_BAND.upper;
-    const survived = [];
-    for (const c of kept) {
-      if (c.currentPriceMinor < lo || c.currentPriceMinor > hi) {
-        excluded.push({
-          ...c,
-          reason: `priced at ${formatMinor(c.currentPriceMinor)}, outside the ${PRICE_BAND.lower}×–${PRICE_BAND.upper}× band around this product's ${formatMinor(targetPrice)}`,
-        });
-      } else survived.push(c);
-    }
-    kept = survived;
-  }
-
-  // Gate 3 — MRP reachability. A product you could not legally match on price
-  // is not a competitor you can be benchmarked against. Without this, a cheap
-  // product surrounded by dearer peers gets a "market floor" above its own
-  // legal ceiling, which is incoherent.
-  if (mrpMinor) {
-    const reachable = mrpMinor * 1.15;
-    const survived = [];
-    for (const c of kept) {
-      if (c.currentPriceMinor > reachable) {
-        excluded.push({
-          ...c,
-          reason: `priced at ${formatMinor(c.currentPriceMinor)}, above this product's applicable MRP of ${formatMinor(mrpMinor)} — it cannot be matched on price, so it is not a usable benchmark`,
-        });
-      } else survived.push(c);
-    }
-    kept = survived;
-  }
-
-  // Gate 4 — IQR fence on what remains, so a single extreme price cannot set
-  // the premium anchor. The threshold is 3, not 4: a recommendation may be
-  // issued on 2 comparables, so a set of 3 that gets no outlier protection at
-  // all was the widest unguarded gap in the screening chain.
-  if (kept.length >= MIN_COMPARABLES_FOR_OUTLIER_FENCE) {
-    const s = computeDistributionStats(kept.map((c) => c.currentPriceMinor));
-    const lo = s.q1 - IQR_FENCE * s.iqr;
-    const hi = s.q3 + IQR_FENCE * s.iqr;
-    const survived = [];
-    for (const c of kept) {
-      if (c.currentPriceMinor < lo || c.currentPriceMinor > hi) {
-        excluded.push({ ...c, reason: `price is a statistical outlier within the comparable set (outside ${IQR_FENCE}× IQR)` });
-      } else survived.push(c);
-    }
-    kept = survived;
-  }
-
-  const members = kept.slice(0, MAX_COMPARABLES);
-
-  return {
-    members,
-    excluded,
-    method: {
-      productTypeName: productTypes.find((pt) => pt.id === target.productTypeId)?.name ?? "product type",
-      candidatePool: scored.length,
-      selected: members.length,
-      excludedCount: excluded.length,
-      minSimilarity: MIN_SIMILARITY,
-      priceBand: PRICE_BAND,
-      weights: { ...COMP_WEIGHTS },
-      targetMarketplaces: [...targetMarketplaces],
-      specBasis: `all ${attrs.length} attributes in the ${target.specSchemaVersion ?? "current"} schema, with the ${pricingKeys.size} pricing-relevant ones weighted double`,
-      marketplaceRule:
-        "a comparable must share at least one marketplace with this product; overlap beyond that raises its similarity",
-      comparisonBasis: "universal effective price (no card, coupon or exchange required)",
-    },
-  };
+  return buildCompetitiveSet(targetProductId, { priceOf: getCurrentEffectivePrice, mrpMinor });
 }
 
 // ---------------------------------------------------------------------------
@@ -817,12 +534,35 @@ function marginsAt(priceMinor, commercial) {
 // Evidence sufficiency — gates the whole output
 // ---------------------------------------------------------------------------
 
-function assessEvidence({ comps, stats, history, commercial, competition, mrp, matchQuality, promotionVisibility }) {
+function assessEvidence({ comps, coverage, diversity, stats, history, commercial, competition, mrp, matchQuality, promotionVisibility }) {
   const checks = [];
   const push = (key, label, ok, detail, weight = 1) => checks.push({ key, label, ok, detail, weight });
 
   const n = comps.length;
-  push("comparables", "Comparable products", n >= 4, `${n} product${n === 1 ? "" : "s"} passed marketplace, similarity, price-band and outlier screening`, 2);
+
+  // Competitive breadth — the professor's "at least 5", read as a target and
+  // graded rather than enforced. Note the check is on DIRECT competitors: a set
+  // padded out with loose comparables does not satisfy it.
+  push(
+    "competitor_breadth",
+    "Competitive breadth",
+    coverage.directCount >= COMPETITOR_TARGET,
+    coverage.directCount >= COMPETITOR_TARGET
+      ? `${coverage.directCount} direct competitors compared, meeting the ${COMPETITOR_TARGET}-competitor target`
+      : `${coverage.directCount} direct competitor${coverage.directCount === 1 ? "" : "s"} against a target of ${COMPETITOR_TARGET}${coverage.comparableCount ? `, plus ${coverage.comparableCount} weaker comparable${coverage.comparableCount === 1 ? "" : "s"}` : ""}`,
+    2
+  );
+
+  // Breadth is a count; this is its worth. Five near-duplicates with thin data
+  // score far below five well-observed rivals, so the two checks cannot both be
+  // satisfied by padding.
+  push(
+    "evidence_depth",
+    "Weighted evidence",
+    coverage.effectiveComparables >= COMPETITOR_TARGET * 0.7,
+    `${coverage.effectiveComparables.toFixed(1)} effective comparables from ${n} product${n === 1 ? "" : "s"}, after weighting each by relevance and data quality`,
+    2
+  );
 
   const dispersion = stats && stats.median ? stats.iqr / stats.median : null;
   push(
@@ -872,15 +612,26 @@ function assessEvidence({ comps, stats, history, commercial, competition, mrp, m
   const totalWeight = checks.reduce((s, c) => s + c.weight, 0);
   const score = checks.reduce((s, c) => s + (c.ok ? c.weight : 0), 0) / totalWeight;
 
+  // Confidence is capped by competitive coverage, not merely influenced by it.
+  // A product compared against three rivals cannot reach "high" however clean
+  // the rest of its data is — the cap is the honest statement that the market
+  // has not been observed widely enough, and it is the reason padding the set
+  // cannot buy a better label.
+  const coverageCap = { strong: "high", adequate: "medium-high", thin: "medium", insufficient: "low" }[coverage.level] ?? "low";
+  const ORDER = ["low", "medium", "medium-high", "high"];
+
   let level = "low";
-  if (score >= 0.8 && n >= 4) level = "high";
-  else if (score >= 0.6 && n >= 3) level = "medium-high";
-  else if (score >= 0.4 && n >= MIN_COMPARABLES_FOR_RECOMMENDATION) level = "medium";
+  if (score >= 0.8) level = "high";
+  else if (score >= 0.6) level = "medium-high";
+  else if (score >= 0.4) level = "medium";
+  if (ORDER.indexOf(level) > ORDER.indexOf(coverageCap)) level = coverageCap;
 
   return {
     level,
     score: Math.round(score * 100) / 100,
     checks,
+    coverageCap,
+    cappedByCoverage: ORDER.indexOf(coverageCap) < ORDER.indexOf(score >= 0.8 ? "high" : score >= 0.6 ? "medium-high" : score >= 0.4 ? "medium" : "low"),
     sufficient: n >= MIN_COMPARABLES_FOR_RECOMMENDATION,
     dispersion,
   };
@@ -923,13 +674,22 @@ export function buildRecommendation(targetProductId) {
   // a product priced beyond this product's legal ceiling cannot serve as a
   // benchmark for it.
   const mrp = resolveApplicableMrp(targetProductId, currentPrice?.universalEffectiveMinor ?? null);
-  const { members: comps, excluded, method } = buildComparableSet(targetProductId, { mrpMinor: mrp.mrpMinor });
+  const competitiveSet = buildComparableSet(targetProductId, { mrpMinor: mrp.mrpMinor });
+  const { members: comps, excluded, method, coverage, diversity } = competitiveSet;
   const compPrices = comps.map((c) => c.currentPriceMinor);
-  const stats = compPrices.length ? computeDistributionStats(compPrices) : null;
+  // Comparable statistics are WEIGHTED by evidence: a loosely-matched product we
+  // barely have data on moves the median less than a close, well-observed rival.
+  // This is what makes a fifth comparable worth adding honestly rather than
+  // worth adding to reach five.
+  const stats = comps.length
+    ? weightedDistribution(comps.map((c) => ({ value: c.currentPriceMinor, weight: c.evidenceWeight })))
+    : null;
   const matchQuality = assessMatchQuality(targetProductId);
   const promotionVisibility = assessPromotionVisibility(competition, comps);
   const evidence = assessEvidence({
     comps,
+    coverage,
+    diversity,
     stats,
     history,
     commercial,
@@ -950,6 +710,9 @@ export function buildRecommendation(targetProductId) {
     comps,
     excludedComps: excluded,
     compMethod: method,
+    competitiveSet,
+    coverage,
+    diversity,
     stats,
     competition,
     commercial,
@@ -973,9 +736,10 @@ export function buildRecommendation(targetProductId) {
       insufficientEvidence: true,
       reason: !currentPrice
         ? "This product has no in-stock offer, so there is no current price to reason from."
-        : `Only ${comps.length} product${comps.length === 1 ? "" : "s"} of this type survived similarity, price-band and outlier screening. That is not enough comparable-market evidence to justify a price, and inventing one would be worse than saying so.`,
+        : `Only ${comps.length} comparable product${comps.length === 1 ? "" : "s"} could be established for this product, against a target of ${COMPETITOR_TARGET} and a working minimum of ${MIN_COMPARABLES_FOR_RECOMMENDATION}. Below that the market cannot be described: a median is just the midpoint of two numbers and the spread is meaningless. Padding the set with weaker candidates would produce a number, not evidence.`,
       whatWouldHelp: [
-        "Capture more listings of the same product type in a similar price band",
+        coverage.shortfall,
+        "Capture more products of the same type, on the marketplaces this product is sold on",
         excluded.length ? `${excluded.length} candidate${excluded.length === 1 ? " was" : "s were"} screened out — see the exclusion list for why` : null,
         !commercial.cost ? "Enter a seller cost so break-even and margin can bound the range" : null,
       ].filter(Boolean),
@@ -986,21 +750,48 @@ export function buildRecommendation(targetProductId) {
   const strength = buildStrength(target, comps);
 
   // =========================================================================
-  // THE COMPETITIVE POOL — computed FIRST, because every bound depends on it
+  // TWO POOLS, TWO GRAINS — kept deliberately separate
   // =========================================================================
-  // Prices a buyer could actually pay right now for this product or a close
-  // substitute: this product's own in-stock offers, plus the comparables.
-  // Bounds derived from comparables alone were the residual bug behind the
-  // smartwatch case — a floor computed from dearer substitutes sat above the
-  // product's own entire selling range and dragged every strategy up with it.
+  // These answer different questions and must not be merged, which is exactly
+  // the bug the competitor review found:
+  //
+  //   OWN MARKET (offer grain)  What THIS product sells for. Every in-stock
+  //                             offer is a real price a buyer can pay today, so
+  //                             all of them count. Anchoring and the Premium
+  //                             ceiling read this, unchanged.
+  //
+  //   COMPETITIVE POOL          What the MARKET charges. One row per competitive
+  //   (product grain)           identity — this product once, each rival product
+  //                             once. Q1/median/Q3 describe the products a buyer
+  //                             chooses between.
+  //
+  // Previously both were poured into one array, mixing one-row-per-own-OFFER
+  // with one-row-per-rival-PRODUCT. On 42 of 92 products the target's own offers
+  // outnumbered the rivals — a 43" TV had 6 own offers against 3 rival products,
+  // so two thirds of "the market" was the product measured against itself, and
+  // every zone derived from it was pulled toward its own price.
   const ownPrices = competition.offers.filter((o) => o.inStock).map((o) => o.universalEffectiveMinor);
   const ownStats = ownPrices.length ? computeDistributionStats(ownPrices) : null;
-  const pool = [...ownPrices, ...compPrices].sort((a, b) => a - b);
-  const poolStats = computeDistributionStats(pool);
+
+  // The target enters the competitive pool ONCE, represented by its own median
+  // — the price its sellers converge on — and at full weight, because it is the
+  // one product whose market we have measured directly.
+  const poolRows = [];
+  if (ownStats) {
+    poolRows.push({ value: ownStats.median, weight: 1, identity: competitiveIdentityOf(target), isTarget: true });
+  }
+  for (const c of comps) {
+    poolRows.push({ value: c.currentPriceMinor, weight: c.evidenceWeight, identity: c.identity, isTarget: false });
+  }
+  const poolStats = weightedDistribution(poolRows) ?? computeDistributionStats(compPrices);
+  const pool = poolRows.map((r) => r.value).sort((a, b) => a - b);
+
   const zones = {
     poolSize: pool.length,
-    ownCount: ownPrices.length,
-    compCount: compPrices.length,
+    ownCount: ownStats ? 1 : 0,
+    compCount: comps.length,
+    grain: "one row per competitive identity — sellers, listings and variants of one product count once",
+    effectiveN: poolStats.effectiveN ?? pool.length,
     floorZoneMinor: poolStats.min,
     competitiveLowMinor: poolStats.q1,
     competitiveMidMinor: poolStats.median,
