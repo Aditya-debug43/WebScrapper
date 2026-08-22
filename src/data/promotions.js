@@ -1,3 +1,5 @@
+import { generatedPromotions } from "../utils/catalogueGenerator";
+
 // PROMOTIONS — the commercial incentives attached to an offer.
 //
 // The single most important idea in this file is `availabilityClass`. A naive
@@ -69,7 +71,13 @@ export function classOf(promotionType) {
   return CLASS_BY_TYPE[promotionType] ?? "conditional";
 }
 
-export const promotions = [
+// The curated promotions below are hand-authored against the demo products'
+// exact offer ids, and carry the irregular real-world detail (a specific bank,
+// a capped percentage, a named campaign) that a generator would smooth away.
+// Everything across the wider catalogue is generated per offer — see
+// utils/catalogueGenerator.js — and both sets flow through the same
+// availabilityClass resolution below.
+const curatedPromotions = [
   // ---------------- Galaxy M14 / Flipkart ----------------
   {
     id: "promo_wsretail_bank",
@@ -315,6 +323,8 @@ export const promotions = [
     validTo: "2026-08-31",
   },
 ];
+
+export const promotions = [...curatedPromotions, ...generatedPromotions];
 
 const byOfferId = (() => {
   const map = new Map();

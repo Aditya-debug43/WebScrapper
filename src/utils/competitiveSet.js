@@ -641,7 +641,7 @@ function buildCoverage({ members, direct, comparable, effective, candidatePool, 
   if (!meetsTarget) {
     const sameTypeTotal = candidatePool + 1;
     if (sameTypeTotal - 1 < P.target) {
-      shortfall = `Only ${sameTypeTotal - 1} other product${sameTypeTotal - 1 === 1 ? " of" : "s of"} this type is tracked at all, so ${P.target} direct competitors do not exist in the captured market yet. Capturing more of this product type is the fix — not loosening the screening.`;
+      shortfall = `Only ${sameTypeTotal - 1} other product${sameTypeTotal - 1 === 1 ? " of this type is" : "s of this type are"} tracked at all, so ${P.target} direct competitors do not exist in the captured market yet. Capturing more of this product type is the fix — not loosening the screening.`;
     } else {
       // Account for EVERY candidate that did not become a direct competitor, so
       // the arithmetic in this sentence closes. Reference-tier products are the

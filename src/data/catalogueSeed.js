@@ -22,7 +22,20 @@
 // mps: 'fk' Flipkart · 'az' Amazon.in · 'mh' Meesho
 // trend: 'down' (typical lifecycle decay) · 'flat' · 'up' (post-launch recovery)
 
-export const catalogueSeed = [
+import { breadthSeed } from "./catalogueSeedBreadth";
+import { homeSeed } from "./catalogueSeedHome";
+import { everydaySeed } from "./catalogueSeedEveryday";
+import { depthSeed } from "./catalogueSeedDepth";
+
+// The seed is authored across four files, split by department purely for
+// readability. They are concatenated here and expanded by ONE generator into
+// one entity graph — the split carries no structural meaning.
+//
+//   catalogueSeed.js (this file)  electronics, the original demo spine
+//   catalogueSeedBreadth.js       fashion, beauty & personal care
+//   catalogueSeedHome.js          home & kitchen, furniture, remaining electronics
+//   catalogueSeedEveryday.js      grocery, baby, books, auto, health, pet, tools, toys, sports
+const coreSeed = [
   // ============================== SMARTPHONES ==============================
   { id: "moto_g84", name: "Motorola G84 5G (12GB RAM, 256GB) — Viva Magenta", brand: "brand_motorola", ptype: "ptype_smartphone", variant: { ram: "12GB", storage: "256GB", colour: "Viva Magenta" },
     specs: { ram_gb: 12, storage_gb: 256, battery_mah: 5000, display_in: 6.55, rear_camera_mp: 50, processor: "Snapdragon 695", has_5g: true, refresh_rate_hz: 120, charging_w: 33 },
@@ -751,3 +764,6 @@ export const catalogueSeed = [
     specs: { capacity_mah: 20000, output_w: 22, ports: 3, has_fast_charging: true, weight_g: 425 },
     price: 1999, mrp: 3999, rating: 3.9, reviews: 6400, mps: ["fk", "mh"], sellers: 2, trend: "flat" },
 ];
+
+// One array, four source files.
+export const catalogueSeed = [...coreSeed, ...breadthSeed, ...homeSeed, ...everydaySeed, ...depthSeed];

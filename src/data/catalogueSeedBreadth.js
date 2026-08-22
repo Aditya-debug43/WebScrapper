@@ -1,0 +1,425 @@
+// CATALOGUE BREADTH SEED
+// ======================
+//
+// The original `catalogueSeed.js` proves the model works for electronics. This
+// file exists to prove it works for everything else — grocery, pet food,
+// stationery, automotive, toys, apparel, furniture — using the same seed
+// format, the same generator and the same entity graph, with no code path that
+// knows what a saree is.
+//
+// AUTHORING SHAPE
+// ---------------
+// `p()` is positional to keep 400+ rows readable at a glance; the columns are
+// always id, name, brand, product type, price, MRP, rating, reviews,
+// marketplaces, specs. `family()` expands a product line into sibling variants
+// under a shared non-purchasable parent, which is how size- and
+// capacity-variant families are modelled without restating the whole row.
+//
+// PRICE REALISM IS DELIBERATE, NOT DECORATIVE
+// -------------------------------------------
+// Prices are set per product type to reproduce the SHAPE of each category's
+// real market, because that shape is what the recommendation engine is being
+// tested against:
+//
+//   · Tight commodity markets (LED bulbs, notebooks, biscuits) cluster within a
+//     few tens of rupees — every product has many direct competitors and the
+//     engine should find a narrow, high-confidence band.
+//   · Segmented markets (running shoes, perfumes, mattresses) run from value to
+//     premium across an order of magnitude — the 0.6×–1.7× direct-competitor
+//     band should split these into genuinely separate competitive sets rather
+//     than treating the whole category as one market.
+//   · Thin premium markets (treadmills, DSLR-class action cameras, designer
+//     handbags) have few products at any given price point — these are the
+//     cases where the engine SHOULD report thin coverage and refuse to over-
+//     claim. They are here on purpose, not as a gap.
+//
+// `mps` uses short codes: fk Flipkart · az Amazon.in · mh Meesho · my Myntra
+// · aj AJIO · ny Nykaa. A product only lists where it would realistically sell.
+
+import { p, family, SIZES_APPAREL } from "./seedHelpers";
+
+export const breadthSeed = [
+  // ========================================================================
+  // FASHION — Men's clothing
+  // A high-competition, size-variant-heavy department. Almost every attribute
+  // is categorical, which is what the text-comparison path in specSimilarity
+  // exists for.
+  // ========================================================================
+  ...family("roadster_solid_tee", "Roadster Solid Cotton T-Shirt", "brand_roadster", "ptype_tshirt", 499, 999, 4.1, 26400, "fk mh my",
+    { fabric: "Cotton", fit: "Regular", sleeve: "Half Sleeve", neck: "Round Neck", pattern: "Solid" }, "size", SIZES_APPAREL, { trend: "down", sellers: 3 }),
+  ...family("hrx_active_tee", "HRX Active Training T-Shirt", "brand_hrx", "ptype_tshirt", 649, 1299, 4.0, 18900, "my fk",
+    { fabric: "Polyester", fit: "Slim", sleeve: "Half Sleeve", neck: "Round Neck", pattern: "Solid" }, "size", SIZES_APPAREL, { trend: "flat" }),
+  ...family("puma_essential_tee", "Puma Essentials Logo T-Shirt", "brand_puma", "ptype_tshirt", 899, 1499, 4.3, 12200, "my az fk",
+    { fabric: "Cotton", fit: "Regular", sleeve: "Half Sleeve", neck: "Round Neck", pattern: "Printed" }, "size", SIZES_APPAREL, { trend: "flat" }),
+  p("levis_batwing_tee", "Levi's Batwing Logo T-Shirt (M)", "brand_levis", "ptype_tshirt", 1099, 1799, 4.4, 8400, "my az",
+    { size: "M", fabric: "Cotton", fit: "Slim", sleeve: "Half Sleeve", neck: "Round Neck", pattern: "Printed" }, { trend: "down" }),
+  p("jockey_lounge_tee", "Jockey Cotton Lounge T-Shirt (M)", "brand_jockey", "ptype_tshirt", 599, 899, 4.2, 21500, "az fk",
+    { size: "M", fabric: "Cotton", fit: "Regular", sleeve: "Half Sleeve", neck: "Round Neck", pattern: "Solid" }),
+  p("wrogn_graphic_tee", "WROGN Graphic Print T-Shirt (L)", "brand_wrogn", "ptype_tshirt", 799, 1599, 4.0, 9600, "my fk",
+    { size: "L", fabric: "Cotton Blend", fit: "Slim", sleeve: "Half Sleeve", neck: "Round Neck", pattern: "Graphic" }),
+  p("us_polo_polo_tee", "U.S. Polo Assn. Pique Polo T-Shirt (L)", "brand_us_polo", "ptype_tshirt", 1299, 2199, 4.3, 7100, "my az",
+    { size: "L", fabric: "Cotton", fit: "Regular", sleeve: "Half Sleeve", neck: "Polo Neck", pattern: "Solid" }),
+  p("allen_solly_polo_tee", "Allen Solly Solid Polo T-Shirt (M)", "brand_allen_solly", "ptype_tshirt", 1149, 1999, 4.2, 5800, "my aj",
+    { size: "M", fabric: "Cotton", fit: "Slim", sleeve: "Half Sleeve", neck: "Polo Neck", pattern: "Solid" }),
+  p("max_basic_tee", "Max Basic Crew T-Shirt (M)", "brand_max", "ptype_tshirt", 349, 699, 3.9, 15600, "mh aj",
+    { size: "M", fabric: "Cotton", fit: "Regular", sleeve: "Half Sleeve", neck: "Round Neck", pattern: "Solid" }, { trend: "down" }),
+  p("peter_england_tee", "Peter England Textured T-Shirt (L)", "brand_peter_england", "ptype_tshirt", 699, 1299, 4.1, 6200, "my aj fk",
+    { size: "L", fabric: "Cotton", fit: "Regular", sleeve: "Half Sleeve", neck: "Round Neck", pattern: "Textured" }),
+
+  ...family("roadster_casual_shirt", "Roadster Checked Casual Shirt", "brand_roadster", "ptype_casual_shirt", 899, 1799, 4.0, 14200, "my fk mh",
+    { fabric: "Cotton", fit: "Regular", sleeve: "Full Sleeve", pattern: "Checked" }, "size", SIZES_APPAREL, { trend: "down" }),
+  p("levis_denim_shirt", "Levi's Denim Casual Shirt (M)", "brand_levis", "ptype_casual_shirt", 2199, 3499, 4.4, 4100, "my az",
+    { size: "M", fabric: "Denim", fit: "Slim", sleeve: "Full Sleeve", pattern: "Solid" }),
+  p("van_heusen_casual_shirt", "Van Heusen Linen Blend Shirt (L)", "brand_van_heusen", "ptype_casual_shirt", 1899, 3199, 4.3, 3600, "my aj",
+    { size: "L", fabric: "Linen Blend", fit: "Slim", sleeve: "Full Sleeve", pattern: "Solid" }),
+  p("wrogn_casual_shirt", "WROGN Printed Casual Shirt (M)", "brand_wrogn", "ptype_casual_shirt", 1299, 2599, 4.1, 5900, "my fk",
+    { size: "M", fabric: "Cotton Blend", fit: "Slim", sleeve: "Full Sleeve", pattern: "Printed" }),
+  p("max_casual_shirt", "Max Solid Cotton Casual Shirt (L)", "brand_max", "ptype_casual_shirt", 649, 1299, 3.8, 11400, "mh aj",
+    { size: "L", fabric: "Cotton", fit: "Regular", sleeve: "Full Sleeve", pattern: "Solid" }, { trend: "down" }),
+  p("us_polo_casual_shirt", "U.S. Polo Assn. Oxford Shirt (M)", "brand_us_polo", "ptype_casual_shirt", 1799, 2999, 4.3, 4700, "my az",
+    { size: "M", fabric: "Cotton", fit: "Regular", sleeve: "Full Sleeve", pattern: "Solid" }),
+  p("flying_machine_shirt", "Flying Machine Slim Casual Shirt (M)", "brand_flying_machine", "ptype_casual_shirt", 999, 1999, 3.9, 6800, "my aj",
+    { size: "M", fabric: "Cotton", fit: "Slim", sleeve: "Full Sleeve", pattern: "Checked" }),
+
+  p("louis_philippe_formal", "Louis Philippe Slim Formal Shirt (M)", "brand_louis_philippe", "ptype_formal_shirt", 2299, 3799, 4.4, 3900, "my az",
+    { size: "M", fabric: "Cotton", fit: "Slim", is_wrinkle_free: true, collar_type: "Spread" }),
+  p("van_heusen_formal", "Van Heusen Wrinkle-Free Formal Shirt (L)", "brand_van_heusen", "ptype_formal_shirt", 1999, 3299, 4.3, 5200, "my aj",
+    { size: "L", fabric: "Cotton", fit: "Slim", is_wrinkle_free: true, collar_type: "Spread" }),
+  p("arrow_formal_shirt", "Arrow Solid Formal Shirt (M)", "brand_arrow", "ptype_formal_shirt", 1799, 2999, 4.2, 4400, "my az fk",
+    { size: "M", fabric: "Cotton Blend", fit: "Regular", is_wrinkle_free: false, collar_type: "Classic" }),
+  p("peter_england_formal", "Peter England Formal Shirt (L)", "brand_peter_england", "ptype_formal_shirt", 999, 1799, 4.0, 12800, "my fk aj",
+    { size: "L", fabric: "Cotton Blend", fit: "Regular", is_wrinkle_free: false, collar_type: "Classic" }, { trend: "down" }),
+  p("allen_solly_formal", "Allen Solly Textured Formal Shirt (M)", "brand_allen_solly", "ptype_formal_shirt", 1599, 2699, 4.2, 3800, "my aj",
+    { size: "M", fabric: "Cotton", fit: "Slim", is_wrinkle_free: true, collar_type: "Spread" }),
+  p("max_formal_shirt", "Max Regular Formal Shirt (M)", "brand_max", "ptype_formal_shirt", 799, 1499, 3.8, 8900, "mh aj",
+    { size: "M", fabric: "Polyester Blend", fit: "Regular", is_wrinkle_free: false, collar_type: "Classic" }),
+
+  ...family("levis_511_jeans", "Levi's 511 Slim Fit Jeans", "brand_levis", "ptype_jeans", 3299, 4999, 4.5, 11200, "my az fk",
+    { fit: "Slim", fabric: "Denim", wash: "Dark Wash", is_stretchable: true }, "waist_in", [
+      { label: 30 }, { label: 32 }, { label: 34 }, { label: 36 },
+    ], { trend: "flat", sellers: 3, unit: "in waist" }),
+  p("pepe_slim_jeans", "Pepe Jeans Slim Fit Jeans (32)", "brand_pepe", "ptype_jeans", 2799, 4299, 4.3, 5600, "my aj",
+    { waist_in: 32, fit: "Slim", fabric: "Denim", wash: "Mid Wash", is_stretchable: true }),
+  p("wrangler_jeans", "Wrangler Skanders Slim Jeans (32)", "brand_wrangler", "ptype_jeans", 2199, 3599, 4.2, 4800, "my az",
+    { waist_in: 32, fit: "Slim", fabric: "Denim", wash: "Dark Wash", is_stretchable: true }),
+  p("lee_rider_jeans", "Lee Rider Slim Jeans (34)", "brand_lee", "ptype_jeans", 2399, 3999, 4.3, 4100, "my aj",
+    { waist_in: 34, fit: "Slim", fabric: "Denim", wash: "Mid Wash", is_stretchable: false }),
+  p("roadster_jeans", "Roadster Slim Fit Jeans (32)", "brand_roadster", "ptype_jeans", 1099, 2299, 4.0, 22400, "my fk mh",
+    { waist_in: 32, fit: "Slim", fabric: "Denim", wash: "Dark Wash", is_stretchable: true }, { trend: "down", sellers: 3 }),
+  p("hrx_jeans", "HRX Straight Fit Jeans (34)", "brand_hrx", "ptype_jeans", 1299, 2599, 3.9, 9800, "my fk",
+    { waist_in: 34, fit: "Straight", fabric: "Denim", wash: "Light Wash", is_stretchable: true }),
+  p("flying_machine_jeans", "Flying Machine Slim Jeans (30)", "brand_flying_machine", "ptype_jeans", 1499, 2999, 4.0, 7200, "my aj",
+    { waist_in: 30, fit: "Slim", fabric: "Denim", wash: "Mid Wash", is_stretchable: true }),
+  p("max_jeans", "Max Regular Fit Jeans (32)", "brand_max", "ptype_jeans", 899, 1799, 3.7, 13600, "mh aj",
+    { waist_in: 32, fit: "Regular", fabric: "Denim", wash: "Dark Wash", is_stretchable: false }, { trend: "down" }),
+
+  p("louis_philippe_trousers", "Louis Philippe Slim Formal Trousers (32)", "brand_louis_philippe", "ptype_trousers", 2199, 3699, 4.3, 3200, "my az",
+    { waist_in: 32, fit: "Slim", fabric: "Polyester Viscose", occasion: "Formal" }),
+  p("van_heusen_trousers", "Van Heusen Formal Trousers (34)", "brand_van_heusen", "ptype_trousers", 1899, 3199, 4.2, 3900, "my aj",
+    { waist_in: 34, fit: "Slim", fabric: "Polyester Viscose", occasion: "Formal" }),
+  p("peter_england_trousers", "Peter England Formal Trousers (32)", "brand_peter_england", "ptype_trousers", 1199, 2199, 4.0, 8600, "my fk aj",
+    { waist_in: 32, fit: "Regular", fabric: "Polyester Blend", occasion: "Formal" }, { trend: "down" }),
+  p("roadster_chinos", "Roadster Slim Chinos (32)", "brand_roadster", "ptype_trousers", 999, 1999, 3.9, 11400, "my fk mh",
+    { waist_in: 32, fit: "Slim", fabric: "Cotton", occasion: "Casual" }),
+  p("hrx_track_pants", "HRX Cotton Track Pants (L)", "brand_hrx", "ptype_trousers", 849, 1699, 4.0, 14200, "my fk",
+    { waist_in: 34, fit: "Regular", fabric: "Cotton", occasion: "Casual" }),
+  p("max_trousers", "Max Regular Trousers (34)", "brand_max", "ptype_trousers", 799, 1499, 3.8, 6900, "mh aj",
+    { waist_in: 34, fit: "Regular", fabric: "Polyester Blend", occasion: "Formal" }),
+
+  ...family("manyavar_kurta", "Manyavar Silk Blend Kurta", "brand_manyavar", "ptype_kurta", 2499, 3999, 4.4, 4600, "my az",
+    { fabric: "Silk Blend", sleeve: "Full Sleeve", occasion: "Festive", pattern: "Solid" }, "size", SIZES_APPAREL, { trend: "flat" }),
+  p("fabindia_kurta", "FabIndia Cotton Handloom Kurta (L)", "brand_fabindia", "ptype_kurta", 1899, 2799, 4.3, 3100, "my az",
+    { size: "L", fabric: "Cotton", sleeve: "Full Sleeve", occasion: "Casual", pattern: "Solid" }),
+  p("max_kurta", "Max Printed Cotton Kurta (M)", "brand_max", "ptype_kurta", 699, 1399, 3.9, 8200, "mh aj",
+    { size: "M", fabric: "Cotton", sleeve: "Full Sleeve", occasion: "Casual", pattern: "Printed" }, { trend: "down" }),
+  p("libas_kurta", "Libas Embroidered Kurta (M)", "brand_libas", "ptype_kurta", 1099, 2199, 4.1, 6400, "my mh",
+    { size: "M", fabric: "Cotton Blend", sleeve: "Three Quarter Sleeve", occasion: "Festive", pattern: "Embroidered" }),
+  p("peter_england_kurta", "Peter England Solid Kurta (L)", "brand_peter_england", "ptype_kurta", 1199, 2199, 4.0, 4300, "my aj",
+    { size: "L", fabric: "Cotton", sleeve: "Full Sleeve", occasion: "Festive", pattern: "Solid" }),
+
+  // -- Women's clothing
+  ...family("biba_printed_kurti", "BIBA Printed Straight Kurti", "brand_biba", "ptype_kurti", 1299, 2299, 4.2, 12800, "my az mh",
+    { fabric: "Cotton", kurti_length: "Knee Length", occasion: "Casual", pattern: "Printed" }, "size", SIZES_APPAREL, { trend: "down", sellers: 3 }),
+  p("w_solid_kurti", "W Solid A-Line Kurti (M)", "brand_w", "ptype_kurti", 1499, 2499, 4.3, 7600, "my az",
+    { size: "M", fabric: "Rayon", kurti_length: "Calf Length", occasion: "Casual", pattern: "Solid" }),
+  p("aurelia_kurti", "Aurelia Printed Anarkali Kurti (L)", "brand_aurelia", "ptype_kurti", 1099, 1999, 4.1, 9400, "my mh",
+    { size: "L", fabric: "Viscose", kurti_length: "Calf Length", occasion: "Festive", pattern: "Printed" }),
+  p("libas_kurti", "Libas Embroidered Kurti (M)", "brand_libas", "ptype_kurti", 899, 1799, 4.0, 15200, "mh my fk",
+    { size: "M", fabric: "Cotton Blend", kurti_length: "Knee Length", occasion: "Festive", pattern: "Embroidered" }, { trend: "down" }),
+  p("max_kurti", "Max Cotton Straight Kurti (M)", "brand_max", "ptype_kurti", 549, 1099, 3.8, 18600, "mh aj",
+    { size: "M", fabric: "Cotton", kurti_length: "Knee Length", occasion: "Casual", pattern: "Printed" }, { trend: "down", sellers: 3 }),
+  p("soch_kurti", "Soch Embroidered Kurti (L)", "brand_soch", "ptype_kurti", 1699, 2799, 4.2, 4200, "my az",
+    { size: "L", fabric: "Georgette", kurti_length: "Calf Length", occasion: "Festive", pattern: "Embroidered" }),
+  p("fabindia_kurti", "FabIndia Handloom Cotton Kurti (M)", "brand_fabindia", "ptype_kurti", 1799, 2599, 4.3, 3800, "my az",
+    { size: "M", fabric: "Cotton", kurti_length: "Knee Length", occasion: "Casual", pattern: "Solid" }),
+
+  p("soch_banarasi_saree", "Soch Banarasi Silk Saree", "brand_soch", "ptype_saree", 4999, 8999, 4.4, 2600, "my az",
+    { fabric: "Silk", saree_length_m: 5.5, occasion: "Wedding", has_blouse_piece: true, work_type: "Zari" }),
+  p("biba_georgette_saree", "BIBA Printed Georgette Saree", "brand_biba", "ptype_saree", 2299, 3999, 4.1, 4100, "my mh",
+    { fabric: "Georgette", saree_length_m: 5.5, occasion: "Party", has_blouse_piece: true, work_type: "Printed" }),
+  p("libas_cotton_saree", "Libas Cotton Blend Saree", "brand_libas", "ptype_saree", 1199, 2399, 4.0, 9800, "mh my",
+    { fabric: "Cotton Blend", saree_length_m: 5.5, occasion: "Daily", has_blouse_piece: true, work_type: "Printed" }, { trend: "down" }),
+  p("mh_chiffon_saree", "Vishudh Chiffon Printed Saree", "brand_max", "ptype_saree", 799, 1799, 3.7, 16400, "mh",
+    { fabric: "Chiffon", saree_length_m: 5.5, occasion: "Daily", has_blouse_piece: false, work_type: "Printed" }, { trend: "down", sellers: 3 }),
+  p("fabindia_silk_saree", "FabIndia Handwoven Silk Saree", "brand_fabindia", "ptype_saree", 6499, 9999, 4.5, 1400, "my az",
+    { fabric: "Silk", saree_length_m: 6.3, occasion: "Wedding", has_blouse_piece: true, work_type: "Handwoven" }),
+  p("manyavar_saree", "Manyavar Mohey Embellished Saree", "brand_manyavar", "ptype_saree", 5499, 8499, 4.3, 1800, "my",
+    { fabric: "Silk Blend", saree_length_m: 5.5, occasion: "Wedding", has_blouse_piece: true, work_type: "Embellished" }),
+
+  ...family("max_aline_dress", "Max A-Line Printed Dress", "brand_max", "ptype_dress", 899, 1799, 3.9, 11200, "mh aj my",
+    { fabric: "Rayon", dress_length: "Knee Length", occasion: "Casual", pattern: "Printed" }, "size", SIZES_APPAREL, { trend: "down" }),
+  p("w_maxi_dress", "W Solid Maxi Dress (M)", "brand_w", "ptype_dress", 2199, 3499, 4.2, 3400, "my az",
+    { size: "M", fabric: "Viscose", dress_length: "Maxi", occasion: "Party", pattern: "Solid" }),
+  p("biba_dress", "BIBA Printed Midi Dress (L)", "brand_biba", "ptype_dress", 1799, 2999, 4.1, 4600, "my mh",
+    { size: "L", fabric: "Cotton", dress_length: "Midi", occasion: "Casual", pattern: "Printed" }),
+  p("aurelia_dress", "Aurelia Fit and Flare Dress (M)", "brand_aurelia", "ptype_dress", 1299, 2299, 4.0, 6100, "my mh",
+    { size: "M", fabric: "Rayon", dress_length: "Knee Length", occasion: "Casual", pattern: "Solid" }),
+  p("soch_party_dress", "Soch Embellished Party Dress (M)", "brand_soch", "ptype_dress", 2799, 4499, 4.2, 2100, "my",
+    { size: "M", fabric: "Georgette", dress_length: "Midi", occasion: "Party", pattern: "Embellished" }),
+
+  p("jockey_leggings", "Jockey Cotton Ankle Leggings (M)", "brand_jockey", "ptype_leggings", 649, 999, 4.3, 18400, "az fk my",
+    { size: "M", fabric: "Cotton", waist_type: "Elasticated", pack_size: 1 }),
+  p("libas_leggings", "Libas Churidar Leggings (L)", "brand_libas", "ptype_leggings", 449, 899, 4.0, 22600, "mh my",
+    { size: "L", fabric: "Cotton Blend", waist_type: "Elasticated", pack_size: 1 }, { trend: "down" }),
+  p("max_leggings_pack", "Max Ankle Leggings Pack of 2 (M)", "brand_max", "ptype_leggings", 599, 1299, 3.8, 26800, "mh aj",
+    { size: "M", fabric: "Cotton Blend", waist_type: "Elasticated", pack_size: 2 }, { trend: "down", sellers: 3 }),
+  p("aurelia_leggings", "Aurelia Solid Ankle Leggings (M)", "brand_aurelia", "ptype_leggings", 549, 999, 4.1, 12400, "my mh",
+    { size: "M", fabric: "Cotton", waist_type: "Elasticated", pack_size: 1 }),
+  p("w_leggings", "W Ankle Length Leggings (L)", "brand_w", "ptype_leggings", 799, 1299, 4.2, 8600, "my az",
+    { size: "L", fabric: "Cotton Lycra", waist_type: "Elasticated", pack_size: 1 }),
+
+  // -- Footwear. A textbook segmented market: ₹899 to ₹12,999 in one product
+  // type, which the 0.6×–1.7× band should split into distinct competitive sets.
+  p("sparx_running", "Sparx Mesh Running Shoes", "brand_sparx", "ptype_running_shoes", 999, 1799, 3.9, 28600, "fk mh",
+    { size_uk: 8, gender: "Men", upper_material: "Mesh", sole_material: "EVA", use_type: "Running", weight_g: 305, has_cushioning: false }, { trend: "down" }),
+  p("puma_flyer_runner", "Puma Flyer Runner Shoes", "brand_puma", "ptype_running_shoes", 2599, 3999, 4.2, 18400, "my az fk",
+    { size_uk: 9, gender: "Men", upper_material: "Mesh", sole_material: "Rubber", use_type: "Running", weight_g: 275, has_cushioning: true }),
+  p("adidas_galaxy", "Adidas Galaxy 6 Running Shoes", "brand_adidas", "ptype_running_shoes", 3999, 5999, 4.4, 12800, "my az",
+    { size_uk: 9, gender: "Men", upper_material: "Mesh", sole_material: "EVA", use_type: "Running", weight_g: 265, has_cushioning: true }),
+  p("nike_revolution", "Nike Revolution 7 Running Shoes", "brand_nike", "ptype_running_shoes", 4295, 5495, 4.5, 9600, "my az",
+    { size_uk: 9, gender: "Men", upper_material: "Mesh", sole_material: "Rubber", use_type: "Running", weight_g: 258, has_cushioning: true }),
+  p("reebok_energen", "Reebok Energen Run Shoes", "brand_reebok", "ptype_running_shoes", 2999, 4999, 4.1, 7400, "my az fk",
+    { size_uk: 8, gender: "Men", upper_material: "Mesh", sole_material: "EVA", use_type: "Running", weight_g: 280, has_cushioning: true }),
+  p("asics_gel_contend", "ASICS Gel-Contend 8 Running Shoes", "brand_asics", "ptype_running_shoes", 5999, 7999, 4.6, 3200, "my az",
+    { size_uk: 9, gender: "Men", upper_material: "Mesh", sole_material: "Rubber", use_type: "Running", weight_g: 262, has_cushioning: true }),
+  p("nb_fresh_foam", "New Balance Fresh Foam Arishi Shoes", "brand_new_balance", "ptype_running_shoes", 6999, 9999, 4.5, 1800, "my az",
+    { size_uk: 9, gender: "Men", upper_material: "Knit", sole_material: "Rubber", use_type: "Running", weight_g: 255, has_cushioning: true }),
+  p("hrx_running", "HRX Sprint Running Shoes", "brand_hrx", "ptype_running_shoes", 1499, 2999, 3.9, 16200, "my fk",
+    { size_uk: 8, gender: "Men", upper_material: "Mesh", sole_material: "EVA", use_type: "Running", weight_g: 298, has_cushioning: true }, { trend: "down" }),
+  p("decathlon_run100", "Decathlon Run 100 Shoes", "brand_decathlon", "ptype_running_shoes", 1299, 1499, 4.1, 9800, "az",
+    { size_uk: 8, gender: "Men", upper_material: "Mesh", sole_material: "EVA", use_type: "Running", weight_g: 288, has_cushioning: false }),
+
+  p("puma_smash_sneakers", "Puma Smash V2 Sneakers", "brand_puma", "ptype_sneakers", 2799, 4499, 4.3, 21400, "my az fk",
+    { size_uk: 9, gender: "Men", upper_material: "Leather", closure: "Lace-Up", sole_material: "Rubber" }),
+  p("adidas_grand_court", "Adidas Grand Court Sneakers", "brand_adidas", "ptype_sneakers", 3499, 5599, 4.4, 14200, "my az",
+    { size_uk: 9, gender: "Men", upper_material: "Synthetic Leather", closure: "Lace-Up", sole_material: "Rubber" }),
+  p("campus_sneakers", "Campus Casual Sneakers", "brand_campus", "ptype_sneakers", 1099, 1899, 3.9, 26800, "fk mh",
+    { size_uk: 8, gender: "Men", upper_material: "Canvas", closure: "Lace-Up", sole_material: "EVA" }, { trend: "down", sellers: 3 }),
+  p("nike_court_vision", "Nike Court Vision Low Sneakers", "brand_nike", "ptype_sneakers", 4795, 6495, 4.5, 8600, "my az",
+    { size_uk: 9, gender: "Men", upper_material: "Leather", closure: "Lace-Up", sole_material: "Rubber" }),
+  p("skechers_sneakers", "Skechers Summits Walking Sneakers", "brand_skechers", "ptype_sneakers", 4499, 6999, 4.5, 5400, "my az",
+    { size_uk: 9, gender: "Men", upper_material: "Mesh", closure: "Slip-On", sole_material: "Rubber" }),
+  p("bata_sneakers", "Bata Comfit Casual Sneakers", "brand_bata", "ptype_sneakers", 1299, 2199, 3.8, 11200, "fk mh",
+    { size_uk: 8, gender: "Men", upper_material: "Synthetic", closure: "Lace-Up", sole_material: "PVC" }),
+  p("crocs_literide", "Crocs LiteRide Slip-On Sneakers", "brand_crocs", "ptype_sneakers", 5495, 6995, 4.4, 3100, "my az",
+    { size_uk: 9, gender: "Unisex", upper_material: "Croslite", closure: "Slip-On", sole_material: "Croslite" }),
+
+  p("bata_formal_derby", "Bata Formal Derby Shoes", "brand_bata", "ptype_formal_shoes", 1799, 2999, 4.0, 9400, "fk az mh",
+    { size_uk: 8, upper_material: "Synthetic Leather", closure: "Lace-Up", toe_shape: "Round", is_genuine_leather: false }),
+  p("red_tape_formal", "Red Tape Leather Formal Shoes", "brand_red_tape", "ptype_formal_shoes", 2799, 4999, 4.2, 6800, "my az",
+    { size_uk: 9, upper_material: "Genuine Leather", closure: "Lace-Up", toe_shape: "Round", is_genuine_leather: true }),
+  p("woodland_formal", "Woodland Leather Derby Shoes", "brand_woodland", "ptype_formal_shoes", 3999, 5999, 4.3, 3600, "my az",
+    { size_uk: 9, upper_material: "Genuine Leather", closure: "Lace-Up", toe_shape: "Square", is_genuine_leather: true }),
+  p("liberty_formal", "Liberty Fortune Formal Shoes", "brand_liberty", "ptype_formal_shoes", 1299, 2199, 3.8, 7200, "fk mh",
+    { size_uk: 8, upper_material: "Synthetic Leather", closure: "Slip-On", toe_shape: "Round", is_genuine_leather: false }, { trend: "down" }),
+  p("hidesign_formal", "Hidesign Handcrafted Oxford Shoes", "brand_hidesign", "ptype_formal_shoes", 7999, 10999, 4.5, 900, "my az",
+    { size_uk: 9, upper_material: "Genuine Leather", closure: "Lace-Up", toe_shape: "Cap Toe", is_genuine_leather: true }),
+
+  p("paragon_sandals", "Paragon Everyday Sandals", "brand_paragon", "ptype_sandals", 449, 799, 3.8, 42000, "fk mh",
+    { size_uk: 8, gender: "Men", material: "EVA", closure: "Slip-On" }, { trend: "down", sellers: 3 }),
+  p("bata_sandals", "Bata Comfort Sandals", "brand_bata", "ptype_sandals", 899, 1499, 4.0, 18600, "fk az mh",
+    { size_uk: 8, gender: "Men", material: "Synthetic", closure: "Velcro" }),
+  p("woodland_sandals", "Woodland Leather Trekking Sandals", "brand_woodland", "ptype_sandals", 2499, 3995, 4.3, 5200, "my az",
+    { size_uk: 9, gender: "Men", material: "Genuine Leather", closure: "Velcro" }),
+  p("crocs_classic", "Crocs Classic Clog Sandals", "brand_crocs", "ptype_sandals", 3495, 4495, 4.4, 8900, "my az",
+    { size_uk: 9, gender: "Unisex", material: "Croslite", closure: "Slip-On" }),
+  p("sparx_sandals", "Sparx Floater Sandals", "brand_sparx", "ptype_sandals", 699, 1299, 3.9, 24800, "fk mh",
+    { size_uk: 8, gender: "Men", material: "EVA", closure: "Velcro" }, { trend: "down" }),
+
+  // -- Bags & accessories
+  p("wildcraft_backpack", "Wildcraft Trident Laptop Backpack", "brand_wildcraft", "ptype_backpack", 1499, 2599, 4.2, 22400, "az fk my",
+    { capacity_l: 35, material: "Polyester", has_laptop_sleeve: true, is_water_resistant: true, compartments: 3 }),
+  p("american_tourister_bp", "American Tourister Zook Backpack", "brand_american_tourister", "ptype_backpack", 1299, 2400, 4.1, 18600, "az fk",
+    { capacity_l: 32, material: "Polyester", has_laptop_sleeve: true, is_water_resistant: false, compartments: 2 }),
+  p("skybags_backpack", "Skybags Brat Casual Backpack", "brand_skybags", "ptype_backpack", 899, 1799, 4.0, 26200, "fk az mh",
+    { capacity_l: 30, material: "Polyester", has_laptop_sleeve: false, is_water_resistant: false, compartments: 2 }, { trend: "down", sellers: 3 }),
+  p("safari_backpack", "Safari Duo Laptop Backpack", "brand_safari", "ptype_backpack", 799, 1699, 3.9, 21400, "fk mh",
+    { capacity_l: 30, material: "Polyester", has_laptop_sleeve: true, is_water_resistant: false, compartments: 2 }, { trend: "down" }),
+  p("puma_backpack", "Puma Phase Backpack", "brand_puma", "ptype_backpack", 1199, 1999, 4.2, 12800, "my az",
+    { capacity_l: 22, material: "Polyester", has_laptop_sleeve: true, is_water_resistant: false, compartments: 2 }),
+  p("wildcraft_daypack", "Wildcraft Hypadura Daypack", "brand_wildcraft", "ptype_backpack", 2299, 3499, 4.3, 6400, "az my",
+    { capacity_l: 44, material: "Nylon", has_laptop_sleeve: true, is_water_resistant: true, compartments: 4 }),
+
+  p("lavie_handbag", "Lavie Structured Tote Handbag", "brand_lavie", "ptype_handbag", 1899, 3299, 4.1, 9600, "my az",
+    { material: "Synthetic Leather", bag_type: "Tote", closure: "Zip", compartments: 3 }),
+  p("baggit_handbag", "Baggit Shoulder Handbag", "brand_baggit", "ptype_handbag", 1299, 2299, 4.0, 12400, "my fk",
+    { material: "Synthetic Leather", bag_type: "Shoulder Bag", closure: "Zip", compartments: 2 }),
+  p("hidesign_handbag", "Hidesign Leather Satchel", "brand_hidesign", "ptype_handbag", 5999, 8499, 4.5, 1600, "my az",
+    { material: "Genuine Leather", bag_type: "Satchel", closure: "Flap", compartments: 3 }),
+  p("caprese_handbag", "Lavie Quilted Sling Bag", "brand_lavie", "ptype_handbag", 999, 1999, 4.0, 14800, "mh my",
+    { material: "Synthetic Leather", bag_type: "Sling Bag", closure: "Zip", compartments: 1 }, { trend: "down" }),
+
+  p("hidesign_wallet", "Hidesign Leather Bifold Wallet", "brand_hidesign", "ptype_wallet", 2199, 2995, 4.4, 3200, "my az",
+    { material: "Genuine Leather", card_slots: 8, has_rfid_block: true, wallet_type: "Bifold" }),
+  p("wildhorn_wallet", "Wildcraft Leather Wallet", "brand_wildcraft", "ptype_wallet", 699, 1499, 4.1, 18600, "az fk",
+    { material: "Genuine Leather", card_slots: 6, has_rfid_block: true, wallet_type: "Bifold" }),
+  p("baggit_wallet", "Baggit Everyday Wallet", "brand_baggit", "ptype_wallet", 499, 999, 3.9, 12200, "fk mh",
+    { material: "Synthetic Leather", card_slots: 5, has_rfid_block: false, wallet_type: "Bifold" }, { trend: "down" }),
+  p("levis_wallet", "Levi's Leather Card Wallet", "brand_levis", "ptype_wallet", 1299, 1999, 4.3, 4800, "my az",
+    { material: "Genuine Leather", card_slots: 6, has_rfid_block: false, wallet_type: "Card Holder" }),
+
+  p("rayban_aviator", "Ray-Ban Classic Aviator Sunglasses", "brand_rayban", "ptype_sunglasses", 7490, 8990, 4.6, 4200, "my az",
+    { frame_shape: "Aviator", frame_material: "Metal", is_polarised: true, uv_protection: "UV400" }),
+  p("vincent_chase_wayfarer", "Vincent Chase Wayfarer Sunglasses", "brand_vincent_chase", "ptype_sunglasses", 1299, 2500, 4.2, 16800, "az my",
+    { frame_shape: "Wayfarer", frame_material: "Acetate", is_polarised: true, uv_protection: "UV400" }),
+  p("fastrack_sunglasses", "Fastrack Wayfarer Sunglasses", "brand_fastrack", "ptype_sunglasses", 999, 1799, 4.1, 22400, "fk az my",
+    { frame_shape: "Wayfarer", frame_material: "Plastic", is_polarised: false, uv_protection: "UV380" }, { trend: "down" }),
+  p("rayban_round", "Ray-Ban Round Metal Sunglasses", "brand_rayban", "ptype_sunglasses", 8490, 9990, 4.5, 2100, "my az",
+    { frame_shape: "Round", frame_material: "Metal", is_polarised: false, uv_protection: "UV400" }),
+
+  // ========================================================================
+  // BEAUTY & PERSONAL CARE
+  // Nykaa carries most of this; Meesho and Myntra carry parts of it. A very
+  // price-sensitive department with tight clusters at the low end.
+  // ========================================================================
+  p("fogg_scent_xpressio", "Fogg Scent Xpressio Perfume (100 ml)", "brand_fogg", "ptype_perfume", 399, 599, 4.1, 52700, "fk az mh ny",
+    { volume_ml: 100, concentration: "Eau de Parfum", fragrance_family: "Woody", gender: "Men", longevity_hours: 8 }, { trend: "down", sellers: 3 }),
+  p("villain_perfume", "Villain Bold Perfume (100 ml)", "brand_villain", "ptype_perfume", 799, 1299, 4.1, 18900, "az ny",
+    { volume_ml: 100, concentration: "Eau de Parfum", fragrance_family: "Woody", gender: "Men", longevity_hours: 8 }),
+  p("ck_one", "Calvin Klein CK One EDT (100 ml)", "brand_calvin_klein", "ptype_perfume", 4299, 6500, 4.5, 3400, "ny az my",
+    { volume_ml: 100, concentration: "Eau de Toilette", fragrance_family: "Citrus", gender: "Unisex", longevity_hours: 6 }),
+  p("engage_perfume", "Engage Moments Perfume (100 ml)", "brand_engage", "ptype_perfume", 449, 699, 4.0, 26400, "az fk mh",
+    { volume_ml: 100, concentration: "Eau de Parfum", fragrance_family: "Floral", gender: "Women", longevity_hours: 6 }),
+  p("fogg_deo", "Fogg Fresh Deodorant (150 ml)", "brand_fogg", "ptype_deodorant", 219, 299, 4.1, 68400, "az fk mh",
+    { volume_ml: 150, gender: "Men", form: "Spray", is_alcohol_free: false }, { trend: "down", sellers: 3 }),
+  p("wild_stone_deo", "Wild Stone Code Platinum Deodorant (150 ml)", "brand_wild_stone", "ptype_deodorant", 199, 275, 4.0, 42600, "az fk mh",
+    { volume_ml: 150, gender: "Men", form: "Spray", is_alcohol_free: false }, { trend: "down" }),
+  p("engage_deo", "Engage Urge Deodorant (150 ml)", "brand_engage", "ptype_deodorant", 189, 260, 4.0, 38200, "az fk",
+    { volume_ml: 150, gender: "Men", form: "Spray", is_alcohol_free: false }),
+  p("nivea_deo", "NIVEA Fresh Active Deodorant (150 ml)", "brand_nivea", "ptype_deodorant", 249, 320, 4.2, 24800, "az ny fk",
+    { volume_ml: 150, gender: "Men", form: "Spray", is_alcohol_free: true }),
+  p("denver_deo", "Denver Hamilton Deodorant (165 ml)", "brand_denver", "ptype_deodorant", 179, 250, 3.9, 34600, "az fk mh",
+    { volume_ml: 165, gender: "Men", form: "Spray", is_alcohol_free: false }, { trend: "down" }),
+
+  p("himalaya_face_wash", "Himalaya Neem Face Wash (150 ml)", "brand_himalaya", "ptype_face_wash", 165, 200, 4.3, 84200, "az ny fk mh",
+    { volume_ml: 150, skin_type: "Oily", key_ingredient: "Neem", is_sulphate_free: false }, { trend: "flat", sellers: 3 }),
+  p("mamaearth_face_wash", "Mamaearth Ubtan Face Wash (100 ml)", "brand_mamaearth", "ptype_face_wash", 249, 349, 4.2, 46800, "ny az",
+    { volume_ml: 100, skin_type: "All", key_ingredient: "Turmeric", is_sulphate_free: true }),
+  p("cetaphil_cleanser", "Cetaphil Gentle Skin Cleanser (125 ml)", "brand_cetaphil", "ptype_face_wash", 399, 475, 4.5, 32400, "ny az",
+    { volume_ml: 125, skin_type: "Sensitive", key_ingredient: "Glycerin", is_sulphate_free: true }),
+  p("minimalist_face_wash", "Minimalist Salicylic Face Wash (100 ml)", "brand_minimalist", "ptype_face_wash", 349, 399, 4.4, 21600, "ny az",
+    { volume_ml: 100, skin_type: "Oily", key_ingredient: "Salicylic Acid", is_sulphate_free: true }),
+  p("ponds_face_wash", "POND'S Bright Beauty Face Wash (100 g)", "brand_ponds", "ptype_face_wash", 149, 199, 4.1, 56200, "az fk mh ny",
+    { volume_ml: 100, skin_type: "All", key_ingredient: "Vitamin B3", is_sulphate_free: false }, { trend: "down" }),
+  p("wow_face_wash", "WOW Vitamin C Face Wash (100 ml)", "brand_wow", "ptype_face_wash", 229, 399, 4.0, 28400, "az ny",
+    { volume_ml: 100, skin_type: "All", key_ingredient: "Vitamin C", is_sulphate_free: true }, { trend: "down" }),
+  p("derma_co_face_wash", "The Derma Co Salicylic Face Wash (100 ml)", "brand_derma_co", "ptype_face_wash", 299, 399, 4.3, 18200, "ny az",
+    { volume_ml: 100, skin_type: "Oily", key_ingredient: "Salicylic Acid", is_sulphate_free: true }),
+
+  p("nivea_moisturiser", "NIVEA Soft Light Moisturiser (200 ml)", "brand_nivea", "ptype_moisturiser", 299, 399, 4.3, 48600, "az ny fk",
+    { volume_ml: 200, skin_type: "All", key_ingredient: "Jojoba Oil", texture: "Cream" }),
+  p("cetaphil_moisturiser", "Cetaphil Moisturising Lotion (250 ml)", "brand_cetaphil", "ptype_moisturiser", 799, 949, 4.5, 22400, "ny az",
+    { volume_ml: 250, skin_type: "Sensitive", key_ingredient: "Glycerin", texture: "Lotion" }),
+  p("ponds_moisturiser", "POND'S Super Light Gel (147 ml)", "brand_ponds", "ptype_moisturiser", 279, 350, 4.2, 38400, "az fk ny mh",
+    { volume_ml: 147, skin_type: "Oily", key_ingredient: "Hyaluronic Acid", texture: "Gel" }, { trend: "down" }),
+  p("minimalist_moisturiser", "Minimalist Sepicalm Moisturiser (50 g)", "brand_minimalist", "ptype_moisturiser", 449, 549, 4.4, 14200, "ny az",
+    { volume_ml: 50, skin_type: "Sensitive", key_ingredient: "Niacinamide", texture: "Cream" }),
+  p("plum_moisturiser", "Plum Green Tea Oil-Free Moisturiser (50 ml)", "brand_plum", "ptype_moisturiser", 399, 475, 4.2, 16800, "ny az",
+    { volume_ml: 50, skin_type: "Oily", key_ingredient: "Green Tea", texture: "Gel" }),
+
+  p("mamaearth_sunscreen", "Mamaearth Ultra Light Sunscreen SPF 50 (80 ml)", "brand_mamaearth", "ptype_sunscreen", 349, 499, 4.2, 34200, "ny az",
+    { spf: 50, volume_ml: 80, skin_type: "All", is_water_resistant: true }),
+  p("neutrogena_sunscreen", "Neutrogena Ultra Sheer SPF 50 (88 ml)", "brand_neutrogena", "ptype_sunscreen", 749, 899, 4.5, 18600, "ny az",
+    { spf: 50, volume_ml: 88, skin_type: "All", is_water_resistant: true }),
+  p("aqualogica_sunscreen", "Aqualogica Glow+ Sunscreen SPF 50 (50 g)", "brand_aqualogica", "ptype_sunscreen", 399, 499, 4.3, 22800, "ny az",
+    { spf: 50, volume_ml: 50, skin_type: "Dry", is_water_resistant: false }),
+  p("minimalist_sunscreen", "Minimalist SPF 50 Sunscreen (50 g)", "brand_minimalist", "ptype_sunscreen", 419, 499, 4.4, 16400, "ny az",
+    { spf: 50, volume_ml: 50, skin_type: "All", is_water_resistant: false }),
+  p("derma_co_sunscreen", "The Derma Co SPF 50 Sunscreen (50 g)", "brand_derma_co", "ptype_sunscreen", 379, 449, 4.2, 14800, "ny az",
+    { spf: 50, volume_ml: 50, skin_type: "Oily", is_water_resistant: true }),
+
+  p("minimalist_serum", "Minimalist Niacinamide 10% Serum (30 ml)", "brand_minimalist", "ptype_face_serum", 549, 699, 4.4, 42600, "ny az",
+    { volume_ml: 30, key_ingredient: "Niacinamide", concentration_pct: 10, skin_concern: "Acne" }),
+  p("derma_co_serum", "The Derma Co Vitamin C Serum (30 ml)", "brand_derma_co", "ptype_face_serum", 499, 699, 4.3, 36400, "ny az",
+    { volume_ml: 30, key_ingredient: "Vitamin C", concentration_pct: 20, skin_concern: "Dullness" }),
+  p("dot_key_serum", "Dot & Key Vitamin C Serum (30 ml)", "brand_dot_key", "ptype_face_serum", 595, 795, 4.3, 21400, "ny az",
+    { volume_ml: 30, key_ingredient: "Vitamin C", concentration_pct: 15, skin_concern: "Dullness" }),
+  p("plum_serum", "Plum 15% Vitamin C Serum (20 ml)", "brand_plum", "ptype_face_serum", 675, 850, 4.2, 18600, "ny az",
+    { volume_ml: 20, key_ingredient: "Vitamin C", concentration_pct: 15, skin_concern: "Dullness" }),
+  p("wow_serum", "WOW Hyaluronic Acid Serum (30 ml)", "brand_wow", "ptype_face_serum", 399, 799, 4.0, 24800, "az ny",
+    { volume_ml: 30, key_ingredient: "Hyaluronic Acid", concentration_pct: 2, skin_concern: "Dryness" }, { trend: "down" }),
+
+  p("lakme_lipstick", "Lakmé Absolute Matte Lipstick", "brand_lakme", "ptype_lipstick", 649, 800, 4.2, 32400, "ny az my",
+    { finish: "Matte", shade_family: "Red", weight_g: 3.7, is_transfer_proof: true }),
+  p("maybelline_lipstick", "Maybelline Superstay Matte Ink", "brand_maybelline", "ptype_lipstick", 599, 799, 4.4, 46200, "ny az my",
+    { finish: "Matte", shade_family: "Nude", weight_g: 5, is_transfer_proof: true }),
+  p("sugar_lipstick", "SUGAR Matte As Hell Crayon Lipstick", "brand_sugar", "ptype_lipstick", 549, 649, 4.3, 28600, "ny my",
+    { finish: "Matte", shade_family: "Pink", weight_g: 2.8, is_transfer_proof: true }),
+  p("colorbar_lipstick", "Colorbar Velvet Matte Lipstick", "brand_colorbar", "ptype_lipstick", 449, 625, 4.1, 18400, "ny az",
+    { finish: "Matte", shade_family: "Red", weight_g: 4.2, is_transfer_proof: false }),
+  p("faces_lipstick", "Faces Canada Comfy Matte Lipstick", "brand_faces_canada", "ptype_lipstick", 349, 499, 4.0, 14600, "ny az",
+    { finish: "Matte", shade_family: "Nude", weight_g: 4, is_transfer_proof: false }, { trend: "down" }),
+  p("loreal_lipstick", "L'Oréal Paris Rouge Signature Lipstick", "brand_loreal", "ptype_lipstick", 849, 1099, 4.4, 16200, "ny az",
+    { finish: "Matte", shade_family: "Berry", weight_g: 7, is_transfer_proof: true }),
+
+  p("lakme_foundation", "Lakmé 9to5 Weightless Mousse Foundation", "brand_lakme", "ptype_foundation", 749, 950, 4.2, 22800, "ny az my",
+    { coverage: "Medium", finish: "Matte", volume_ml: 25, has_spf: false }),
+  p("maybelline_foundation", "Maybelline Fit Me Matte Foundation", "brand_maybelline", "ptype_foundation", 599, 799, 4.4, 38600, "ny az my",
+    { coverage: "Medium", finish: "Matte", volume_ml: 30, has_spf: false }),
+  p("loreal_foundation", "L'Oréal Paris Infallible Foundation", "brand_loreal", "ptype_foundation", 1049, 1399, 4.3, 12400, "ny az",
+    { coverage: "Full", finish: "Matte", volume_ml: 30, has_spf: true }),
+  p("colorbar_foundation", "Colorbar Perfect Match Foundation", "brand_colorbar", "ptype_foundation", 799, 1050, 4.0, 8600, "ny",
+    { coverage: "Medium", finish: "Dewy", volume_ml: 25, has_spf: true }),
+
+  p("dove_shampoo", "Dove Intense Repair Shampoo (650 ml)", "brand_dove", "ptype_shampoo", 549, 720, 4.3, 42800, "az fk ny mh",
+    { volume_ml: 650, hair_type: "Damaged", key_ingredient: "Keratin", is_sulphate_free: false }),
+  p("tresemme_shampoo", "TRESemmé Keratin Smooth Shampoo (580 ml)", "brand_tresemme", "ptype_shampoo", 519, 690, 4.2, 38200, "az fk ny",
+    { volume_ml: 580, hair_type: "Frizzy", key_ingredient: "Keratin", is_sulphate_free: false }),
+  p("head_shoulders_shampoo", "Head & Shoulders Anti-Dandruff Shampoo (650 ml)", "brand_head_shoulders", "ptype_shampoo", 599, 780, 4.3, 34600, "az fk ny",
+    { volume_ml: 650, hair_type: "Dandruff Prone", key_ingredient: "Zinc Pyrithione", is_sulphate_free: false }),
+  p("mamaearth_shampoo", "Mamaearth Onion Shampoo (400 ml)", "brand_mamaearth", "ptype_shampoo", 449, 599, 4.1, 46400, "ny az",
+    { volume_ml: 400, hair_type: "Hairfall Prone", key_ingredient: "Onion Oil", is_sulphate_free: true }),
+  p("pantene_shampoo", "Pantene Advanced Hairfall Shampoo (650 ml)", "brand_pantene", "ptype_shampoo", 529, 699, 4.2, 32800, "az fk mh",
+    { volume_ml: 650, hair_type: "Hairfall Prone", key_ingredient: "Pro-Vitamin B5", is_sulphate_free: false }, { trend: "down" }),
+  p("wow_shampoo", "WOW Apple Cider Vinegar Shampoo (500 ml)", "brand_wow", "ptype_shampoo", 449, 999, 4.0, 28200, "az ny",
+    { volume_ml: 500, hair_type: "All", key_ingredient: "Apple Cider Vinegar", is_sulphate_free: true }, { trend: "down" }),
+
+  p("parachute_hair_oil", "Parachute Advansed Coconut Hair Oil (400 ml)", "brand_parachute", "ptype_hair_oil", 199, 250, 4.3, 68400, "az fk mh ny",
+    { volume_ml: 400, base_oil: "Coconut Oil", hair_concern: "Dryness", is_mineral_oil_free: true }, { trend: "flat", sellers: 3 }),
+  p("indulekha_bringha", "Indulekha Bringha Hair Oil (100 ml)", "brand_indulekha", "ptype_hair_oil", 449, 545, 4.2, 34600, "az ny fk",
+    { volume_ml: 100, base_oil: "Coconut Oil", hair_concern: "Hairfall", is_mineral_oil_free: true }),
+  p("dabur_amla", "Dabur Amla Hair Oil (450 ml)", "brand_dabur", "ptype_hair_oil", 229, 285, 4.2, 52400, "az fk mh",
+    { volume_ml: 450, base_oil: "Mineral Oil", hair_concern: "Dryness", is_mineral_oil_free: false }, { trend: "down" }),
+  p("mamaearth_onion_oil", "Mamaearth Onion Hair Oil (250 ml)", "brand_mamaearth", "ptype_hair_oil", 399, 599, 4.1, 38200, "ny az",
+    { volume_ml: 250, base_oil: "Sunflower Oil", hair_concern: "Hairfall", is_mineral_oil_free: true }),
+
+  p("philips_hair_dryer", "Philips HP8100 Hair Dryer", "brand_philips", "ptype_hair_dryer", 899, 1295, 4.2, 34200, "az fk ny",
+    { power_w: 1000, heat_settings: 2, has_cool_shot: false, is_foldable: true }),
+  p("agaro_hair_dryer", "AGARO HD-1120 Hair Dryer", "brand_agaro", "ptype_hair_dryer", 1099, 2495, 4.0, 18600, "az fk",
+    { power_w: 1800, heat_settings: 3, has_cool_shot: true, is_foldable: true }, { trend: "down" }),
+  p("havells_hair_dryer", "Havells HD3151 Hair Dryer", "brand_havells", "ptype_hair_dryer", 1299, 1795, 4.2, 22400, "az fk",
+    { power_w: 1500, heat_settings: 3, has_cool_shot: true, is_foldable: true }),
+  p("dyson_style_dryer", "Panasonic EH-ND21 Hair Dryer", "brand_panasonic", "ptype_hair_dryer", 1499, 2095, 4.3, 9800, "az ny",
+    { power_w: 1200, heat_settings: 3, has_cool_shot: true, is_foldable: true }),
+
+  p("philips_trimmer", "Philips BT3211 Beard Trimmer", "brand_philips", "ptype_trimmer", 1499, 2295, 4.3, 62400, "az fk ny",
+    { runtime_min: 60, length_settings: 20, is_waterproof: true, blade_material: "Stainless Steel" }),
+  p("mi_trimmer", "Mi Beard Trimmer 1C", "brand_mi", "ptype_trimmer", 999, 1499, 4.2, 48600, "az fk",
+    { runtime_min: 90, length_settings: 20, is_waterproof: true, blade_material: "Stainless Steel" }, { trend: "down" }),
+  p("beardo_trimmer", "Beardo Pro Beard Trimmer", "brand_beardo", "ptype_trimmer", 1299, 2499, 4.0, 16200, "az ny",
+    { runtime_min: 120, length_settings: 20, is_waterproof: true, blade_material: "Titanium" }),
+  p("braun_trimmer", "Braun BT3240 Beard Trimmer", "brand_braun", "ptype_trimmer", 2199, 3395, 4.4, 12400, "az ny",
+    { runtime_min: 80, length_settings: 39, is_waterproof: true, blade_material: "Stainless Steel" }),
+  p("syska_trimmer", "Syska HT1309 Beard Trimmer", "brand_syska", "ptype_trimmer", 749, 1499, 3.9, 34800, "az fk mh",
+    { runtime_min: 45, length_settings: 10, is_waterproof: false, blade_material: "Stainless Steel" }, { trend: "down", sellers: 3 }),
+];
