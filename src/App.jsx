@@ -13,6 +13,7 @@ import ProductOverview from "./pages/ProductOverview";
 import MarketplaceComparison from "./pages/MarketplaceComparison";
 import ListingDetail from "./pages/ListingDetail";
 import PriceHistoryPage from "./pages/PriceHistoryPage";
+import CrossMarketplaceAnalysis from "./pages/CrossMarketplaceAnalysis";
 import PricingRecommendation from "./pages/PricingRecommendation";
 import DataSources from "./pages/DataSources";
 
@@ -33,6 +34,7 @@ function AppShell() {
           <Route element={<ProductWorkspaceLayout />}>
             <Route path="/products/:productId" element={<ProductOverview />} />
             <Route path="/products/:productId/marketplaces" element={<MarketplaceComparison />} />
+            <Route path="/products/:productId/analysis" element={<CrossMarketplaceAnalysis />} />
             <Route path="/products/:productId/recommendation" element={<PricingRecommendation />} />
             <Route path="/listings/:listingId" element={<ListingDetail />} />
             <Route path="/listings/:listingId/history" element={<PriceHistoryPage />} />

@@ -19,3 +19,40 @@
   grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
   gap: 16px;
 }
+
+/* Bridge from "here are the prices" to "here is what they mean". Price is one
+   parameter; the analysis view is where the rest are compared. */
+.mc-analysis-cta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-top: 18px;
+  padding: 15px 18px;
+  background: var(--surface-sunken);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  text-decoration: none;
+  color: var(--ink-900);
+  transition: border-color 0.15s ease;
+}
+.mc-analysis-cta:hover {
+  border-color: var(--border-strong);
+}
+.mc-analysis-cta span {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  font-size: var(--text-xs);
+  color: var(--ink-500);
+  line-height: 1.5;
+}
+.mc-analysis-cta strong {
+  font-size: var(--text-sm);
+  font-weight: 650;
+  color: var(--ink-900);
+}
+.mc-analysis-cta svg {
+  flex: none;
+  color: var(--ink-500);
+}

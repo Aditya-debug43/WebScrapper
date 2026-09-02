@@ -1,11 +1,11 @@
-import { useOutletContext } from "react-router-dom";
+import {useOutletContext, Link } from "react-router-dom";
 import { useAsyncData } from "../utils/useAsyncData";
 import { getMarketplaceComparison } from "../api/listingsService";
 import MarketplaceCard from "../components/marketplace/MarketplaceCard";
 import MetricCard from "../components/common/MetricCard";
 import LoadingState from "../components/common/LoadingState";
 import { formatMinor } from "../utils/money";
-import { Scale, TrendingDown } from "lucide-react";
+import {Scale, TrendingDown, ArrowRight } from "lucide-react";
 import "./MarketplaceComparison.css";
 
 export default function MarketplaceComparison() {
@@ -41,6 +41,16 @@ export default function MarketplaceComparison() {
           <MarketplaceCard key={row.listing.id} row={row} isCheapest={row.listing.id === cheapestListingId} />
         ))}
       </div>
+
+      {/* Price is one parameter. The analysis view compares the rest — sellers,
+          fulfilment, trust, promotions, history — and says what they mean. */}
+      <Link to={`/products/${productId}/analysis`} className="mc-analysis-cta">
+        <span>
+          <strong>Compare these platforms on more than price</strong>
+          Sellers, fulfilment, review strength, offer conditions and history — analysed side by side.
+        </span>
+        <ArrowRight size={16} strokeWidth={2} />
+      </Link>
     </div>
   );
 }

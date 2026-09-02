@@ -34,6 +34,7 @@ export default function ProductWorkspaceLayout() {
 
   const sectionLabel = (() => {
     if (location.pathname.endsWith("/marketplaces")) return "Marketplace Comparison";
+    if (location.pathname.endsWith("/analysis")) return "Cross-Marketplace Analysis";
     if (location.pathname.endsWith("/recommendation")) return "Pricing Recommendation";
     if (location.pathname.endsWith("/history")) return "Price History";
     if (listingIdParam) return "Listing Detail";
@@ -71,6 +72,7 @@ export default function ProductWorkspaceLayout() {
                 { label: "Price History", to: `/listings/${defaultListing.id}/history` },
               ]
             : []),
+          { label: "Analysis", to: `/products/${productId}/analysis` },
           { label: "Recommendation", to: `/products/${productId}/recommendation` },
         ]}
       />
