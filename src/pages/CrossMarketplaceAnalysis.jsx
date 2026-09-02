@@ -88,8 +88,9 @@ export default function CrossMarketplaceAnalysis() {
         </p>
         <p className="cma-provenance">
           <Info size={13} strokeWidth={2} />
-          Observed values come from captured listings and offers. Everything labelled a finding is derived. Prices compare on
-          the <strong>effective price</strong> — what any buyer pays, with no card, coupon or trade-in.
+          Observed values come from this prototype&rsquo;s <strong>simulated</strong> listings and offers — realistic in
+          structure, not captured from the live marketplaces. Everything labelled a finding is derived. Prices compare on the{" "}
+          <strong>effective price</strong> — what any buyer pays, with no card, coupon or trade-in.
         </p>
       </section>
 
