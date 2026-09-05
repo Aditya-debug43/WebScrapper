@@ -1,137 +1,178 @@
+/* ==========================================================================
+   PRODUCT OVERVIEW — identity before evidence.
+   Asymmetric two-column: the spec sheet takes the measure, the marketplace
+   list sits in a narrower rail beside it and stays there while you read.
+   ========================================================================== */
+
 .po-layout {
   display: grid;
-  grid-template-columns: 1fr 300px;
-  gap: 32px;
+  grid-template-columns: minmax(0, 1fr) 300px;
+  gap: var(--s-8);
   align-items: start;
 }
 
 .po-main {
+  min-width: 0;
   display: flex;
   flex-direction: column;
-  gap: 32px;
+  gap: var(--s-8);
+}
+
+.po-section {
   min-width: 0;
 }
 
-.po-identity {
-  padding: 6px 22px;
-}
+/* -------------------------------------------------------------- identity */
 
 .po-identity-grid {
-  display: flex;
-  flex-direction: column;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  column-gap: var(--s-7);
+  border-top: 1px solid var(--rule-heavy);
 }
 
 .po-identity-row {
   display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  padding: 13px 0;
-  border-bottom: 1px solid var(--border);
+  align-items: baseline;
+  gap: var(--s-4);
+  padding: 10px 2px;
+  border-bottom: 1px solid var(--rule);
 }
-
-.po-identity-row:last-child {
-  border-bottom: none;
-}
-
 .po-identity-row dt {
-  font-size: var(--text-sm);
-  color: var(--ink-400);
+  flex: 1;
+  font-size: var(--t-sm);
+  color: var(--ink-500);
 }
-
 .po-identity-row dd {
   margin: 0;
-  font-size: var(--text-sm);
-  font-weight: 600;
-  color: var(--ink-900);
+  flex: none;
+  max-width: 60%;
   text-align: right;
+  font-size: var(--t-sm);
+  font-weight: 500;
+  color: var(--ink-900);
+}
+
+/* -------------------------------------------------------------- siblings */
+
+.po-family-title {
+  margin-bottom: var(--s-4);
 }
 
 .po-siblings {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
+  gap: var(--s-3);
 }
 
 .po-sibling {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 14px 18px;
-  gap: 14px;
+  gap: var(--s-3);
+  padding: var(--s-3) var(--s-4);
+  border: 1px solid var(--rule);
+  border-radius: var(--r-sm);
+  background: var(--surface);
+  transition: border-color var(--d-fast) var(--ease), background var(--d-fast) var(--ease);
 }
-
 .po-sibling:hover {
-  border-color: var(--border-strong);
+  border-color: var(--rule-heavy);
+  background: var(--surface-2);
 }
 
 .po-sibling-name {
+  font-size: var(--t-sm);
   font-weight: 600;
-  font-size: var(--text-sm);
   color: var(--ink-900);
 }
-
 .po-sibling-sub {
-  font-size: var(--text-xs);
-  color: var(--ink-400);
   margin-top: 2px;
+  font-size: var(--t-xs);
+  color: var(--ink-400);
+}
+.po-sibling-price {
+  flex: none;
+  font-size: var(--t-sm);
+  font-weight: 500;
+  letter-spacing: -0.02em;
+  color: var(--ink-900);
 }
 
-.po-sibling-price {
-  font-family: var(--font-sans);
-  font-size: var(--text-md);
-  color: var(--ink-900);
+/* ----------------------------------------------------------------- aside
+   Sticks below the masthead and the progression rail, so the list of
+   marketplaces stays available while a long spec sheet scrolls past it. */
+
+.po-aside {
+  position: sticky;
+  top: calc(var(--masthead-h) + var(--rail-h) + var(--s-5));
 }
 
 .po-aside-card {
-  padding: 18px;
-  position: sticky;
-  top: calc(var(--header-h) + 24px);
+  padding: var(--s-4);
+  border: 1px solid var(--rule);
+  border-radius: var(--r-sm);
+  background: var(--surface);
+}
+
+.po-aside-title {
+  font-size: var(--t-micro);
+  font-weight: 600;
+  letter-spacing: 0.13em;
+  text-transform: uppercase;
+  color: var(--ink-400);
+  padding-bottom: var(--s-3);
+  border-bottom: 1px solid var(--rule);
 }
 
 .po-listing-list {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  margin-bottom: 14px;
+  margin-bottom: var(--s-4);
 }
 
 .po-listing-row {
   display: flex;
   align-items: center;
   gap: 9px;
-  padding: 9px 8px;
-  border-radius: var(--radius-md);
-  font-size: var(--text-sm);
-  transition: background 0.12s ease;
+  padding: 9px 2px;
+  border-bottom: 1px solid var(--rule);
+  transition: padding-left var(--d-fast) var(--ease);
 }
-
 .po-listing-row:hover {
-  background: var(--surface-sunken);
+  padding-left: 5px;
 }
 
 .po-listing-name {
   flex: 1;
-  font-weight: 500;
+  min-width: 0;
+  font-size: var(--t-sm);
   color: var(--ink-700);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.po-listing-row:hover .po-listing-name {
+  color: var(--ink-900);
 }
 
 .po-listing-price {
-  font-weight: 600;
+  flex: none;
+  font-size: var(--t-sm);
+  font-weight: 500;
+  letter-spacing: -0.02em;
   color: var(--ink-900);
 }
 
 .po-aside-btn {
   width: 100%;
-  margin-top: 8px;
-  justify-content: center;
+  margin-top: var(--s-2);
 }
 
-@media (max-width: 900px) {
+@media (max-width: 1000px) {
   .po-layout {
     grid-template-columns: 1fr;
+    gap: var(--s-7);
   }
-  .po-aside-card {
+  .po-aside {
     position: static;
   }
 }

@@ -12,7 +12,7 @@
 
 ## 1. Project identity
 
-- **Working name:** "Mulya" (the frontend's product name — see `frontend/index.html` title and `Sidebar.jsx` wordmark). Sanskrit/Hindi-derived word for "price/value," chosen for thematic fit with an Indian-marketplace pricing tool. Not a formally registered project name — just what the prototype calls itself.
+- **Working name:** "Mulya" (the frontend's product name — see `frontend/index.html` title and the `Masthead.jsx` wordmark). Sanskrit/Hindi-derived word for "price/value," chosen for thematic fit with an Indian-marketplace pricing tool. Not a formally registered project name — just what the prototype calls itself.
 - **What the system is:** a marketplace **pricing intelligence** tool. Given a product, it organizes data about where that product is sold, by whom, at what price, over time — and produces a price recommendation with visible reasoning.
 - **What it is trying to achieve academically:** this began as a college assignment (advanced DSA course) whose real evaluation criterion, stated explicitly by the professor, is **data organization and data utilization** — not scraping ability. See §2.
 - **What it is trying to achieve practically:** the professor who assigned this owns a company and uses this course partly to scout interns. The user's stated motivation (their words, paraphrased) is that doing this well matters to them beyond the grade — it's a chance at an internship.
@@ -93,7 +93,7 @@ In a follow-up turn, the user supplied **only two** of the six reference images 
 
 On close re-inspection, Claude identified that its Stage 8 synthesis had gotten a structural fact wrong: **neither reference uses a dark sidebar.** Both use a light/near-white sidebar sitting close in tone to a near-white canvas, separated by a hairline border, with a single accent color (black in BizLink; black *and* a warm orange in Creatica) used sparingly on active states and primary buttons — not as a dominant panel color. Neither reference uses a display serif font anywhere.
 
-This triggered a real correction, not a cosmetic tweak: `tokens.css` was rewritten (light sidebar `#fcfbf8`, canvas `#f7f6f1`, black `--accent` as primary, warm orange `--accent-2` as Creatica's secondary highlight, sans-only typography, borders replacing shadows as the primary separation device), the Sidebar was rebuilt with a solid-black active-nav pill (matching BizLink's "Customers" treatment exactly), the Header's dark blurred bar was removed, and the tab bar was rebuilt from an underlined-tab style into Creatica's **pill-tab** style (plain text + muted count bubble when inactive; solid orange pill + white text + lighter bubble when active). A real navigation bug was found and fixed during this pass (see §15). This is the **current** visual state of the app.
+This triggered a real correction, not a cosmetic tweak: `tokens.css` was rewritten (light sidebar `#fcfbf8`, canvas `#f7f6f1`, black `--accent` as primary, warm orange `--accent-2` as Creatica's secondary highlight, sans-only typography, borders replacing shadows as the primary separation device), the Sidebar was rebuilt with a solid-black active-nav pill (matching BizLink's "Customers" treatment exactly), the Header's dark blurred bar was removed, and the tab bar was rebuilt from an underlined-tab style into Creatica's **pill-tab** style (plain text + muted count bubble when inactive; solid orange pill + white text + lighter bubble when active). A real navigation bug was found and fixed during this pass (see §15). This was the visual state of the app until Stage 19, which replaced it entirely — the reference-matching work is kept here because it explains where the old design came from, not because it still describes the product.
 
 ### Stage 10 — Mock dataset expansion (test coverage)
 The user asked for a richer, internally-consistent dataset so every UI state could be exercised before a demo. This added Meesho as a third marketplace, laptops and wireless earbuds as second and third product types, ~12 more products, more sellers/offers/promotions, dated fee rules per category, and deliberately-included edge cases: a listing with **zero offers** (ASUS ROG Strix), a **renewed**-condition offer, a stockout window, a rising price trend, and a mid-series promotional dip that recovers. A real `PriceHistoryPage` crash on the zero-offer case (Infinity/NaN) was found and fixed during this pass.
@@ -365,7 +365,7 @@ The engine itself came through clean: 0 hard-constraint violations, 0 integrity 
 
 ---
 
-### Stage 18 — The analysis layer made visible (current)
+### Stage 18 — The analysis layer made visible
 
 Professor's feedback after reviewing the deployed frontend: *"now you can take more parameters for comparison and try to create a demo for the same so it will give clear idea about analysis from different platforms."*
 
@@ -405,6 +405,62 @@ Read narrowly that is "add columns to the marketplace table". The actual ask is 
 Interestingly, fixing it also **removed a finding**: "adding delivery reorders which platform is cheapest" had been true only because of the inconsistent ladder. With the bug fixed the claim is false, and the finding correctly suppresses itself.
 
 **Verified:** analysis builds on all 1,156 products with 0 errors; 0 contradictions between its strategies and the engine's; all prior guarantees unchanged (0 integrity errors, 0 negative prices, 0 duplicate sellers, 0 MRP/floor/ordering/CF-1 violations, 1,043 recommended / 113 refused as before); no horizontal overflow at 375 px; lint clean.
+
+---
+
+### Stage 19 — The redesign (current)
+
+A design-first rebuild of the presentation layer. **No file under `src/data/`, `src/api/` or `src/utils/` was touched** — the modules that produce every number, finding and recommendation are byte-identical, which is the strongest available guarantee that the meaning did not move. Verified after the fact anyway: 1,043 recommended / 0 engine errors / 0 MRP, floor, ordering or CF-1 violations / 0 analysis errors / **0 contradictions between the analysis and the engine**, all matching the Stage 18 baseline exactly.
+
+**What was wrong with the old interface.** It was competent and anonymous. The token file said so out loud — it had been copied from two reference UIs ("BizLink CRM, Creatica course platform"), which is why the product looked like a CRM. Concretely:
+
+- **Everything was a card.** `.card` — white, hairline, 16px radius — was applied to 100 elements: metric tiles, product rows, alerts, evidence panels, tables, offers, findings. A binding constraint looked exactly like a sublabel.
+- **Uniform weight.** Everything was 600, everything sat between 15px and 26px. In a *pricing* product, ₹519 was rendered at the same visual authority as the word "Marketplace coverage".
+- **Sixteen hues, no hierarchy.** Black accent + orange accent + 4 status + 3 series + 6 avatar colours + per-marketplace brand colours, with no rule about which meant what. Six of them — the avatar palette — were assigned by hashing a seller's name and meant nothing at all.
+- **Navigation by habit.** A 250px sidebar spending a fifth of the viewport on three links, above dense analytical tables that needed the width; a top bar with a Help button that did nothing and a bell that navigated to "/".
+- **The tab strip threw away the argument.** Overview → Marketplaces → Listing → History → Analysis → Recommendation is the product's whole thesis — evidence resolving into a decision — rendered as an unordered row of pills.
+- **No dark mode at all.** `color-scheme: light`, no media query, no toggle.
+
+---
+
+**The concept: a pricing desk set like a document.** Editorial/information-driven minimalism crossed with instrument tooling. It fits because this product's value proposition is *reasoning that can be read*: the analysis page is literally a six-step argument and the recommendation page is "here is the decision and here is why". That is a document problem before it is a dashboard problem.
+
+**Three typefaces, three jobs.** Instrument Serif carries the argument (page titles, section heads, the wordmark, the quoted raw listing title in italic). Instrument Sans carries the interface. **IBM Plex Mono carries every figure the system asserts** — this is the highest-leverage decision in the redesign, because the existing `.tabular` class was already on 40+ values, so redefining it propagated an instrument-readout treatment across the entire product in one rule.
+
+**The colour rule, and why there is no brand hue.** Ink is the accent: primary buttons, active navigation and selected states are near-black on paper, near-white on ink. Everything chromatic is *reserved for meaning* — status, direction (argues higher / argues lower), chart series, and marketplace identity. The consequence is the idea the design is actually built on: **the palette is inherited from the data**. On the marketplace comparison the dots take each platform's own colour, so a product sold on six platforms looks different from one sold on two, because it *is* different. A brand hue would have competed with the only colour that carries information.
+
+**Geometry.** Radii 2 / 4 / 8px — architectural, not lozenges. Content surfaces cast **no shadow at all**: elevation is reserved for things that genuinely float, which is the masthead and two sheets. Translucency likewise — the masthead is the only glass in the product, used as a functional material over scrolling content, never on a content card.
+
+**One recurring motif** does a lot of work: a 2px rule down the left edge. It marks the hovered table row, the hovered product card, the featured offer, a direction-carrying finding, a binding constraint, and the refusal panel. One interaction language, learned once.
+
+---
+
+**Structural changes (routes, pages and copy all preserved):**
+
+| Was | Is | Why |
+|---|---|---|
+| Sidebar + top bar | A single **masthead**, wordmark in the display serif, underline-on-active nav, search with a `/` shortcut, alerts, theme toggle | Gave the analytical tables back a fifth of the viewport. The dead Help button is gone; the sidebar's provenance note became a **colophon** in the footer, where a statement about the whole application belongs |
+| Tab pills | A **numbered progression rail**, sticky under the masthead, numerals threaded by a hairline | The order is the argument. Numbering it says so |
+| Grid of price cards | A **dot plot** + a full parameter matrix | "How far apart are these, really?" was a question six cards made the reader answer from memory |
+| 10 evidence boxes | Ruled dossier panels, display-serif titles, dotted-leader rows | Chunking kept, weight removed |
+| Three equal strategy cards | Ruled columns under one rule, then an **asymmetric verdict**: the price at 52px beside the reasoning that produced it | This is the decision layer; the number is the answer |
+| Fake product thumbnails | Removed | A grey square holding two letters, standing in for photography this dataset does not have, occupying the best position on the card |
+| Six hashed avatar colours | Monochrome tiles | Six hues that meant nothing, in a system where colour means something |
+
+**The dot plot is a dot plot on purpose.** A ₹519–₹609 spread drawn as bars from a zero baseline looks like no difference at all; drawn with a truncated baseline it lies. Dots need no zero, so the axis can frame the range the data actually occupies. Each row spans one offer's ladder — landed, effective, and the conditional best case — so the reader sees not just where a platform sits but what delivery and discounts did to get it there.
+
+---
+
+**Dark mode is authored, not inverted.** Surfaces climb in tone as they come forward (`#0c0e11` → `#15181d` → `#1b1f25`), so depth reads without a single shadow. Text tops out at `#eef0f3` rather than pure white, which haloes on a near-black ground. Status and series hues are re-tuned — lifted in lightness, pulled back in chroma — rather than reused. Three states: light, dark, and system (the default, which follows the OS live); an inline script in `index.html` resolves the choice before first paint so a dark reader never sees a white flash.
+
+**Four real bugs surfaced during verification**, all worth recording:
+
+1. **A flex container makes every *element* child its own flex item.** Only bare text runs get wrapped anonymously — so `<p class="flex">` containing `<strong>` fragmented into columns. It shattered the analysis provenance line into four. Icon-plus-text paragraphs must position the icon absolutely, not lay the paragraph out as flex.
+2. **A CSS transition freezes a property whose value comes from a custom property.** On theme switch, transitioned colours stayed at their pre-swap value permanently — the masthead links sat in light-theme grey on a dark ground. Fixed by suppressing transitions for one frame across the swap, which is also the better feel: 120ms of every colour cross-fading at once reads as a smear, not a switch.
+3. **The off-canvas filter sheet extended the document.** Parked to the right of the viewport, it gave `/catalogue` a 705px scroll width on a 375px phone. `overflow-x: clip` on `html, body` removes the overflow without creating a scroll container — which `overflow: hidden` would, breaking the sticky masthead and rail.
+4. **The progression rail silently never scrolled.** Two causes stacked: before first layout every box measures zero, so "the active step is already visible" was trivially true; and a `behavior: "smooth"` scroll issued while the page is still settling gets cancelled outright. Now: instant positioning, re-run on `document.fonts.ready` because the display face changes every step's width.
+
+**Contrast was computed, not eyeballed.** The first audit found **180 failures** on a single route — the label grey was 2.59:1. The ink ramp was recalculated so that ink-400 and darker each clear 4.5:1 against canvas, canvas-deep, surface and surface-2 *in both themes*, and ink-300 clears the 3:1 bar for graphical objects. Final sweep: **13 routes × 2 themes, 0 contrast failures, 0 horizontal page scroll**; same at 375px and 768px. Keyboard focus shows a 2px signal ring via `:focus-visible`, and the one hover-revealed control (untrack) also reveals on focus and is always visible on small screens.
 
 ---
 
@@ -990,6 +1046,11 @@ Based on where the project actually stands, the next steps that follow directly 
 12t. **Per-unit price only where the product is sold by quantity.** `UNIT_BEARING_ATTRIBUTES` is an explicit allowlist. Picking "the largest numeric spec" produces "₹ per mAh" for a phone, which is not a comparison anyone makes. Adding a product type to the allowlist means asserting that buyers genuinely purchase it by that unit (Stage 18).
 12u. **A displayed price ladder must come from ONE offer.** Taking `Math.min()` of each rung independently produces a ladder that does not add up — listed + delivery ≠ landed, because they came from different sellers. On a page built for traceability this is fatal (Stage 18).
 12v. **Findings must be able to disappear.** Each is generated only where its data exists, so single-marketplace products lose cross-platform findings and refused products get none at all. Never write a finding that always renders — that is narrative, not analysis (Stage 18).
+12w. **Colour is reserved for meaning.** Status, direction, chart series and marketplace identity. There is deliberately no brand hue — ink is the accent — because the only chromatic information on the page belongs to the data. Adding a decorative colour takes contrast away from one that means something (Stage 19).
+12x. **Content surfaces do not float.** No shadows and no translucency on anything carrying data; both are reserved for layers that genuinely sit above content (the masthead, the two sheets). Hierarchy comes from type, rule and space (Stage 19).
+12y. **Contrast is computed, not eyeballed.** ink-400 and darker clear 4.5:1 against canvas, canvas-deep, surface and surface-2 in both themes; ink-300 clears 3:1 and may only carry rules, icons and chart marks. Changing a surface means re-running the check — the first audit of this redesign found 180 failures on one route (Stage 19).
+12z. **Never lay out a paragraph as a flex container.** Every element child of a flex container becomes its own flex item, so any `<strong>` inside splits the sentence into columns. Position the icon absolutely instead (Stage 19).
+12aa. **Suppress transitions across a theme swap.** A transitioned property whose value comes from a custom property can freeze at its pre-swap value and never arrive. `ThemeContext` adds `.theme-switching` for one frame; do not remove it (Stage 19).
 13. **Prefer understanding existing code over adding new abstractions.** The codebase is intentionally not over-engineered for its current scope (a class-project wireframe) — resist adding speculative infrastructure (e.g. a state-management library, a component library, a testing framework) unless the user's request genuinely requires it.
 11. **Keep this file up to date.** If you make a decision significant enough that a future session would need to know about it, add it here — particularly to §3 (evolution), §6 (critical decisions), §14/§15 (status), and §20 (historical context) as appropriate. Don't let this file go stale while the code moves on.
 12. **When in doubt about project intent, ask** rather than assume — several past requests in this project have been extremely explicit and prescriptive (see the visual-correction request that produced Stage 9); treat that as the user's established working style, not a one-off.
@@ -1022,8 +1083,8 @@ D:\advance dsa sir\                                  ← project root
     │   ├── App.jsx                                      ← ALL ROUTES defined here — read this first to understand navigation
     │   │
     │   ├── styles/
-    │   │   ├── tokens.css                                ← EVERY color/spacing/radius/font as a CSS variable — the single source of truth for visual design (§11); Stage 9 corrections live here
-    │   │   └── global.css                                ← shared primitives (.card, .btn, .pill-badge, page-shell classes) built on tokens.css
+    │   │   ├── tokens.css                                ← EVERY colour/spacing/radius/font/motion value as a CSS variable — the single source of truth for visual design (§11). Rewritten in Stage 19; carries the contrast contract
+    │   │   └── global.css                                ← shared primitives (.card, .btn, .tabular, .eyebrow, page-shell, motion) built on tokens.css
     │   │
     │   ├── data/                                         ← the mock "database" — one file per entity, see §10 for the full list
     │   │   ├── categories.js                              ← the full taxonomy: departments → categories → subcategories → PRODUCT TYPES, plus per-marketplace category mappings
@@ -1063,7 +1124,7 @@ D:\advance dsa sir\                                  ← project root
     │   │   └── AppStateContext.jsx                         ← only cross-cutting state: which products are "tracked"
     │   │
     │   ├── components/
-    │   │   ├── layout/                                     ← Sidebar, Header, WorkspaceTabs (pill tabs), ProductWorkspaceLayout (the shared product-workspace shell — read before changing per-product navigation)
+    │   │   ├── layout/                                     ← Masthead (the only global chrome), Colophon, WorkspaceTabs (the numbered progression rail), ProductWorkspaceLayout (the shared product-workspace shell — read before changing per-product navigation)
     │   │   ├── common/                                     ← MetricCard, StatusBadge, DataTable, FilterControl, Avatar, Breadcrumbs, LoadingState
     │   │   ├── product/                                    ← ProductCard, SpecList
     │   │   ├── marketplace/                                ← MarketplaceCard

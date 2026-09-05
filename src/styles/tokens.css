@@ -1,107 +1,332 @@
 /*
-  Design tokens — corrected to match the two reference UIs exactly
-  (BizLink CRM, Creatica course platform), not a broader synthesis:
-  a light, near-white canvas with a light sidebar (NOT dark), separated by
-  a hairline border rather than a contrasting fill; black as the dominant
-  interactive accent (primary buttons, active nav pill); a warm orange used
-  sparingly as a secondary highlight (active tab pill, one CTA), exactly as
-  Creatica uses it; pure sans-serif typography throughout — neither
-  reference uses a display serif anywhere.
+  ============================================================================
+  MULYA — DESIGN TOKENS
+  ============================================================================
+
+  Concept: a pricing desk set like a document.
+
+  Evidence is set in editorial type; figures are set in instrument mono; and
+  the only chromatic life in the interface is inherited from the data itself —
+  the marketplaces being analysed. There is deliberately NO brand hue.
+
+  Three consequences follow from that, and they are the whole system:
+
+  1. INK IS THE ACCENT. Primary buttons, active navigation and selected states
+     are near-black on paper and near-white on ink. Nothing competes with the
+     marketplace brand colours, which are real encoding rather than decoration.
+
+  2. COLOUR IS RESERVED FOR MEANING. Status (good / warning / serious /
+     critical), direction (argues higher / argues lower), marketplace identity
+     and chart series. A hue that means nothing is not permitted.
+
+  3. HIERARCHY COMES FROM TYPE, RULE AND SPACE — not from boxes and shadow.
+     Radii are small and architectural (2 / 4 / 8px). Content surfaces carry no
+     shadow at all: elevation is reserved for things that genuinely float, and
+     translucency is reserved for the masthead, which is the only functional
+     layer that sits over content.
+
+  Two themes, each authored on its own terms. Dark is not an inversion — it is
+  a tonal system of layered near-blacks with its own contrast ladder, brighter
+  rules, and status/series hues re-tuned for a dark ground.
+  ============================================================================
 */
 
 :root {
   color-scheme: light;
 
-  /* ---- surfaces: canvas and sidebar sit close in tone, split by a hairline ---- */
-  --canvas: #f7f6f1;
-  --canvas-alt: #efeee7;
-  --sidebar-bg: #fcfbf8;
+  /* ---------------------------------------------------------------- paper
+     A cool, faintly green-grey paper. Content panels are pure white so the
+     data sits visibly ON something, which is what makes a hairline enough. */
+  --canvas: #edeeeb;
+  --canvas-deep: #e9ebe7;
   --surface: #ffffff;
-  --surface-sunken: #f7f6f1;
-  --surface-chart: #fcfcfb;
+  --surface-2: #f6f7f5;
+  --surface-3: #eef0ed;
+  --surface-inset: #f9faf8;
 
-  /* legacy aliases kept so raised/dark-panel components (rare) still resolve */
-  --sidebar-bg-raised: #efeee7;
-  --sidebar-text: #6b6a63;
-  --sidebar-text-active: #ffffff;
-  --sidebar-border: rgba(17, 17, 17, 0.08);
+  /* ------------------------------------------------------------------ ink
+     CONTRACT: ink-400 and darker are TEXT colours and every one of them clears
+     4.5:1 against canvas, canvas-deep, surface and surface-2 in both themes. ink-300 and
+     ink-200 are for rules, icons and chart marks only — ink-300 clears the
+     3:1 bar for graphical objects, ink-200 clears nothing and must never
+     carry meaning on its own. Verified, not eyeballed. */
+  --ink-900: #14161a;
+  --ink-800: #272b31;
+  --ink-700: #383e46;
+  --ink-500: #545a63;
+  --ink-400: #646a73;
+  --ink-300: #8e949c;
+  --ink-200: #d7dad6;
 
-  /* ---- ink ---- */
-  --ink-900: #171716;
-  --ink-700: #43423d;
-  --ink-500: #78766e;
-  --ink-400: #9a988f;
-  --ink-300: #d3d1c7;
-  --ink-on-dark: #ffffff;
+  /* ---------------------------------------------------------------- rules
+     This system leans on hairlines the way print does. Three weights only. */
+  --rule: rgba(20, 22, 26, 0.11);
+  --rule-strong: rgba(20, 22, 26, 0.2);
+  --rule-heavy: rgba(20, 22, 26, 0.42);
 
-  /* ---- borders (thin, everywhere — this design leans on hairlines, not shadow) ---- */
-  --border: rgba(17, 17, 17, 0.09);
-  --border-strong: rgba(17, 17, 17, 0.16);
-  --border-on-dark: rgba(255, 255, 255, 0.12);
-
-  /* ---- accent: black is primary (BizLink), warm orange is the secondary
-     highlight used only for active tabs / one CTA (Creatica) ---- */
-  --accent: #111110;
-  --accent-600: #000000;
+  /* --------------------------------------------------------------- accent
+     Ink. Deliberately not a hue — see note 1 above. */
+  --accent: #14161a;
+  --accent-hover: #000000;
   --accent-ink: #ffffff;
-  --accent-tint: #ececea;
-  --accent-tint-ink: #171716;
+  --accent-wash: rgba(20, 22, 26, 0.06);
+  --accent-wash-strong: rgba(20, 22, 26, 0.1);
 
-  --accent-2: #ea5a34;
-  --accent-2-600: #d14b28;
-  --accent-2-ink: #ffffff;
-  --accent-2-tint: #fde3da;
-  --accent-2-tint-ink: #a5391c;
+  /* --------------------------------------------------------------- signal
+     One low-chroma slate blue, subordinate to ink, for links and focus only.
+     It is never a fill and never competes for attention. */
+  --signal: #34557d;
+  --signal-hover: #24405f;
+  --signal-wash: rgba(52, 85, 125, 0.09);
 
-  /* ---- status (fixed, reserved — from validated dataviz status scale) ---- */
-  --status-good: #0c8a2f;
-  --status-good-tint: #e1f2e2;
-  --status-good-ink: #0c5c20;
-  --status-warning: #b97600;
-  --status-warning-tint: #fbeacb;
-  --status-warning-ink: #7a4e00;
-  --status-serious: #c65a34;
-  --status-serious-tint: #f8e1d4;
-  --status-serious-ink: #8a3c1e;
-  --status-critical: #b23434;
-  --status-critical-tint: #f7dcdc;
-  --status-critical-ink: #7c2222;
+  /* --------------------------------------------------------------- status
+     A fixed, reserved scale. Never repurposed as a categorical series, and
+     never the only carrier of meaning — always paired with an icon or label. */
+  --good: #0b7a2c;
+  --good-wash: #e3f1e5;
+  --good-ink: #0a5720;
+  --warning: #a86a00;
+  --warning-wash: #f8ead0;
+  --warning-ink: #6f4700;
+  --serious: #b8552f;
+  --serious-wash: #f7e3d8;
+  --serious-ink: #82391d;
+  --critical: #a92f2f;
+  --critical-wash: #f6dcdc;
+  --critical-ink: #762020;
 
-  /* ---- chart categorical series (validated palette, fixed order, subset used) ---- */
-  --series-1: #2a78d6;
-  --series-2: #eb6834;
-  --series-3: #1baf7a;
-  --series-reference: #ab9f88;
+  /* ------------------------------------------------------------ direction
+     What a finding argues for. Distinct from status: a premium argument is
+     not "good", it is a direction. Encoded as tone, never as a filled card. */
+  --dir-up: #14532d;
+  --dir-up-rule: #2f7a4a;
+  --dir-up-wash: rgba(47, 122, 74, 0.08);
+  --dir-down: #7c2d2d;
+  --dir-down-rule: #b04a4a;
+  --dir-down-wash: rgba(176, 74, 74, 0.08);
+  --dir-flat: #414751;
+  --dir-flat-rule: #8f959e;
+  --dir-flat-wash: rgba(143, 149, 158, 0.08);
 
-  /* ---- typography — sans-serif only; neither reference uses a display serif ---- */
-  --font-serif: "Inter", -apple-system, "Segoe UI", sans-serif;
-  --font-sans: "Inter", -apple-system, "Segoe UI", sans-serif;
-  --font-mono: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+  /* ------------------------------------------------------- chart series */
+  --series-1: #21618f;
+  --series-2: #c2622c;
+  --series-3: #147a63;
+  --series-4: #6a4c93;
+  --series-ref: #9a9384;
+  --grid: rgba(20, 22, 26, 0.08);
 
-  --text-xs: 0.75rem;
-  --text-sm: 0.8125rem;
-  --text-base: 0.9375rem;
-  --text-md: 1.0625rem;
-  --text-lg: 1.1875rem;
-  --text-xl: 1.375rem;
-  --text-2xl: 1.625rem;
-  --text-3xl: 2.125rem;
-  --text-4xl: 2.75rem;
+  /* ------------------------------------------------------------ typefaces
+     Instrument Serif carries voice, Instrument Sans carries interface, and
+     IBM Plex Mono carries every figure the system asserts. A price is a
+     readout, so it is set like one. */
+  --font-display: "Instrument Serif", "Iowan Old Style", Georgia, serif;
+  --font-sans: "Instrument Sans", -apple-system, "Segoe UI", system-ui, sans-serif;
+  --font-mono: "IBM Plex Mono", "SFMono-Regular", Consolas, monospace;
 
-  /* ---- radius — cards ~16px, pills full, small chips ~10px (BizLink/Creatica) ---- */
-  --radius-sm: 8px;
-  --radius-md: 10px;
-  --radius-lg: 16px;
-  --radius-xl: 22px;
-  --radius-pill: 999px;
+  /* --------------------------------------------------------- type scale
+     Wide, deliberately. Scale contrast does the work that decoration would
+     otherwise have to do. */
+  --t-micro: 0.6875rem;   /* 11px — tracked caps labels */
+  --t-xs: 0.75rem;        /* 12px */
+  --t-sm: 0.8125rem;      /* 13px — dense table body */
+  --t-base: 0.875rem;     /* 14px — body */
+  --t-md: 0.9375rem;      /* 15px — lead paragraphs */
+  --t-lg: 1.0625rem;      /* 17px */
+  --t-xl: 1.375rem;       /* 22px — section heads */
+  --t-2xl: 1.75rem;       /* 28px */
+  --t-3xl: 2.375rem;      /* 38px — page titles */
+  --t-4xl: 3.25rem;       /* 52px — decision figures */
+  --t-5xl: 4.25rem;       /* 68px — the one number that matters */
 
-  /* ---- shadow — this system leans on borders; shadows are barely-there ---- */
-  --shadow-sm: 0 1px 1px rgba(17, 17, 17, 0.03);
-  --shadow-md: 0 2px 8px rgba(17, 17, 17, 0.04);
-  --shadow-lg: 0 8px 24px rgba(17, 17, 17, 0.08);
+  /* -------------------------------------------------------------- radius
+     Architectural. Nothing is a lozenge except a status chip. */
+  --r-xs: 2px;
+  --r-sm: 4px;
+  --r-md: 8px;
+  --r-pill: 999px;
 
-  /* ---- layout ---- */
-  --sidebar-w: 248px;
-  --header-h: 72px;
-  --content-max: 1320px;
+  /* -------------------------------------------------------------- shadow
+     Reserved for layers that genuinely float above content. Content itself
+     never casts a shadow. */
+  --shadow-float: 0 1px 2px rgba(20, 22, 26, 0.05), 0 8px 28px rgba(20, 22, 26, 0.1);
+  --shadow-sheet: 0 24px 64px rgba(20, 22, 26, 0.22);
+
+  /* --------------------------------------------------------------- glass
+     The masthead, and nothing else. */
+  --glass: rgba(237, 238, 235, 0.72);
+  --glass-blur: saturate(180%) blur(20px);
+
+  /* ------------------------------------------------------------- spacing */
+  --s-1: 4px;
+  --s-2: 8px;
+  --s-3: 12px;
+  --s-4: 16px;
+  --s-5: 24px;
+  --s-6: 32px;
+  --s-7: 48px;
+  --s-8: 64px;
+  --s-9: 88px;
+
+  /* -------------------------------------------------------------- motion */
+  --ease: cubic-bezier(0.2, 0.7, 0.2, 1);
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+  --d-fast: 120ms;
+  --d-mid: 200ms;
+  --d-slow: 320ms;
+
+  /* -------------------------------------------------------------- layout */
+  --masthead-h: 56px;
+  --rail-h: 52px;
+  --measure: 68ch;
+  --page-max: 1420px;
+}
+
+/* ==========================================================================
+   INK — the dark theme, authored rather than inverted.
+
+   Surfaces climb in tone as they come forward (canvas → panel → raised), so
+   depth reads without a single shadow. Text tops out at #eef0f3 rather than
+   pure white: on a near-black ground, pure white haloes.
+   ========================================================================== */
+
+:root[data-theme="dark"] {
+  color-scheme: dark;
+
+  --canvas: #0c0e11;
+  --canvas-deep: #08090b;
+  --surface: #15181d;
+  --surface-2: #1b1f25;
+  --surface-3: #23282f;
+  --surface-inset: #101317;
+
+  --ink-900: #eef0f3;
+  --ink-800: #dde1e7;
+  --ink-700: #c2c8d1;
+  --ink-500: #99a0ab;
+  --ink-400: #7f8794;
+  --ink-300: #666d78;
+  --ink-200: #363b43;
+
+  --rule: rgba(255, 255, 255, 0.1);
+  --rule-strong: rgba(255, 255, 255, 0.19);
+  --rule-heavy: rgba(255, 255, 255, 0.4);
+
+  --accent: #eef0f3;
+  --accent-hover: #ffffff;
+  --accent-ink: #0c0e11;
+  --accent-wash: rgba(255, 255, 255, 0.07);
+  --accent-wash-strong: rgba(255, 255, 255, 0.12);
+
+  --signal: #8db4e2;
+  --signal-hover: #aecdf0;
+  --signal-wash: rgba(141, 180, 226, 0.14);
+
+  /* Status hues lifted in lightness and pulled back in chroma so they carry
+     on a dark ground without glowing. */
+  --good: #4ec37a;
+  --good-wash: rgba(78, 195, 122, 0.14);
+  --good-ink: #86dda8;
+  --warning: #e0a44a;
+  --warning-wash: rgba(224, 164, 74, 0.14);
+  --warning-ink: #f0c584;
+  --serious: #e08356;
+  --serious-wash: rgba(224, 131, 86, 0.14);
+  --serious-ink: #f0ab88;
+  --critical: #e26a6a;
+  --critical-wash: rgba(226, 106, 106, 0.15);
+  --critical-ink: #f09999;
+
+  --dir-up: #86dda8;
+  --dir-up-rule: #4ec37a;
+  --dir-up-wash: rgba(78, 195, 122, 0.1);
+  --dir-down: #f0a0a0;
+  --dir-down-rule: #e26a6a;
+  --dir-down-wash: rgba(226, 106, 106, 0.1);
+  --dir-flat: #a3aab4;
+  --dir-flat-rule: #6b7280;
+  --dir-flat-wash: rgba(107, 114, 128, 0.12);
+
+  --series-1: #6fb2e8;
+  --series-2: #e8a06a;
+  --series-3: #5cc5a8;
+  --series-4: #b39ae0;
+  --series-ref: #8b8577;
+  --grid: rgba(255, 255, 255, 0.07);
+
+  --shadow-float: 0 1px 2px rgba(0, 0, 0, 0.5), 0 8px 28px rgba(0, 0, 0, 0.45);
+  --shadow-sheet: 0 24px 64px rgba(0, 0, 0, 0.6);
+
+  --glass: rgba(12, 14, 17, 0.72);
+}
+
+/* Follow the operating system until the reader states a preference. */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+
+    --canvas: #0c0e11;
+    --canvas-deep: #08090b;
+    --surface: #15181d;
+    --surface-2: #1b1f25;
+    --surface-3: #23282f;
+    --surface-inset: #101317;
+
+    --ink-900: #eef0f3;
+    --ink-800: #dde1e7;
+    --ink-700: #c2c8d1;
+    --ink-500: #99a0ab;
+    --ink-400: #7f8794;
+    --ink-300: #666d78;
+    --ink-200: #363b43;
+
+    --rule: rgba(255, 255, 255, 0.1);
+    --rule-strong: rgba(255, 255, 255, 0.19);
+    --rule-heavy: rgba(255, 255, 255, 0.4);
+
+    --accent: #eef0f3;
+    --accent-hover: #ffffff;
+    --accent-ink: #0c0e11;
+    --accent-wash: rgba(255, 255, 255, 0.07);
+    --accent-wash-strong: rgba(255, 255, 255, 0.12);
+
+    --signal: #8db4e2;
+    --signal-hover: #aecdf0;
+    --signal-wash: rgba(141, 180, 226, 0.14);
+
+    --good: #4ec37a;
+    --good-wash: rgba(78, 195, 122, 0.14);
+    --good-ink: #86dda8;
+    --warning: #e0a44a;
+    --warning-wash: rgba(224, 164, 74, 0.14);
+    --warning-ink: #f0c584;
+    --serious: #e08356;
+    --serious-wash: rgba(224, 131, 86, 0.14);
+    --serious-ink: #f0ab88;
+    --critical: #e26a6a;
+    --critical-wash: rgba(226, 106, 106, 0.15);
+    --critical-ink: #f09999;
+
+    --dir-up: #86dda8;
+    --dir-up-rule: #4ec37a;
+    --dir-up-wash: rgba(78, 195, 122, 0.1);
+    --dir-down: #f0a0a0;
+    --dir-down-rule: #e26a6a;
+    --dir-down-wash: rgba(226, 106, 106, 0.1);
+    --dir-flat: #a3aab4;
+    --dir-flat-rule: #6b7280;
+    --dir-flat-wash: rgba(107, 114, 128, 0.12);
+
+    --series-1: #6fb2e8;
+    --series-2: #e8a06a;
+    --series-3: #5cc5a8;
+    --series-4: #b39ae0;
+    --series-ref: #8b8577;
+    --grid: rgba(255, 255, 255, 0.07);
+
+    --shadow-float: 0 1px 2px rgba(0, 0, 0, 0.5), 0 8px 28px rgba(0, 0, 0, 0.45);
+    --shadow-sheet: 0 24px 64px rgba(0, 0, 0, 0.6);
+
+    --glass: rgba(12, 14, 17, 0.72);
+  }
 }

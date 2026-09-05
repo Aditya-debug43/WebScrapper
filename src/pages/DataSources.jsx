@@ -30,9 +30,9 @@ export default function DataSources() {
 
       {data && (
         <>
-          <div className="ds-marketplace-grid">
+          <div className="ds-marketplace-grid stagger">
             {data.perMarketplace.map((m) => (
-              <div className="card ds-marketplace-card" key={m.marketplace.id}>
+              <div className="ds-marketplace-card" key={m.marketplace.id}>
                 <div className="ds-marketplace-head">
                   <span className="marketplace-dot" style={{ background: m.marketplace.brandColor }} />
                   <h3>{m.marketplace.name}</h3>
@@ -86,10 +86,8 @@ export default function DataSources() {
             ))}
           </div>
 
-          <section style={{ marginTop: 32 }}>
-            <h2 className="section-title" style={{ marginBottom: 14 }}>
-              Recent capture runs
-            </h2>
+          <section className="ds-section">
+            <h2 className="section-title ds-section-title">Recent capture runs</h2>
             <DataTable
               columns={[
                 { key: "marketplace", header: "Marketplace", render: (r) => data.perMarketplace.find((m) => m.marketplace.id === r.marketplaceId)?.marketplace.name },
@@ -103,11 +101,9 @@ export default function DataSources() {
             />
           </section>
 
-          <section style={{ marginTop: 32 }}>
-            <h2 className="section-title" style={{ marginBottom: 14 }}>
-              Quarantined records
-            </h2>
-            <p className="pr-explainer" style={{ marginBottom: 14, fontSize: "var(--text-sm)", color: "var(--ink-500)" }}>
+          <section className="ds-section">
+            <h2 className="section-title ds-section-title">Quarantined records</h2>
+            <p className="ds-section-note">
               Rows that failed validation are kept, not dropped — a rejects table turns a mystery into a report.
             </p>
             <DataTable

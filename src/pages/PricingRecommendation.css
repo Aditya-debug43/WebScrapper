@@ -1,2 +1,6 @@
-/* Layout for this page now lives in RecommendationPanel.css — the panel owns
-   its own multi-section composition rather than being slotted into a grid. */
+/* The recommendation page is a single component (RecommendationPanel), which
+   carries its own composition. Nothing page-level is needed beyond making
+   sure it starts against the rail rather than floating. */
+.pricing-recommendation {
+  display: block;
+}

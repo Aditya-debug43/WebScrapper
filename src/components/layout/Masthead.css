@@ -1,0 +1,316 @@
+/* ==========================================================================
+   MASTHEAD — the only floating, translucent layer in the interface.
+   ========================================================================== */
+
+.mast {
+  position: sticky;
+  top: 0;
+  z-index: 50;
+  background: var(--glass);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
+  border-bottom: 1px solid var(--rule);
+}
+
+/* Where backdrop-filter is unavailable the bar must stay legible, so it
+   falls back to an opaque canvas rather than a see-through wash. */
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  .mast {
+    background: var(--canvas);
+  }
+}
+
+.mast-inner {
+  max-width: var(--page-max);
+  margin: 0 auto;
+  height: var(--masthead-h);
+  padding: 0 var(--s-7);
+  display: flex;
+  align-items: center;
+  gap: var(--s-5);
+}
+
+/* ------------------------------------------------------------------ brand
+   The wordmark is set in the display serif — it is the single strongest
+   identity cue in the product, and it costs one line of CSS. The mark beside
+   it is three ascending rules: the price ladder, which is the idea the whole
+   application is built on. */
+
+.mast-brand {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  flex: none;
+}
+
+.mast-mark {
+  display: flex;
+  align-items: flex-end;
+  gap: 2px;
+  height: 15px;
+}
+.mast-mark span {
+  width: 2px;
+  background: var(--ink-900);
+  display: block;
+}
+.mast-mark span:nth-child(1) { height: 6px; }
+.mast-mark span:nth-child(2) { height: 10px; }
+.mast-mark span:nth-child(3) { height: 15px; }
+
+.mast-word {
+  font-family: var(--font-display);
+  font-size: 1.3125rem;
+  line-height: 1;
+  letter-spacing: -0.005em;
+  color: var(--ink-900);
+}
+
+.mast-kicker {
+  font-size: var(--t-micro);
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--ink-400);
+  border-left: 1px solid var(--rule-strong);
+  padding-left: 9px;
+  margin-left: 3px;
+  line-height: 1.3;
+}
+
+/* -------------------------------------------------------------------- nav
+   Underline, not a pill. The active rule sits flush on the masthead's own
+   bottom hairline, so the current section reads as attached to the page
+   beneath it. */
+
+.mast-nav {
+  display: flex;
+  align-items: center;
+  gap: var(--s-5);
+  height: 100%;
+  flex: none;
+}
+
+.mast-link {
+  position: relative;
+  display: flex;
+  align-items: center;
+  height: 100%;
+  font-size: var(--t-sm);
+  font-weight: 500;
+  letter-spacing: 0.01em;
+  color: var(--ink-500);
+  transition: color var(--d-fast) var(--ease);
+}
+.mast-link::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: -1px;
+  height: 2px;
+  background: var(--ink-900);
+  transform: scaleX(0);
+  transform-origin: left;
+  transition: transform var(--d-mid) var(--ease);
+}
+.mast-link:hover {
+  color: var(--ink-900);
+}
+.mast-link.active {
+  color: var(--ink-900);
+}
+.mast-link.active::after {
+  transform: scaleX(1);
+}
+
+/* ----------------------------------------------------------------- search */
+
+.mast-search {
+  flex: 1 1 auto;
+  min-width: 0;
+  max-width: 380px;
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 32px;
+  padding: 0 8px 0 9px;
+  border: 1px solid var(--rule);
+  border-radius: var(--r-sm);
+  background: var(--surface);
+  color: var(--ink-400);
+  transition: border-color var(--d-fast) var(--ease);
+}
+.mast-search:focus-within {
+  border-color: var(--rule-heavy);
+}
+.mast-search-go {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+}
+.mast-search-go:hover {
+  color: var(--ink-900);
+}
+.mast-search input {
+  flex: 1;
+  min-width: 0;
+  border: 0;
+  background: transparent;
+  font-family: var(--font-sans);
+  font-size: var(--t-sm);
+  color: var(--ink-900);
+  outline: none;
+}
+.mast-search input::placeholder {
+  color: var(--ink-400);
+}
+.mast-search kbd {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  line-height: 1;
+  padding: 3px 5px;
+  border: 1px solid var(--rule);
+  border-radius: var(--r-xs);
+  color: var(--ink-400);
+  background: var(--surface-2);
+}
+.mast-search:focus-within kbd {
+  opacity: 0;
+}
+
+/* ---------------------------------------------------------------- actions */
+
+.mast-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex: none;
+}
+
+.mast-alerts {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 32px;
+  padding: 0 10px;
+  border: 1px solid var(--rule);
+  border-radius: var(--r-sm);
+  background: transparent;
+  color: var(--ink-500);
+  cursor: pointer;
+  transition: background var(--d-fast) var(--ease), color var(--d-fast) var(--ease),
+    border-color var(--d-fast) var(--ease);
+}
+.mast-alerts:hover {
+  background: var(--accent-wash);
+  color: var(--ink-900);
+  border-color: var(--rule-strong);
+}
+.mast-alerts span {
+  font-size: var(--t-xs);
+  font-weight: 600;
+  color: var(--ink-900);
+}
+
+.mast-menu {
+  display: none;
+}
+
+/* ------------------------------------------------------------ mobile sheet */
+
+.mast-sheet {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 61;
+  background: var(--surface);
+  border-top: 1px solid var(--rule-strong);
+  border-radius: var(--r-md) var(--r-md) 0 0;
+  box-shadow: var(--shadow-sheet);
+  padding: var(--s-4) var(--s-4) var(--s-6);
+  animation: slide-up var(--d-slow) var(--ease-out);
+}
+
+.mast-sheet-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding-bottom: var(--s-3);
+  border-bottom: 1px solid var(--rule);
+}
+
+.mast-sheet-nav {
+  display: flex;
+  flex-direction: column;
+}
+
+.mast-sheet-link {
+  display: block;
+  padding: 14px 2px;
+  font-family: var(--font-display);
+  font-size: var(--t-xl);
+  color: var(--ink-500);
+  border-bottom: 1px solid var(--rule);
+}
+.mast-sheet-link.active {
+  color: var(--ink-900);
+}
+
+/* ============================================================ responsive */
+
+@media (max-width: 1100px) {
+  .mast-inner {
+    padding: 0 var(--s-5);
+    gap: var(--s-4);
+  }
+  .mast-kicker {
+    display: none;
+  }
+}
+
+@media (max-width: 900px) {
+  .mast-nav {
+    display: none;
+  }
+  .mast-menu {
+    display: inline-flex;
+  }
+  .mast-search {
+    max-width: none;
+  }
+}
+
+@media (max-width: 560px) {
+  .mast-inner {
+    padding: 0 var(--s-4);
+    gap: var(--s-2);
+  }
+  /* The field collapses to its submit button — see the note in Masthead.jsx. */
+  .mast-search {
+    flex: none;
+    width: 32px;
+    padding: 0;
+    justify-content: center;
+    background: transparent;
+    border-color: transparent;
+  }
+  .mast-search input,
+  .mast-search kbd {
+    display: none;
+  }
+  .mast-search-go {
+    width: 32px;
+    height: 32px;
+  }
+  .mast-alerts {
+    padding: 0 8px;
+  }
+}

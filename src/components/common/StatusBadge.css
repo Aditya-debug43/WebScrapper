@@ -1,31 +1,48 @@
+/* ==========================================================================
+   STATUS BADGE
+   The reserved semantic scale. Always icon + label, never colour alone, so it
+   survives both themes and colour-blind readers.
+   ========================================================================== */
+
 .status-badge {
   display: inline-flex;
   align-items: center;
   gap: 5px;
-  font-size: 0.75rem;
+  font-size: var(--t-micro);
   font-weight: 600;
-  padding: 3px 10px 3px 8px;
-  border-radius: var(--radius-pill);
+  letter-spacing: 0.04em;
+  padding: 3px 8px 3px 7px;
+  border-radius: var(--r-xs);
+  border: 1px solid transparent;
   white-space: nowrap;
+  line-height: 1.45;
+}
+.status-badge svg {
+  flex: none;
 }
 
 .status-good {
-  background: var(--status-good-tint);
-  color: var(--status-good-ink);
+  background: var(--good-wash);
+  border-color: color-mix(in srgb, var(--good) 26%, transparent);
+  color: var(--good-ink);
 }
 .status-warning {
-  background: var(--status-warning-tint);
-  color: var(--status-warning-ink);
+  background: var(--warning-wash);
+  border-color: color-mix(in srgb, var(--warning) 26%, transparent);
+  color: var(--warning-ink);
 }
 .status-serious {
-  background: var(--status-serious-tint);
-  color: var(--status-serious-ink);
+  background: var(--serious-wash);
+  border-color: color-mix(in srgb, var(--serious) 26%, transparent);
+  color: var(--serious-ink);
 }
 .status-critical {
-  background: var(--status-critical-tint);
-  color: var(--status-critical-ink);
+  background: var(--critical-wash);
+  border-color: color-mix(in srgb, var(--critical) 26%, transparent);
+  color: var(--critical-ink);
 }
 .status-neutral {
-  background: var(--canvas-alt);
+  background: var(--surface-2);
+  border-color: var(--rule);
   color: var(--ink-500);
 }

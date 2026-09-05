@@ -24,7 +24,7 @@ export default function ListingDetail() {
 
   return (
     <div>
-      <div className="ld-top card">
+      <div className="ld-top">
         <div>
           <span className="eyebrow">{marketplace.name} listing</span>
           <p className="ld-raw-title">"{listing.rawTitle}"</p>
@@ -41,7 +41,7 @@ export default function ListingDetail() {
       </div>
 
       {review && (
-        <div className="ld-review card">
+        <div className="ld-review">
           <div>
             <span className="ld-review-rating">
               <Star size={16} strokeWidth={0} fill="currentColor" /> {review.averageRating.toFixed(1)}
@@ -57,7 +57,7 @@ export default function ListingDetail() {
         </div>
       )}
 
-      <div className="section-head" style={{ marginTop: 28 }}>
+      <div className="section-head ld-offers-head">
         <h2 className="section-title">Sellers &amp; offers</h2>
         <Link to={`/listings/${listingId}/history`} className="btn btn-ghost btn-sm">
           <History size={14} strokeWidth={2} /> Price history

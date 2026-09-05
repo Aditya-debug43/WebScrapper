@@ -1,24 +1,45 @@
-.loading-state {
-  display: flex;
-  align-items: center;
-  gap: 10px;
+.loading {
+  padding: var(--s-5) 0 var(--s-7);
+}
+
+.loading-rule {
+  position: relative;
+  height: 1px;
+  background: var(--rule);
+  overflow: hidden;
+}
+
+.loading-rule span {
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 28%;
+  background: var(--ink-900);
+  animation: sweep 1250ms var(--ease) infinite;
+}
+
+@keyframes sweep {
+  0% {
+    transform: translateX(-100%);
+  }
+  100% {
+    transform: translateX(460%);
+  }
+}
+
+.loading-label {
+  margin-top: var(--s-3);
+  font-size: var(--t-micro);
+  font-weight: 600;
+  letter-spacing: 0.13em;
+  text-transform: uppercase;
   color: var(--ink-400);
-  font-size: var(--text-sm);
-  padding: 40px 0;
-  justify-content: center;
 }
 
-.loading-spinner {
-  width: 16px;
-  height: 16px;
-  border-radius: 50%;
-  border: 2px solid var(--border-strong);
-  border-top-color: var(--accent);
-  animation: spin 0.7s linear infinite;
-}
-
-@keyframes spin {
-  to {
-    transform: rotate(360deg);
+/* With motion reduced the sweep would freeze mid-track and read as a broken
+   progress bar, so the rule becomes a static full-width tint instead. */
+@media (prefers-reduced-motion: reduce) {
+  .loading-rule span {
+    width: 100%;
+    background: var(--ink-300);
   }
 }

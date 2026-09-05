@@ -1,20 +1,43 @@
+/* ==========================================================================
+   OFFER CARD — one seller's complete commercial position on a listing.
+   Two columns: who is selling, and the ladder that produces their price.
+   ========================================================================== */
+
 .offer-card {
-  padding: 20px 22px;
+  position: relative;
   display: grid;
-  grid-template-columns: 1.3fr 1fr;
-  gap: 24px;
-  align-items: start;
+  grid-template-columns: minmax(220px, 1fr) minmax(280px, 1.15fr);
+  gap: var(--s-5);
+  padding: var(--s-4) var(--s-5);
+  transition: border-color var(--d-fast) var(--ease);
+}
+.offer-card:hover {
+  border-color: var(--rule-strong);
 }
 
+/* The featured offer is the cheapest in-stock landed price today, recomputed
+   from observations — so it is marked, not decorated. */
 .offer-card.buybox {
-  border-color: var(--status-good);
-  box-shadow: 0 0 0 1px var(--status-good) inset;
+  border-color: var(--rule-strong);
 }
+.offer-card.buybox::before {
+  content: "";
+  position: absolute;
+  left: -1px;
+  top: -1px;
+  bottom: -1px;
+  width: 2px;
+  background: var(--ink-900);
+  border-radius: var(--r-sm) 0 0 var(--r-sm);
+}
+
+/* ----------------------------------------------------------------- seller */
 
 .offer-card-seller {
   display: flex;
   align-items: flex-start;
-  gap: 12px;
+  gap: var(--s-3);
+  min-width: 0;
 }
 
 .offer-card-seller-meta {
@@ -30,214 +53,218 @@
 }
 
 .offer-card-seller-name {
+  font-size: var(--t-base);
   font-weight: 600;
-  font-size: var(--text-base);
   color: var(--ink-900);
+  letter-spacing: -0.005em;
 }
 
 .offer-card-seller-sub {
-  font-size: var(--text-xs);
-  color: var(--ink-400);
-  margin-top: 3px;
+  margin-top: 4px;
+  font-size: var(--t-xs);
+  color: var(--ink-500);
+  line-height: 1.5;
 }
 
 .offer-card-rating {
   display: inline-flex;
   align-items: center;
-  gap: 3px;
-  font-size: var(--text-xs);
-  font-weight: 600;
-  color: var(--status-warning-ink);
-  white-space: nowrap;
+  gap: 4px;
+  flex: none;
+  font-family: var(--font-mono);
+  font-size: var(--t-xs);
+  font-variant-numeric: tabular-nums;
+  color: var(--ink-700);
+  align-self: flex-start;
 }
-
+.offer-card-rating svg {
+  color: var(--warning);
+}
 .offer-card-rating span {
   color: var(--ink-400);
-  font-weight: 500;
-  margin-left: 2px;
+}
+
+/* ------------------------------------------------------------ price block */
+
+.offer-card-price-block {
+  min-width: 0;
 }
 
 .offer-card-price-main {
   display: flex;
   align-items: baseline;
-  gap: 9px;
+  gap: 10px;
   flex-wrap: wrap;
-  margin-bottom: 10px;
 }
 
 .offer-card-price {
-  font-family: var(--font-sans);
-  font-size: var(--text-xl);
+  font-size: var(--t-2xl);
+  font-weight: 500;
+  letter-spacing: -0.035em;
   color: var(--ink-900);
+  line-height: 1;
 }
 
 .offer-card-mrp {
-  font-size: var(--text-sm);
-  color: var(--ink-300);
+  font-size: var(--t-sm);
+  color: var(--ink-400);
   text-decoration: line-through;
+  text-decoration-thickness: 1px;
 }
 
 .offer-card-discount {
-  font-size: var(--text-xs);
-  font-weight: 700;
-  color: var(--status-good-ink);
+  font-size: var(--t-xs);
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: var(--good-ink);
+  background: var(--good-wash);
+  border: 1px solid color-mix(in srgb, var(--good) 24%, transparent);
+  border-radius: var(--r-xs);
+  padding: 2px 6px;
 }
 
-/* ---- the price ladder ---- */
+/* ---------------------------------------------------------------- ladder
+   Each rung answers a different question, so they are never collapsed into
+   one "effective price". The total rung is the only one set in ink. */
+
 .offer-card-ladder {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
+  margin-top: var(--s-4);
+  border-top: 1px solid var(--rule);
 }
 
 .offer-ladder-row {
   display: flex;
   align-items: baseline;
   justify-content: space-between;
-  gap: 10px;
-  font-size: var(--text-xs);
+  gap: var(--s-4);
+  padding: 6px 0;
+  font-size: var(--t-xs);
+  color: var(--ink-500);
+  border-bottom: 1px dotted var(--rule);
+}
+.offer-ladder-row:last-child {
+  border-bottom: 0;
+}
+.offer-ladder-row em {
+  font-style: normal;
+  color: var(--ink-400);
+}
+.offer-ladder-row span:last-child {
+  flex: none;
+  font-variant-numeric: tabular-nums;
+}
+
+.offer-ladder-row.rung-reference span:last-child {
+  color: var(--ink-400);
+}
+.offer-ladder-row.rung-base span:last-child,
+.offer-ladder-row.rung-add span:last-child {
+  color: var(--ink-700);
+}
+.offer-ladder-row.rung-subtotal {
+  color: var(--ink-700);
+}
+.offer-ladder-row.rung-subtotal span:last-child {
+  color: var(--ink-800);
+}
+.offer-ladder-row.rung-deduct span:last-child {
+  color: var(--good);
+}
+.offer-ladder-row.rung-deduct-conditional span:last-child {
   color: var(--ink-500);
 }
 
-.offer-ladder-row em {
-  font-style: normal;
-  color: var(--ink-300);
-  font-size: 0.625rem;
-}
-
-.offer-ladder-row.rung-reference {
-  color: var(--ink-400);
-}
-
-.offer-ladder-row.rung-subtotal {
-  padding-top: 5px;
-  border-top: 1px dashed var(--border);
-  color: var(--ink-700);
-}
-
-.offer-ladder-row.rung-deduct span:last-child {
-  color: var(--status-good-ink);
-  font-weight: 600;
-}
-
-.offer-ladder-row.rung-deduct-conditional span:last-child {
-  color: var(--accent-2);
-  font-weight: 600;
-}
-
 .offer-ladder-row.rung-total {
-  padding-top: 7px;
-  margin-top: 3px;
-  border-top: 1px solid var(--border);
-  font-size: var(--text-sm);
-  font-weight: 700;
+  margin-top: 2px;
+  padding-top: 9px;
+  border-top: 1px solid var(--rule-heavy);
+  border-bottom: 0;
   color: var(--ink-900);
+  font-size: var(--t-sm);
+  font-weight: 600;
+}
+.offer-ladder-row.rung-total span:last-child {
+  font-size: var(--t-md);
+  letter-spacing: -0.025em;
 }
 
 .offer-ladder-row.rung-subtotal-conditional {
-  color: var(--accent-2-tint-ink);
-  font-weight: 600;
+  color: var(--ink-500);
+  border-bottom: 0;
 }
 
-/* ---- promotions, grouped by who can actually get them ---- */
+/* -------------------------------------------------------- foot and promos */
+
+.offer-card-foot {
+  grid-column: 1;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  align-self: end;
+}
+
+.offer-card-condition {
+  text-transform: capitalize;
+}
+
 .offer-card-promos {
   grid-column: 1 / -1;
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-  gap: 8px;
-  padding-top: 12px;
-  border-top: 1px solid var(--border);
+  grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+  gap: var(--s-3) var(--s-5);
+  padding-top: var(--s-4);
+  border-top: 1px solid var(--rule);
 }
 
-.offer-promo-group {
-  border-radius: var(--radius-md);
-  padding: 9px 11px;
-  background: var(--canvas-alt);
+.offer-promo-group ul {
+  margin-top: 5px;
+}
+.offer-promo-group li {
+  font-size: var(--t-xs);
+  line-height: 1.55;
+  color: var(--ink-700);
+  padding-left: 11px;
+  position: relative;
+}
+.offer-promo-group li::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 8px;
+  width: 4px;
+  height: 1px;
+  background: var(--ink-300);
+}
+.offer-promo-group li em {
+  font-style: normal;
+  color: var(--ink-400);
 }
 
 .offer-promo-class {
   display: inline-flex;
   align-items: center;
   gap: 5px;
-  font-size: 0.5625rem;
-  font-weight: 700;
-  letter-spacing: 0.05em;
+  font-size: var(--t-micro);
+  font-weight: 600;
+  letter-spacing: 0.09em;
   text-transform: uppercase;
-  margin-bottom: 5px;
-}
-
-.offer-promo-group ul {
-  display: flex;
-  flex-direction: column;
-  gap: 3px;
-}
-
-.offer-promo-group li {
-  font-size: 0.6875rem;
-  line-height: 1.45;
-  color: var(--ink-700);
-}
-
-.offer-promo-group li em {
-  font-style: normal;
   color: var(--ink-400);
 }
 
-.promo-universal {
-  background: var(--status-good-tint);
-}
-.promo-universal .offer-promo-class {
-  color: var(--status-good-ink);
-}
-
-.promo-conditional {
-  background: var(--accent-2-tint);
-}
-.promo-conditional .offer-promo-class {
-  color: var(--accent-2-tint-ink);
+/* Availability class is a genuine semantic difference — only universal
+   discounts move the comparison price — so only that class is set in ink. */
+.offer-promo-group.promo-universal .offer-promo-class {
+  color: var(--ink-900);
 }
 
-.promo-deferred {
-  background: #e4eefb;
-}
-.promo-deferred .offer-promo-class {
-  color: #1d4f8f;
-}
-
-.promo-financing {
-  background: var(--canvas-alt);
-}
-.promo-financing .offer-promo-class {
-  color: var(--ink-500);
-}
-
-.offer-card-foot {
-  grid-column: 1 / -1;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  flex-wrap: wrap;
-  padding-top: 16px;
-  border-top: 1px solid var(--border);
-}
-
-.offer-card-promo {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  color: var(--accent-tint-ink);
-  background: var(--accent-tint);
-}
-
-.offer-card-conditional-note {
-  grid-column: 1 / -1;
-  font-size: 0.6875rem;
-  color: var(--ink-400);
-  line-height: 1.5;
-}
-
-@media (max-width: 640px) {
+@media (max-width: 720px) {
   .offer-card {
     grid-template-columns: 1fr;
+    gap: var(--s-4);
+    padding: var(--s-4);
+  }
+  .offer-card-foot {
+    grid-column: 1;
   }
 }

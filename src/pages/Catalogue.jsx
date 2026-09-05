@@ -160,6 +160,9 @@ export default function Catalogue() {
       </div>
 
       <div className="catalogue-layout">
+        {mobileFiltersOpen && (
+          <div className="sheet-backdrop" onClick={() => setMobileFiltersOpen(false)} aria-hidden="true" />
+        )}
         <aside className={`catalogue-sidebar${mobileFiltersOpen ? " open" : ""}`}>
           <div className="catalogue-sidebar-inner">
             <div className="catalogue-sidebar-mobile-head">
@@ -259,7 +262,7 @@ export default function Catalogue() {
           {loading && <LoadingState label="Loading catalogue…" />}
 
           {!loading && data?.total === 0 && (
-            <div className="catalogue-empty card">
+            <div className="catalogue-empty">
               <p>No products match these filters.</p>
               {activeFilterCount > 0 && (
                 <button type="button" className="btn btn-secondary btn-sm" onClick={clearAllFilters}>

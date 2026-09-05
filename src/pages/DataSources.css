@@ -1,83 +1,126 @@
+/* ==========================================================================
+   DATA SOURCES — provenance. Whether anything else in the app can be trusted.
+   ========================================================================== */
+
 .ds-marketplace-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(360px, 1fr));
-  gap: 18px;
+  grid-template-columns: repeat(auto-fill, minmax(330px, 1fr));
+  gap: var(--s-4);
+  align-items: start;
 }
 
 .ds-marketplace-card {
-  padding: 20px 22px;
+  padding: var(--s-4);
+  border: 1px solid var(--rule);
+  border-radius: var(--r-sm);
+  background: var(--surface);
 }
 
 .ds-marketplace-head {
   display: flex;
   align-items: center;
-  gap: 9px;
-  margin-bottom: 16px;
+  gap: 8px;
+  flex-wrap: wrap;
+  padding-bottom: var(--s-3);
+  border-bottom: 1px solid var(--rule);
 }
-
 .ds-marketplace-head h3 {
-  font-size: var(--text-lg);
   flex: 1;
+  min-width: 0;
+  font-family: var(--font-display);
+  font-size: var(--t-lg);
+  font-weight: 400;
+  color: var(--ink-900);
 }
 
 .ds-marketplace-metrics {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 10px;
-  padding-bottom: 14px;
-  margin-bottom: 12px;
-  border-bottom: 1px solid var(--border);
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--s-3);
+  padding: var(--s-4) 0;
+  border-bottom: 1px solid var(--rule);
 }
 
 .ds-metric-value {
   display: flex;
   align-items: center;
   gap: 5px;
-  font-size: var(--text-sm);
-  font-weight: 600;
+  margin-top: 6px;
+  font-family: var(--font-mono);
+  font-size: var(--t-sm);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.02em;
   color: var(--ink-900);
-  margin-top: 4px;
+}
+.ds-metric-value svg {
+  flex: none;
+  color: var(--ink-300);
 }
 
 .ds-listing-count {
-  font-size: var(--text-xs);
-  color: var(--ink-400);
-  margin-bottom: 16px;
+  padding: var(--s-3) 0;
+  font-size: var(--t-xs);
+  color: var(--ink-500);
+  border-bottom: 1px solid var(--rule);
 }
 
 .ds-coverage {
-  padding-top: 4px;
+  padding-top: var(--s-4);
 }
 
 .ds-coverage-row {
   display: grid;
-  grid-template-columns: 110px 1fr 44px;
+  grid-template-columns: minmax(0, 1fr) 90px 46px;
   align-items: center;
-  gap: 10px;
-  padding: 5px 0;
-  font-size: var(--text-xs);
+  gap: var(--s-3);
+  padding: 4px 0;
+  font-size: var(--t-xs);
   color: var(--ink-500);
+}
+.ds-coverage-row > span:first-child {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
   text-transform: capitalize;
+}
+.ds-coverage-row > span:last-child {
+  text-align: right;
+  color: var(--ink-700);
 }
 
 .ds-coverage-bar {
-  height: 5px;
-  border-radius: var(--radius-pill);
-  background: var(--canvas-alt);
+  height: 3px;
+  background: var(--surface-3);
+  border-radius: var(--r-pill);
   overflow: hidden;
 }
-
 .ds-coverage-bar-fill {
   height: 100%;
-  background: var(--series-1);
-  border-radius: var(--radius-pill);
+  background: var(--ink-700);
+  border-radius: var(--r-pill);
 }
 
 .ds-notes {
-  margin-top: 14px;
-  font-size: 0.75rem;
-  color: var(--ink-400);
-  padding-top: 12px;
-  border-top: 1px solid var(--border);
-  line-height: 1.5;
+  margin-top: var(--s-4);
+  padding-top: var(--s-3);
+  border-top: 1px solid var(--rule);
+  font-size: var(--t-xs);
+  line-height: 1.6;
+  color: var(--ink-500);
+}
+
+.ds-section {
+  margin-top: var(--s-8);
+}
+
+.ds-section-title {
+  margin-bottom: var(--s-4);
+}
+
+.ds-section-note {
+  margin-bottom: var(--s-4);
+  font-size: var(--t-sm);
+  line-height: 1.7;
+  color: var(--ink-500);
+  max-width: var(--measure);
 }

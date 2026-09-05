@@ -24,9 +24,9 @@ export default function Dashboard() {
       <Breadcrumbs items={[{ label: "Dashboard" }]} />
       <div className="page-head">
         <div>
-          <h1 className="page-title">Welcome back</h1>
+          <h1 className="page-title">Your desk</h1>
           <p className="page-subtitle">
-            Your tracked products, what moved this week, and where to look next.
+            The products you follow, what moved in the last seven days, and where the evidence says to look next.
           </p>
         </div>
         <Link to="/catalogue" className="btn btn-primary">
@@ -34,7 +34,7 @@ export default function Dashboard() {
         </Link>
       </div>
 
-      <div className="dash-metrics">
+      <div className="dash-metrics stagger">
         <MetricCard
           label="Tracked products"
           value={portfolio?.trackedCount ?? "—"}
@@ -67,7 +67,7 @@ export default function Dashboard() {
           {loading && <LoadingState label="Loading tracked products…" />}
 
           {!loading && summaries?.length === 0 && (
-            <div className="dash-empty card">
+            <div className="dash-empty">
               <p>You aren't tracking any products yet.</p>
               <Link to="/catalogue" className="btn btn-secondary btn-sm">
                 Browse the catalogue
@@ -77,7 +77,7 @@ export default function Dashboard() {
 
           <div className="dash-product-list">
             {summaries?.map((s) => (
-              <div className="dash-product-row card" key={s.product.id}>
+              <div className="dash-product-row" key={s.product.id}>
                 <div className="dash-product-main">
                   <Link to={`/products/${s.product.id}`} className="dash-product-name">
                     {s.product.canonicalName}
@@ -114,7 +114,7 @@ export default function Dashboard() {
           <div className="section-head">
             <h2 className="section-title">Alerts</h2>
           </div>
-          <div className="dash-alerts card">
+          <div className="dash-alerts">
             {alerts?.length === 0 && <p className="dash-alerts-empty">No notable price movements right now.</p>}
             {alerts?.map((a) => (
               <div className="dash-alert-row" key={a.id}>

@@ -16,7 +16,7 @@ import DataTable from "../common/DataTable";
 import { formatMinor, formatCompactMinor, formatDate } from "../../utils/money";
 import "./PriceHistoryChart.css";
 
-const SERIES_COLORS = ["var(--series-1)", "var(--series-2)", "var(--series-3)"];
+const SERIES_COLORS = ["var(--series-1)", "var(--series-2)", "var(--series-3)", "var(--series-4)"];
 
 const RANGE_OPTIONS = [
   { value: 30, label: "30d" },
@@ -67,7 +67,7 @@ function CustomTooltip({ active, payload, label, series }) {
         const seller = series[Number(p.dataKey.replace("s", ""))]?.seller;
         return (
           <div className="chart-tooltip-row" key={p.dataKey}>
-            <span className="chart-tooltip-dot" style={{ background: SERIES_COLORS[i] }} />
+            <span className="chart-tooltip-dot" style={{ background: SERIES_COLORS[i % SERIES_COLORS.length] }} />
             <span className="chart-tooltip-label">{seller?.name}</span>
             <span className="chart-tooltip-value tabular">₹{p.value.toLocaleString("en-IN")}</span>
           </div>
@@ -92,7 +92,7 @@ export default function PriceHistoryChart({ series, priceBasis }) {
   const yDomain = showMrp && mrp ? [0, Math.ceil((mrp * 1.05) / 500) * 500] : ["auto", "auto"];
 
   return (
-    <div className="price-history-chart card">
+    <div className="phc">
       <div className="phc-toolbar">
         <FilterControl options={RANGE_OPTIONS} value={rangeDays} onChange={setRangeDays} ariaLabel="Date range" />
         <div className="phc-toolbar-actions">
@@ -115,7 +115,7 @@ export default function PriceHistoryChart({ series, priceBasis }) {
       <div className="phc-legend">
         {series.map((s, i) => (
           <span className="phc-legend-item" key={s.offer.id}>
-            <span className="phc-legend-dot" style={{ background: SERIES_COLORS[i] }} />
+            <span className="phc-legend-dot" style={{ background: SERIES_COLORS[i % SERIES_COLORS.length] }} />
             {s.seller.name}
           </span>
         ))}
@@ -143,33 +143,38 @@ export default function PriceHistoryChart({ series, priceBasis }) {
         />
       ) : (
         <div className="phc-plot">
-          <ResponsiveContainer width="100%" height={340}>
+          <ResponsiveContainer width="100%" height={320}>
             <LineChart data={visible} margin={{ top: 8, right: 12, left: 4, bottom: 4 }}>
-              <CartesianGrid stroke="var(--border)" vertical={false} />
+              {/* Horizontal rules only — a full grid is scaffolding the reader has to
+                  look past in order to see the data. */}
+              <CartesianGrid stroke="var(--grid)" vertical={false} />
               <XAxis
                 dataKey="date"
                 tickFormatter={(d) => formatDate(d, { withYear: false })}
-                tick={{ fontSize: 11, fill: "var(--ink-400)" }}
-                axisLine={{ stroke: "var(--border-strong)" }}
+                tick={{ fontSize: 10, fill: "var(--ink-400)", fontFamily: "var(--font-mono)" }}
+                axisLine={{ stroke: "var(--rule-strong)" }}
                 tickLine={false}
-                minTickGap={40}
+                minTickGap={44}
               />
               <YAxis
                 tickFormatter={(v) => formatCompactMinor(v * 100)}
-                tick={{ fontSize: 11, fill: "var(--ink-400)" }}
+                tick={{ fontSize: 10, fill: "var(--ink-400)", fontFamily: "var(--font-mono)" }}
                 axisLine={false}
                 tickLine={false}
                 width={54}
                 domain={yDomain}
               />
-              <Tooltip content={<CustomTooltip series={series} />} />
+              <Tooltip
+                content={<CustomTooltip series={series} />}
+                cursor={{ stroke: "var(--rule-heavy)", strokeWidth: 1, strokeDasharray: "3 3" }}
+              />
               {saleWindows.map((w) => (
                 <ReferenceArea
                   key={w.start}
                   x1={w.start}
                   x2={w.end}
-                  fill="var(--accent)"
-                  fillOpacity={0.07}
+                  fill="var(--ink-900)"
+                  fillOpacity={0.055}
                   stroke="none"
                 />
               ))}
@@ -181,10 +186,10 @@ export default function PriceHistoryChart({ series, priceBasis }) {
                   key={s.offer.id}
                   type="monotone"
                   dataKey={`s${i}`}
-                  stroke={SERIES_COLORS[i]}
-                  strokeWidth={2}
+                  stroke={SERIES_COLORS[i % SERIES_COLORS.length]}
+                  strokeWidth={1.75}
                   dot={false}
-                  activeDot={{ r: 4 }}
+                  activeDot={{ r: 3.5, strokeWidth: 2, stroke: "var(--surface)" }}
                   connectNulls
                   isAnimationActive={false}
                 />

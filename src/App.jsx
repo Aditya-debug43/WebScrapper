@@ -1,9 +1,9 @@
 import { Routes, Route } from "react-router-dom";
-import { useState } from "react";
-import Sidebar from "./components/layout/Sidebar";
-import Header from "./components/layout/Header";
+import Masthead from "./components/layout/Masthead";
+import Colophon from "./components/layout/Colophon";
 import ProductWorkspaceLayout from "./components/layout/ProductWorkspaceLayout";
 import { AppStateProvider, useAppState } from "./state/AppStateContext";
+import { ThemeProvider } from "./state/ThemeContext";
 import { useAsyncData } from "./utils/useAsyncData";
 import { getPriceAlerts } from "./api/dashboardService";
 
@@ -20,13 +20,11 @@ import DataSources from "./pages/DataSources";
 function AppShell() {
   const { trackedProductIds } = useAppState();
   const { data: alerts } = useAsyncData(() => getPriceAlerts(trackedProductIds), [trackedProductIds]);
-  const [menuOpen, setMenuOpen] = useState(false);
 
   return (
     <div className="app-shell">
-      <Sidebar open={menuOpen} onClose={() => setMenuOpen(false)} />
-      <div className="app-main">
-        <Header alertCount={alerts?.length ?? 0} onMenuClick={() => setMenuOpen(true)} />
+      <Masthead alertCount={alerts?.length ?? 0} />
+      <main className="app-main">
         <Routes>
           <Route path="/" element={<Dashboard />} />
           <Route path="/catalogue" element={<Catalogue />} />
@@ -42,15 +40,18 @@ function AppShell() {
 
           <Route path="/sources" element={<DataSources />} />
         </Routes>
-      </div>
+      </main>
+      <Colophon />
     </div>
   );
 }
 
 export default function App() {
   return (
-    <AppStateProvider>
-      <AppShell />
-    </AppStateProvider>
+    <ThemeProvider>
+      <AppStateProvider>
+        <AppShell />
+      </AppStateProvider>
+    </ThemeProvider>
   );
 }

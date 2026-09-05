@@ -1,54 +1,93 @@
+/* ==========================================================================
+   DATA TABLE
+   A ruled table, not a bordered spreadsheet: no vertical rules, no outer box,
+   no zebra. Rows are separated by hairlines and identified on hover by a wash
+   plus a 2px ink edge — the same left-edge motif the analysis findings use.
+   ========================================================================== */
+
+/* Wide tables scroll inside themselves; the page body never scrolls. */
 .data-table-wrap {
-  overflow-x: auto;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-lg);
-  background: var(--surface);
+  border-top: 1px solid var(--rule-heavy);
 }
 
 .data-table {
   width: 100%;
-  border-collapse: collapse;
-  font-size: var(--text-sm);
-  min-width: 560px;
+  min-width: 100%;
+  font-size: var(--t-sm);
 }
 
-.data-table thead th {
+.data-table th {
   text-align: left;
-  font-size: 0.6875rem;
+  font-size: var(--t-micro);
   font-weight: 600;
-  letter-spacing: 0.05em;
+  letter-spacing: 0.11em;
   text-transform: uppercase;
   color: var(--ink-400);
-  padding: 13px 18px;
-  border-bottom: 1px solid var(--border);
+  padding: 10px 14px 9px;
   white-space: nowrap;
+  border-bottom: 1px solid var(--rule-strong);
 }
 
-.data-table tbody td {
-  padding: 14px 18px;
-  border-bottom: 1px solid var(--border);
-  color: var(--ink-700);
-  vertical-align: middle;
+.data-table th.num,
+.data-table td.num {
+  text-align: right;
 }
 
+.data-table td {
+  padding: 11px 14px;
+  border-bottom: 1px solid var(--rule);
+  color: var(--ink-800);
+  vertical-align: top;
+  line-height: 1.5;
+}
+
+.data-table td.num {
+  color: var(--ink-900);
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+/* First and last cells align with the surrounding page rather than the
+   table's own padding, so a table sits flush in a column of prose. */
+.data-table th:first-child,
+.data-table td:first-child {
+  padding-left: 2px;
+}
+.data-table th:last-child,
+.data-table td:last-child {
+  padding-right: 2px;
+}
+
+.data-table tbody tr {
+  position: relative;
+  transition: background var(--d-fast) var(--ease);
+}
+.data-table tbody tr:hover {
+  background: var(--surface-2);
+}
+.data-table tbody tr:hover td:first-child {
+  box-shadow: inset 2px 0 0 var(--ink-900);
+}
 .data-table tbody tr:last-child td {
-  border-bottom: none;
+  border-bottom: 0;
 }
 
 .data-table tbody tr.clickable {
   cursor: pointer;
-  transition: background 0.12s ease;
-}
-
-.data-table tbody tr.clickable:hover {
-  background: var(--surface-sunken);
 }
 
 .data-table-empty {
-  border: 1px dashed var(--border-strong);
-  border-radius: var(--radius-lg);
-  padding: 32px;
-  text-align: center;
-  color: var(--ink-400);
-  font-size: var(--text-sm);
+  padding: var(--s-5) 2px;
+  border-top: 1px solid var(--rule-heavy);
+  border-bottom: 1px solid var(--rule);
+  color: var(--ink-500);
+  font-size: var(--t-sm);
+}
+
+@media (max-width: 720px) {
+  .data-table th,
+  .data-table td {
+    padding-left: 10px;
+    padding-right: 10px;
+  }
 }

@@ -25,62 +25,70 @@ function keySpecsFor(product, limit = 3) {
   return out;
 }
 
+/**
+ * A catalogue entry, set like an index card rather than a shop tile.
+ *
+ * The old card led with a grey square holding two letters — a placeholder
+ * standing in for product photography this dataset does not have, occupying
+ * the most valuable position on the card. It is gone. What leads now is the
+ * price, because this is a pricing product and price is what the catalogue is
+ * scanned for; the brand monogram survives as quiet typographic texture that
+ * gives a long grid some rhythm.
+ */
 export default function ProductCard({ summary }) {
   const { product, brand, minPriceMinor, maxPriceMinor, marketplaceIds, rating, reviewCount, inStock } = summary;
   const specs = keySpecsFor(product);
-  const displayName = brand ? product.canonicalName.replace(new RegExp(`^${brand.name}\\s+`, "i"), "") : product.canonicalName;
+  const displayName = brand
+    ? product.canonicalName.replace(new RegExp(`^${brand.name}\\s+`, "i"), "")
+    : product.canonicalName;
 
   return (
-    <Link to={`/products/${product.id}`} className="product-card card">
-      <div className="product-card-thumb">
-        <span className="product-card-thumb-mark">{(brand?.name ?? "?").slice(0, 2).toUpperCase()}</span>
-        {!inStock && (
-          <span className="product-card-oos">
-            <PackageX size={11} strokeWidth={2} /> No active offer
+    <Link to={`/products/${product.id}`} className="pcard">
+      <span className="eyebrow pcard-brand">{brand?.name}</span>
+      <h3 className="pcard-name">{displayName}</h3>
+
+      {specs.length > 0 && (
+        <ul className="pcard-specs">
+          {specs.map((s) => (
+            <li key={s.key}>{s.text}</li>
+          ))}
+        </ul>
+      )}
+
+      <div className="pcard-price-row">
+        <span className="pcard-price tabular">
+          {minPriceMinor != null
+            ? maxPriceMinor && maxPriceMinor !== minPriceMinor
+              ? `${formatMinor(minPriceMinor)}–${formatMinor(maxPriceMinor)}`
+              : formatMinor(minPriceMinor)
+            : "No price"}
+        </span>
+        {rating != null && (
+          <span className="pcard-rating">
+            <Star size={11} strokeWidth={0} fill="currentColor" />
+            <span className="tabular">{rating.toFixed(1)}</span>
+            {reviewCount ? (
+              <em className="tabular">{reviewCount >= 1000 ? `${Math.round(reviewCount / 100) / 10}k` : reviewCount}</em>
+            ) : null}
           </span>
         )}
       </div>
 
-      <div className="product-card-body">
-        <span className="eyebrow">{brand?.name}</span>
-        <h3 className="product-card-name">{displayName}</h3>
-
-        {specs.length > 0 && (
-          <ul className="product-card-specs">
-            {specs.map((s) => (
-              <li key={s.key}>{s.text}</li>
-            ))}
-          </ul>
+      <div className="pcard-foot">
+        <span className="pcard-mps">
+          {marketplaceIds.map((id) => {
+            const mp = marketplaces.find((m) => m.id === id);
+            return <span key={id} className="pcard-pip" style={{ background: mp?.brandColor }} title={mp?.name} />;
+          })}
+          <em>
+            {marketplaceIds.length} marketplace{marketplaceIds.length === 1 ? "" : "s"}
+          </em>
+        </span>
+        {!inStock && (
+          <span className="pcard-oos">
+            <PackageX size={10} strokeWidth={2} /> No active offer
+          </span>
         )}
-
-        <div className="product-card-meta">
-          <span className="product-card-price tabular">
-            {minPriceMinor != null
-              ? maxPriceMinor && maxPriceMinor !== minPriceMinor
-                ? `${formatMinor(minPriceMinor)} – ${formatMinor(maxPriceMinor)}`
-                : formatMinor(minPriceMinor)
-              : "Price unavailable"}
-          </span>
-          {rating != null && (
-            <span className="product-card-rating">
-              <Star size={12} strokeWidth={0} fill="currentColor" />
-              {rating.toFixed(1)}
-              {reviewCount ? <em> ({reviewCount >= 1000 ? `${Math.round(reviewCount / 100) / 10}k` : reviewCount})</em> : null}
-            </span>
-          )}
-        </div>
-
-        <div className="product-card-foot">
-          <span className="product-card-mps">
-            {marketplaceIds.map((id) => {
-              const mp = marketplaces.find((m) => m.id === id);
-              return <span key={id} className="product-card-mp-dot" style={{ background: mp?.brandColor }} title={mp?.name} />;
-            })}
-            <em>
-              {marketplaceIds.length} marketplace{marketplaceIds.length === 1 ? "" : "s"}
-            </em>
-          </span>
-        </div>
       </div>
     </Link>
   );

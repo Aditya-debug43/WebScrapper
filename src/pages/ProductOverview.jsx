@@ -29,7 +29,7 @@ export default function ProductOverview() {
               {tracked ? "Tracking" : "Track this product"}
             </button>
           </div>
-          <div className="po-identity card">
+          <div className="po-identity">
             <dl className="po-identity-grid">
               <IdentityRow label="Brand" value={brand?.name} />
               <IdentityRow label="Model" value={product.modelName} />
@@ -54,12 +54,10 @@ export default function ProductOverview() {
 
         {variantSiblings.length > 0 && (
           <section className="po-section">
-            <h2 className="section-title" style={{ marginBottom: 14 }}>
-              Same model family
-            </h2>
+            <h2 className="section-title po-family-title">Same model family</h2>
             <div className="po-siblings">
               {variantSiblings.map((s) => (
-                <Link to={`/products/${s.product.id}`} key={s.product.id} className="po-sibling card">
+                <Link to={`/products/${s.product.id}`} key={s.product.id} className="po-sibling">
                   <div>
                     <p className="po-sibling-name">{Object.values(s.product.variantAxes).join(" · ")}</p>
                     <p className="po-sibling-sub">{s.product.modelName}</p>
@@ -75,10 +73,8 @@ export default function ProductOverview() {
       </div>
 
       <aside className="po-aside">
-        <div className="card po-aside-card">
-          <h3 className="section-title" style={{ fontSize: "var(--text-base)", marginBottom: 12 }}>
-            Available on
-          </h3>
+        <div className="po-aside-card">
+          <h3 className="po-aside-title">Available on</h3>
           <div className="po-listing-list">
             {listings.map((l) => (
               <Link to={`/listings/${l.listing.id}`} key={l.listing.id} className="po-listing-row">

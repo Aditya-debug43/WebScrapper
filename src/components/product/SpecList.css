@@ -1,37 +1,44 @@
+/* ==========================================================================
+   SPEC LIST — a spec sheet, set as ruled definition rows that flow into
+   columns as width allows. No boxes: the rules do the separating.
+   ========================================================================== */
+
 .spec-list {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
-  gap: 0;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-lg);
-  overflow: hidden;
-  background: var(--surface);
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  column-gap: var(--s-7);
+  border-top: 1px solid var(--rule-heavy);
 }
 
 .spec-list-row {
   display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  padding: 13px 18px;
-  border-bottom: 1px solid var(--border);
-  border-right: 1px solid var(--border);
+  align-items: baseline;
+  gap: var(--s-4);
+  padding: 10px 2px;
+  border-bottom: 1px solid var(--rule);
 }
 
 .spec-list-row dt {
-  font-size: var(--text-sm);
-  color: var(--ink-400);
+  flex: 1;
+  min-width: 0;
+  font-size: var(--t-sm);
+  color: var(--ink-500);
 }
 
 .spec-list-row dd {
   margin: 0;
-  font-size: var(--text-sm);
-  font-weight: 600;
-  color: var(--ink-900);
+  flex: none;
+  max-width: 55%;
   text-align: right;
+  font-size: var(--t-sm);
+  font-weight: 500;
+  color: var(--ink-900);
+  font-variant-numeric: tabular-nums;
 }
 
 .spec-list-empty {
-  color: var(--ink-400);
-  font-size: var(--text-sm);
+  padding: var(--s-5) 0;
+  border-top: 1px solid var(--rule-heavy);
+  color: var(--ink-500);
+  font-size: var(--t-sm);
 }

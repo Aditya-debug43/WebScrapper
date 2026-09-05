@@ -1,0 +1,145 @@
+/* ==========================================================================
+   PRODUCT WORKSPACE HEADER
+   The one place in the app where type is allowed to get genuinely large: the
+   reader has to know what is being analysed before anything else means
+   anything.
+   ========================================================================== */
+
+.pw {
+  display: flex;
+  flex-direction: column;
+}
+
+.pw-head {
+  padding-top: var(--s-6);
+  animation: rise var(--d-slow) var(--ease-out) both;
+}
+
+.pw-head-inner {
+  max-width: var(--page-max);
+  margin: 0 auto;
+  padding: 0 var(--s-7) var(--s-5);
+}
+
+.pw-title-row {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: var(--s-7);
+  margin-top: var(--s-4);
+}
+
+.pw-identity {
+  min-width: 0;
+}
+
+.pw-title {
+  font-family: var(--font-display);
+  font-weight: 400;
+  font-size: var(--t-3xl);
+  line-height: 1.02;
+  letter-spacing: -0.018em;
+  max-width: 22ch;
+  text-wrap: balance;
+}
+
+.pw-variant {
+  margin-top: 9px;
+  font-size: var(--t-sm);
+  color: var(--ink-500);
+  letter-spacing: 0.01em;
+}
+
+/* ------------------------------------------------------------------ facts
+   A small right-aligned block of identity. Reads as a masthead standfirst
+   rather than as three KPI boxes: labels tiny and tracked, values plain, no
+   containers at all. */
+
+.pw-facts {
+  display: flex;
+  gap: var(--s-6);
+  flex: none;
+  padding-bottom: 4px;
+}
+
+.pw-facts div {
+  min-width: 0;
+}
+
+.pw-facts dt {
+  font-size: var(--t-micro);
+  font-weight: 600;
+  letter-spacing: 0.13em;
+  text-transform: uppercase;
+  color: var(--ink-400);
+}
+
+.pw-facts dd {
+  margin: 5px 0 0;
+  font-size: var(--t-base);
+  color: var(--ink-800);
+  text-transform: capitalize;
+}
+
+.pw-body {
+  padding-top: 0;
+}
+
+/* ============================================================= responsive */
+
+@media (max-width: 1100px) {
+  .pw-head-inner {
+    padding: 0 var(--s-5) var(--s-4);
+  }
+  .pw-title-row {
+    gap: var(--s-5);
+  }
+  .pw-facts {
+    gap: var(--s-5);
+  }
+}
+
+@media (max-width: 860px) {
+  .pw-title-row {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: var(--s-4);
+  }
+  .pw-title {
+    max-width: none;
+  }
+  .pw-facts {
+    padding-bottom: 0;
+    padding-top: var(--s-3);
+    border-top: 1px solid var(--rule);
+    width: 100%;
+  }
+}
+
+@media (max-width: 720px) {
+  .pw-head {
+    padding-top: var(--s-4);
+  }
+  .pw-head-inner {
+    padding: 0 var(--s-4) var(--s-4);
+  }
+  .pw-facts {
+    gap: var(--s-4);
+    flex-wrap: wrap;
+  }
+}
+
+/* ------------------------------------------------------------- not found
+   A real destination rather than a bare line of grey text: the reader took a
+   wrong turn, and the page should tell them what happened and offer the way
+   back. */
+
+.pw-missing {
+  max-width: var(--measure);
+  padding: var(--s-7) 0 var(--s-9);
+  border-top: 1px solid var(--rule-heavy);
+}
+
+.pw-missing-cta {
+  margin-top: var(--s-5);
+}

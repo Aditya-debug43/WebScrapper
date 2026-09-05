@@ -1,58 +1,486 @@
-.mc-summary {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-  gap: 14px;
-  max-width: 520px;
-  margin-bottom: 20px;
-}
+/* ==========================================================================
+   MARKETPLACE COMPARISON
+   ========================================================================== */
 
-.mc-explainer {
-  font-size: var(--text-sm);
-  color: var(--ink-500);
-  max-width: 68ch;
-  line-height: 1.6;
-  margin-bottom: 24px;
-}
-
-.mc-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
-  gap: 16px;
-}
-
-/* Bridge from "here are the prices" to "here is what they mean". Price is one
-   parameter; the analysis view is where the rest are compared. */
-.mc-analysis-cta {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 16px;
-  margin-top: 18px;
-  padding: 15px 18px;
-  background: var(--surface-sunken);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-lg);
-  text-decoration: none;
-  color: var(--ink-900);
-  transition: border-color 0.15s ease;
-}
-.mc-analysis-cta:hover {
-  border-color: var(--border-strong);
-}
-.mc-analysis-cta span {
+.mc {
   display: flex;
   flex-direction: column;
-  gap: 3px;
-  font-size: var(--text-xs);
-  color: var(--ink-500);
-  line-height: 1.5;
+  gap: var(--s-8);
 }
-.mc-analysis-cta strong {
-  font-size: var(--text-sm);
-  font-weight: 650;
+
+/* ------------------------------------------------------------------ lede */
+
+.mc-lede {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--s-7);
+  flex-wrap: wrap;
+}
+
+.mc-lede-text {
+  font-size: var(--t-md);
+  line-height: 1.65;
+  color: var(--ink-700);
+}
+
+.mc-lede-stats {
+  display: flex;
+  gap: var(--s-6);
+  flex: none;
+}
+.mc-lede-stats dt {
+  font-size: var(--t-micro);
+  font-weight: 600;
+  letter-spacing: 0.13em;
+  text-transform: uppercase;
+  color: var(--ink-400);
+}
+.mc-lede-stats dd {
+  margin: 6px 0 0;
+  font-size: var(--t-xl);
+  font-weight: 500;
+  letter-spacing: -0.03em;
   color: var(--ink-900);
 }
-.mc-analysis-cta svg {
+.mc-lede-stats dd em {
+  font-style: normal;
+  font-size: var(--t-sm);
+  color: var(--ink-500);
+}
+
+/* -------------------------------------------------------------- dot plot */
+
+.mc-plot-key {
+  display: flex;
+  gap: var(--s-4);
+  flex-wrap: wrap;
+}
+.mc-key-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: var(--t-micro);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--ink-400);
+}
+.mc-dot-demo {
+  width: 9px;
+  height: 9px;
+  border-radius: var(--r-pill);
+  flex: none;
+}
+.mc-dot-demo.effective {
+  background: var(--ink-900);
+}
+.mc-dot-demo.landed {
+  border: 1.5px solid var(--ink-400);
+}
+.mc-dot-demo.conditional {
+  border: 1.5px dashed var(--ink-400);
+}
+
+.mc-plot {
+  border-top: 1px solid var(--rule-heavy);
+}
+
+.mc-plot-axis {
+  display: flex;
+  justify-content: space-between;
+  padding: 7px 0 9px;
+  margin-left: 170px;
+  margin-right: 92px;
+  font-size: var(--t-micro);
+  color: var(--ink-400);
+  border-bottom: 1px dashed var(--rule);
+}
+
+.mc-plot-row {
+  display: grid;
+  grid-template-columns: 170px minmax(0, 1fr) 92px;
+  align-items: center;
+  gap: 0;
+  min-height: 42px;
+  border-bottom: 1px solid var(--rule);
+  transition: background var(--d-fast) var(--ease);
+}
+.mc-plot-row:hover {
+  background: var(--surface-2);
+}
+
+.mc-plot-name {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: var(--t-sm);
+  font-weight: 500;
+  color: var(--ink-800);
+  padding-right: var(--s-4);
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.mc-plot-track {
+  position: relative;
+  height: 100%;
+  min-height: 42px;
+}
+/* The baseline the dots sit on. */
+.mc-plot-track::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 50%;
+  height: 1px;
+  background: var(--rule);
+}
+
+.mc-plot-span {
+  position: absolute;
+  top: 50%;
+  height: 2px;
+  transform: translateY(-1px);
+  background: var(--ink-300);
+  border-radius: var(--r-pill);
+}
+
+.mc-plot-dot {
+  position: absolute;
+  top: 50%;
+  width: 11px;
+  height: 11px;
+  margin-left: -5.5px;
+  margin-top: -5.5px;
+  border-radius: var(--r-pill);
+  transition: transform var(--d-fast) var(--ease);
+}
+.mc-plot-dot:hover {
+  transform: scale(1.35);
+}
+.mc-plot-dot.effective {
+  background: var(--ink-900);
+  box-shadow: 0 0 0 2px var(--surface);
+  z-index: 2;
+}
+.mc-plot-dot.landed {
+  background: var(--surface);
+  border: 1.5px solid var(--ink-400);
+  z-index: 1;
+}
+.mc-plot-dot.conditional {
+  background: var(--surface);
+  border: 1.5px dashed var(--ink-400);
+}
+
+.mc-plot-value {
+  text-align: right;
+  font-size: var(--t-sm);
+  font-weight: 500;
+  color: var(--ink-900);
+  letter-spacing: -0.02em;
+}
+
+.mc-plot-row.best .mc-plot-name,
+.mc-plot-row.best .mc-plot-value {
+  font-weight: 600;
+}
+
+.mc-plot-row.empty .mc-plot-name {
+  color: var(--ink-400);
+}
+.mc-plot-none {
+  position: absolute;
+  left: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  font-size: var(--t-xs);
+  color: var(--ink-400);
+  background: var(--canvas);
+  padding-right: 8px;
+}
+
+.mc-plot-note {
+  display: flex;
+  gap: 8px;
+  margin-top: var(--s-4);
+  font-size: var(--t-xs);
+  line-height: 1.65;
+  color: var(--ink-500);
+  max-width: 82ch;
+}
+.mc-plot-note svg {
+  flex: none;
+  margin-top: 3px;
+  color: var(--ink-400);
+}
+
+/* ---------------------------------------------------------------- matrix */
+
+.mc-matrix {
+  width: 100%;
+  min-width: 940px;
+  font-size: var(--t-sm);
+  border-top: 1px solid var(--rule-heavy);
+}
+
+.mc-matrix th[scope="col"] {
+  text-align: left;
+  font-size: var(--t-micro);
+  font-weight: 600;
+  letter-spacing: 0.11em;
+  text-transform: uppercase;
+  color: var(--ink-400);
+  padding: 10px 12px 9px;
+  white-space: nowrap;
+  border-bottom: 1px solid var(--rule-strong);
+}
+
+.mc-matrix .num {
+  text-align: right;
+}
+
+.mc-matrix td,
+.mc-matrix th[scope="row"] {
+  padding: 12px;
+  border-bottom: 1px solid var(--rule);
+  color: var(--ink-700);
+  white-space: nowrap;
+  vertical-align: middle;
+}
+
+.mc-matrix th[scope="row"] {
+  text-align: left;
+  font-weight: 500;
+  color: var(--ink-900);
+  font-size: var(--t-sm);
+}
+.mc-matrix th[scope="row"] .marketplace-dot {
+  margin-right: 8px;
+}
+
+.mc-matrix th:first-child,
+.mc-matrix td:first-child {
+  padding-left: 2px;
+}
+.mc-matrix th:last-child,
+.mc-matrix td:last-child {
+  padding-right: 2px;
+}
+
+.mc-matrix tbody tr {
+  transition: background var(--d-fast) var(--ease);
+}
+.mc-matrix tbody tr:hover {
+  background: var(--surface-2);
+}
+.mc-matrix tbody tr:hover th[scope="row"] {
+  box-shadow: inset 2px 0 0 var(--ink-900);
+}
+
+.mc-matrix td.strong {
+  color: var(--ink-900);
+  font-weight: 500;
+}
+.mc-matrix td.muted {
+  color: var(--ink-400);
+}
+
+.mc-tag {
+  margin-left: 8px;
+  font-family: var(--font-sans);
+  font-size: var(--t-micro);
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--good-ink);
+  background: var(--good-wash);
+  border: 1px solid color-mix(in srgb, var(--good) 26%, transparent);
+  border-radius: var(--r-xs);
+  padding: 2px 6px;
+}
+
+.mc-rating {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+.mc-rating svg {
+  color: var(--warning);
+}
+
+.mc-seller {
+  max-width: 190px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.mc-promos {
+  display: inline-flex;
+  gap: 4px;
+  flex-wrap: wrap;
+}
+.mc-promo {
+  font-size: var(--t-micro);
+  letter-spacing: 0.04em;
+  padding: 2px 6px;
+  border-radius: var(--r-xs);
+  border: 1px solid var(--rule);
+  background: var(--surface-2);
+  color: var(--ink-500);
+}
+/* Only universal offers move the comparison price, so only they get ink. */
+.mc-promo.universal {
+  border-color: var(--rule-heavy);
+  color: var(--ink-900);
+  font-weight: 500;
+}
+
+.mc-none {
+  color: var(--ink-400);
+  font-size: var(--t-xs);
+}
+
+.mc-go a {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  border-radius: var(--r-xs);
+  color: var(--ink-400);
+  transition: background var(--d-fast) var(--ease), color var(--d-fast) var(--ease);
+}
+.mc-go a:hover {
+  background: var(--accent-wash);
+  color: var(--ink-900);
+}
+
+.mc-matrix-note {
+  margin-top: var(--s-4);
+  font-size: var(--t-xs);
+  line-height: 1.65;
+  color: var(--ink-500);
+  max-width: 82ch;
+}
+.mc-matrix-note strong {
+  color: var(--ink-700);
+  font-weight: 600;
+}
+
+/* ------------------------------------------------------------------ next */
+
+.mc-next {
+  display: flex;
+  align-items: center;
+  gap: var(--s-4);
+  padding: var(--s-4) var(--s-5);
+  border: 1px solid var(--rule-strong);
+  border-radius: var(--r-sm);
+  background: var(--surface);
+  color: var(--ink-900);
+  transition: border-color var(--d-fast) var(--ease), background var(--d-fast) var(--ease);
+}
+.mc-next:hover {
+  border-color: var(--rule-heavy);
+  background: var(--surface-2);
+}
+.mc-next:hover svg:last-child {
+  transform: translateX(3px);
+}
+.mc-next svg:last-child {
   flex: none;
   color: var(--ink-500);
+  transition: transform var(--d-mid) var(--ease);
+}
+
+.mc-next-index {
+  font-size: var(--t-micro);
+  font-weight: 600;
+  letter-spacing: 0.13em;
+  text-transform: uppercase;
+  color: var(--ink-400);
+  border-right: 1px solid var(--rule);
+  padding-right: var(--s-4);
+  flex: none;
+  align-self: stretch;
+  display: flex;
+  align-items: center;
+}
+
+.mc-next-body {
+  flex: 1;
+  min-width: 0;
+  font-size: var(--t-xs);
+  line-height: 1.6;
+  color: var(--ink-500);
+}
+.mc-next-body strong {
+  display: block;
+  font-size: var(--t-base);
+  font-weight: 600;
+  color: var(--ink-900);
+  margin-bottom: 3px;
+}
+
+/* ============================================================= responsive */
+
+@media (max-width: 900px) {
+  .mc {
+    gap: var(--s-7);
+  }
+  .mc-lede {
+    gap: var(--s-5);
+  }
+  .mc-lede-stats {
+    gap: var(--s-5);
+  }
+  .mc-plot-axis {
+    margin-left: 118px;
+    margin-right: 76px;
+  }
+  .mc-plot-row {
+    grid-template-columns: 118px minmax(0, 1fr) 76px;
+  }
+}
+
+@media (max-width: 720px) {
+  /* On a phone the name needs its own line — squeezing it beside the track
+     leaves neither of them readable. */
+  .mc-plot-axis {
+    margin-left: 0;
+    margin-right: 0;
+  }
+  .mc-plot-row {
+    grid-template-columns: minmax(0, 1fr) 78px;
+    grid-template-areas:
+      "name value"
+      "track track";
+    padding: 10px 0;
+    row-gap: 6px;
+  }
+  .mc-plot-name {
+    grid-area: name;
+    padding-right: 0;
+  }
+  .mc-plot-value {
+    grid-area: value;
+  }
+  .mc-plot-track {
+    grid-area: track;
+    min-height: 18px;
+  }
+  .mc-next {
+    flex-wrap: wrap;
+    gap: var(--s-3);
+  }
+  .mc-next-index {
+    border-right: 0;
+    border-bottom: 1px solid var(--rule);
+    padding: 0 0 var(--s-2);
+    width: 100%;
+  }
 }

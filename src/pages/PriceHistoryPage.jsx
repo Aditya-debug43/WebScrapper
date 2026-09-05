@@ -23,7 +23,7 @@ export default function PriceHistoryPage() {
 
   if (series.length === 0 || allInStock.length === 0) {
     return (
-      <div className="ph-empty card">
+      <div className="ph-empty">
         <p>
           No seller currently has an active offer on this listing, so there is no price history to observe yet.
         </p>
@@ -41,7 +41,7 @@ export default function PriceHistoryPage() {
 
   return (
     <div>
-      <div className="ph-summary">
+      <div className="ph-summary stagger">
         <MetricCard label="Lowest observed" value={formatMinor(min)} icon={TrendingDown} />
         <MetricCard label="Highest observed" value={formatMinor(max)} icon={TrendingUp} />
         <MetricCard

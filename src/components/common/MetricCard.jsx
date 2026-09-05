@@ -2,8 +2,15 @@ import { ArrowUpRight, ArrowDownRight } from "lucide-react";
 import "./MetricCard.css";
 
 /**
- * A stat tile: label, headline value, and an optional signed delta.
- * `trend` controls delta color semantics ("up-is-good" | "up-is-bad" | null).
+ * A stat, not a card.
+ *
+ * These used to be four rounded white boxes in a row. They are now columns
+ * hung beneath a single heavy rule: the label small and tracked, the figure
+ * large and monospaced, everything else quiet underneath. Grouped in a grid
+ * the rules line up and read as one ruled band, which is both calmer and far
+ * more legible than four competing containers.
+ *
+ * `trend` controls delta colour semantics ("up-is-good" | "up-is-bad" | null).
  */
 export default function MetricCard({ label, value, delta, trend = null, sublabel, icon: Icon, children }) {
   const deltaPositive = typeof delta === "string" ? delta.trim().startsWith("+") : delta > 0;
@@ -16,25 +23,23 @@ export default function MetricCard({ label, value, delta, trend = null, sublabel
   }
 
   return (
-    <div className="metric-card card">
-      <div className="metric-card-top">
-        <span className="eyebrow">{label}</span>
-        {Icon && (
-          <span className="metric-card-icon">
-            <Icon size={15} strokeWidth={1.8} />
-          </span>
-        )}
+    <div className="metric">
+      <div className="metric-label">
+        {Icon && <Icon size={12} strokeWidth={2} aria-hidden="true" />}
+        <span>{label}</span>
       </div>
-      <div className="metric-card-value tabular">{value}</div>
-      <div className="metric-card-bottom">
-        {delta != null && delta !== "" && (
-          <span className={`metric-card-delta ${deltaClass}`}>
-            {deltaPositive ? <ArrowUpRight size={13} strokeWidth={2.25} /> : <ArrowDownRight size={13} strokeWidth={2.25} />}
-            {delta}
-          </span>
-        )}
-        {sublabel && <span className="metric-card-sublabel">{sublabel}</span>}
-      </div>
+      <div className="metric-value tabular">{value}</div>
+      {(delta || sublabel) && (
+        <div className="metric-foot">
+          {delta != null && delta !== "" && (
+            <span className={`metric-delta ${deltaClass}`}>
+              {deltaPositive ? <ArrowUpRight size={12} strokeWidth={2.5} /> : <ArrowDownRight size={12} strokeWidth={2.5} />}
+              {delta}
+            </span>
+          )}
+          {sublabel && <span className="metric-sub">{sublabel}</span>}
+        </div>
+      )}
       {children}
     </div>
   );

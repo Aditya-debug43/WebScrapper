@@ -29,7 +29,7 @@ function Tag({ kind }) {
 
 function Evidence({ icon: Icon, title, tag, children }) {
   return (
-    <section className="evidence-card card">
+    <section className="evidence-card">
       <header className="evidence-head">
         <span className="evidence-icon">
           <Icon size={14} strokeWidth={2} />
@@ -246,12 +246,26 @@ export default function RecommendationPanel({ rec }) {
           ))}
         </div>
 
-        <div className="rec-why card">
-          <header>
-            <Target size={14} strokeWidth={2} />
-            <h3>
-              Why {formatMinor(selected.priceMinor)} for “{selected.label}”
-            </h3>
+        <div className="rec-why">
+          <div className="rec-why-figure">
+            <span className="eyebrow">Selected strategy</span>
+            <p className="rec-why-name">{selected.label}</p>
+            <div className="rec-why-price tabular">{formatMinor(selected.priceMinor)}</div>
+            <p className="rec-why-tagline">{selected.tagline}</p>
+            {selected.bindingConstraint && (
+              <p className="rec-why-bound">
+                <Lock size={12} strokeWidth={2} />
+                Held at the <strong>{selected.bindingConstraint.label}</strong> (
+                {formatMinor(selected.bindingConstraint.boundMinor)}) — the underlying calculation wanted to go
+                further.
+              </p>
+            )}
+          </div>
+
+          <div className="rec-why-body">
+          <header className="rec-why-head">
+            <Target size={13} strokeWidth={2} />
+            <h3>Why this price</h3>
           </header>
           <p className="rec-why-anchor">
             <strong>Objective:</strong> {selected.objective}
@@ -263,13 +277,6 @@ export default function RecommendationPanel({ rec }) {
               <li key={r}>{r}</li>
             ))}
           </ul>
-          {selected.bindingConstraint && (
-            <p className="rec-why-bound">
-              <Lock size={13} strokeWidth={2} />
-              This price was held at the <strong>{selected.bindingConstraint.label}</strong> (
-              {formatMinor(selected.bindingConstraint.boundMinor)}) — the underlying calculation wanted to go further.
-            </p>
-          )}
           <div className="rec-why-position">
             At this price you would undercut <strong>{selected.position.undercuts}</strong> of{" "}
             {selected.position.total} competing prices, with <strong>{selected.position.sitsAbove}</strong> still
@@ -301,6 +308,7 @@ export default function RecommendationPanel({ rec }) {
             {!commercial.cost && (
               <p className="rec-note">No seller cost has been entered for this product, so margin cannot be computed.</p>
             )}
+          </div>
           </div>
         </div>
       </section>

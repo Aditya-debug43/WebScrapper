@@ -1,13 +1,13 @@
 import "./Avatar.css";
 
-const PALETTE = ["#c8541f", "#2a78d6", "#1baf7a", "#4a3aa7", "#b97600", "#6b6255"];
-
-function colorFor(seed) {
-  let h = 0;
-  for (let i = 0; i < seed.length; i++) h = (h * 31 + seed.charCodeAt(i)) | 0;
-  return PALETTE[Math.abs(h) % PALETTE.length];
-}
-
+/**
+ * Seller initials.
+ *
+ * These used to be six hard-coded hues assigned by hashing the name — six
+ * colours that meant nothing, in a system where colour is reserved for
+ * meaning. They are now monochrome tiles. Identity still comes from the
+ * initials; the hue is not doing any work, so it is gone.
+ */
 function initials(name = "") {
   const parts = name.trim().split(/\s+/).filter(Boolean);
   if (parts.length === 0) return "?";
@@ -18,8 +18,8 @@ function initials(name = "") {
 export default function Avatar({ name, size = 32 }) {
   return (
     <span
-      className="avatar"
-      style={{ width: size, height: size, fontSize: size * 0.38, background: colorFor(name || "?") }}
+      className="avatar tabular"
+      style={{ width: size, height: size, fontSize: Math.round(size * 0.34) }}
       aria-hidden="true"
     >
       {initials(name)}
