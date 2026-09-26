@@ -408,7 +408,7 @@ Interestingly, fixing it also **removed a finding**: "adding delivery reorders w
 
 ---
 
-### Stage 19 — The redesign (current)
+### Stage 19 — The redesign
 
 A design-first rebuild of the presentation layer. **No file under `src/data/`, `src/api/` or `src/utils/` was touched** — the modules that produce every number, finding and recommendation are byte-identical, which is the strongest available guarantee that the meaning did not move. Verified after the fact anyway: 1,043 recommended / 0 engine errors / 0 MRP, floor, ordering or CF-1 violations / 0 analysis errors / **0 contradictions between the analysis and the engine**, all matching the Stage 18 baseline exactly.
 
@@ -461,6 +461,112 @@ A design-first rebuild of the presentation layer. **No file under `src/data/`, `
 4. **The progression rail silently never scrolled.** Two causes stacked: before first layout every box measures zero, so "the active step is already visible" was trivially true; and a `behavior: "smooth"` scroll issued while the page is still settling gets cancelled outright. Now: instant positioning, re-run on `document.fonts.ready` because the display face changes every step's width.
 
 **Contrast was computed, not eyeballed.** The first audit found **180 failures** on a single route — the label grey was 2.59:1. The ink ramp was recalculated so that ink-400 and darker each clear 4.5:1 against canvas, canvas-deep, surface and surface-2 *in both themes*, and ink-300 clears the 3:1 bar for graphical objects. Final sweep: **13 routes × 2 themes, 0 contrast failures, 0 horizontal page scroll**; same at 375px and 768px. Keyboard focus shows a 2px signal ring via `:focus-visible`, and the one hover-revealed control (untrack) also reveals on focus and is always visible on small screens.
+
+---
+
+### Stage 20 — Ten products, seven horizons, and the parameters that are not price (current)
+
+Feedback after the professor reviewed the deployed build:
+
+> "I have reviewed this so you have considered only 2 products for now but I would suggest to take atleast 10 products and I also found that you have considered only 7 days time period for your observation but I would also suggest that to take several slots like 1 days, 2days, 3, days, 7days, 15 days, 1 month, 3 months, etc — also, as a next step, try to identify which other parameters than product price you can take that can helpful to increase the review of the client store"
+
+Both of the first two observations were literally true of the code. `DEFAULT_TRACKED_PRODUCT_IDS` held exactly two hand-written ids, and the dashboard's only horizon was a hard-coded seven-day lookback. Neither was a display limit — they were the whole of what the entry page could say.
+
+---
+
+#### The constraint that shaped the whole stage
+
+Before writing anything, the actual observation density was measured across all 1,155 products with history:
+
+| Window | 0 obs | 1 obs | 2–4 obs | 5+ obs |
+|---|---|---|---|---|
+| 1 / 2 / 3 days | 1 | ~870 | ~280 | 0 |
+| 7 days | 1 | 202 | 663 | 289 |
+| 15 days | 0 | 1 | 865 | 289 |
+| 1 month | 0 | 0 | 203 | 952 |
+| 3 months | 0 | 0 | 0 | 1,155 |
+
+Capture cadence is tiered by traction (2 / 5 / 12 days), the way a real crawl budget is. So **a one-day window holds a single observation for three quarters of the catalogue**, and one observation has no direction, no range and no volatility.
+
+That could have been hidden — draw a flat line, print "0.0%", move on. Instead it became the design. A window is not handed a fixed set of statistics; what it can support is derived from what is inside it:
+
+| Capability | Observations | Carries |
+|---|---|---|
+| `none` | 0 | nothing; the window is shorter than the cadence |
+| `snapshot` | 1 | a price level, and explicitly nothing else |
+| `directional` | 2–4 | change first-to-last, observed range. **Not** volatility — a coefficient of variation on three points describes the sampling, not the market |
+| `distributional` | 5+ | median, volatility, trend |
+
+Every statistic a window cannot support is recorded in `withheld` **with its reason**, so the interface states why a number is absent rather than leaving a hole. Across 560 window analyses on 80 products the invariant "no statistic appears above its capability tier" holds with zero violations.
+
+The visible consequence on the desk, and the best single answer to what different horizons actually tell you:
+
+| Horizon | snapshot | directional | distributional | alerts raised |
+|---|---|---|---|---|
+| 1 day | 11 | 0 | 0 | **0** |
+| 7 days | 1 | 10 | 1 | 1 |
+| 1 month | 0 | 1 | 11 | 5 |
+| 3 months | 0 | 0 | 12 | 11 |
+
+At one day the system raises no alert and reports no average, because it cannot. That is the honest reading, and it is more informative than a fabricated zero.
+
+`compareWindows()` then answers the question behind the request — temporary, emerging, persistent or stable — by comparing the shortest window that carries a direction against the three-month one: **stable**, **recent move**, **settled after a move**, **persistent trend**, **reversal**, or **not established** when the short end cannot carry a direction at all. The showcase product reads *settled after a move*: −8.9% over three months, −0.2% over the last two days.
+
+---
+
+#### Ten products, chosen by method
+
+`utils/demoSet.js` profiles every product on reach, capture depth, competitive density and price, assigns an expected evidence tier, then fills a stratified quota. The competitive-density proxy is not a guess — it applies **the engine's own first gate** (same product type, price within 0.6×–1.7×), which is what decides whether a comparable set can exist at all.
+
+Three things were learned doing it:
+
+1. **The per-department cap had to be a hard constraint, not a scoring nudge.** Without it the strong tier filled with four beauty products — an honest reflection of the catalogue (FMCG carries the review volume that buys the deepest capture cadence) but a poor demonstration, because four shampoos cannot show the framework is not tuned to one kind of product.
+2. **A refusal stratum had to be added explicitly.** The first set contained no product the engine refuses, which hides the behaviour most worth showing. Products with fewer than two candidates now form their own stratum.
+3. **Selection must not touch the engine.** Running `buildRecommendation` over 1,172 products to choose twelve costs seconds of blocking work. Everything in the selector is map lookups; it completes in ~31 ms.
+
+The resulting set: **12 products, 11 departments, at most 2 per department, ₹90 to ₹22,490**, capture cadence 2 to 12 days, 2 to 6 marketplaces, 0 to 10 direct competitors, confidence spanning *medium-high → medium → low → **refused***.
+
+---
+
+#### The parameters that are not price
+
+The test applied to every candidate was not "is this field in the database" — most are — but **can a seller name the decision this parameter changes?** A number that cannot finish the sentence "…so I should ___" is a column, not a parameter.
+
+Ten earned a place, each shipped with the decision it serves: **trust-weighted rating**, **review velocity** (demand proxy), **featured-offer lock**, **stockout exposure**, **sellers on the listing**, **marketplace fulfilment share**, **delivery as a share of landed price**, **promotional days**, **discount depth off MRP**, and **platform coverage gap**. Industry accounts of marketplace ranking name stock availability, seller rating, review velocity, delivery speed and fulfilment method as genuine non-price drivers of the default buying position, which is the corroboration for choosing these rather than the other twenty fields available.
+
+**Rejected, and why — this list matters as much as the one above:**
+
+- **Units sold, sales velocity, conversion, sessions, add-to-cart, search rank, impression share, returns, ad spend.** Absent from the dataset. Sales velocity is named in every industry account as a *primary* ranking signal; we do not have it. It is carried in the payload as a declared gap and printed on the page, rather than quietly omitted.
+- **True price elasticity and willingness-to-pay from demand.** Both need quantity sold at more than one price. The hedonic model estimates what the market charges for *attributes* across a cross-section of products; that is not a demand curve and is never described as one.
+- **Rating distribution skew.** Present in the data, but generated as a deterministic function of the average rating — so it carries no information the average does not already carry. Reporting it would imply a second, independent signal that does not exist.
+
+One measurement bug is worth recording: the first featured-offer metric pooled buy-box wins across all platforms, so six listings each with an unchallenged winner came out as *"the top seller holds 16.7%"* — which reads as a wide-open contest and is the exact opposite of the truth. The Buy Box is a **per-listing** contest, so that is now the unit, summarised as "locked on N of M platforms".
+
+---
+
+#### What the research says, and why the engine was left alone
+
+The brief asked for an assessment of the pricing engine against real practice, and explicitly warned against changing it to look more advanced.
+
+**Already aligned with practice:** a screened competitive set rather than a category average; a 90-day reference price used to detect promotional distortion, so a dip is not mistaken for the standing level; hard constraints (MRP ceiling, break-even floor); evidence gating that refuses rather than guesses; and hedonic attribute pricing with a trust gate. Industry work on hedonic pricing warns that sparse or inconsistent price observations produce unreliable coefficients and that this is the most common reason such models underperform — which is precisely why the trust gate (n ≥ 5, adjusted R² ≥ 0.5) exists and why only a small minority of products earn an evidenced premium.
+
+**Honestly heuristic:** the similarity weights, the 0.6×–1.7× band, how far each strategy is allowed to travel, the ±10% clamp. These are judgement calls, documented as such, not estimated from data.
+
+**Missing versus a production system:** demand and elasticity, price experimentation, cross-price effects within a seller's own range, competitor reaction, and inventory carrying cost.
+
+**Decision: no change to the recommendation engine.** The gap is not mathematical sophistication — it is demand data. Fitting a more elaborate model to the same cross-sectional prices would produce a more confident-looking estimate of exactly the same information, which is the failure mode this project has spent four stages avoiding. Verified after the fact: **1,043 recommended, 0 engine errors, 0 MRP / floor / ordering / CF-1 violations, 0 contradictions between analysis and engine** — identical to the Stage 18 baseline.
+
+The non-price layer deliberately **does not feed the engine**. It sits in its own step and states how it corroborates or complicates the pricing conclusion, as a relationship rather than as arithmetic folded into a price.
+
+---
+
+#### Where it lives
+
+`utils/observationWindows.js` (the horizon engine and capability ladder), `utils/storeSignals.js` (the ten parameters and their findings), `utils/demoSet.js` (stratified selection). `api/dashboardService.js` now derives its product set and accepts a window. The analysis page gains the horizon ladder inside step 5 and a new step 6, *Beyond price*; the conclusion moves to step 7.
+
+**Note on the refusal case:** when the engine refuses, steps 4 and 7 are absent but the horizon ladder and all ten parameters still render — they are computed from the product's own observations and do not depend on a competitive set. A seller with no comparables still learns about their stockouts, their featured-offer position and their review velocity. Step numbers stay fixed, so a gap in the sequence is itself the signal that a step could not be produced.
+
+**Future work, in order of value:** ingest a sales or units signal, which unlocks elasticity and turns the demand proxy into a demand measurement; add competitor price-change detection over windows; model competitor reaction; and add per-window competitive comparison, which today is computed only at the current moment.
 
 ---
 
@@ -1051,6 +1157,11 @@ Based on where the project actually stands, the next steps that follow directly 
 12y. **Contrast is computed, not eyeballed.** ink-400 and darker clear 4.5:1 against canvas, canvas-deep, surface and surface-2 in both themes; ink-300 clears 3:1 and may only carry rules, icons and chart marks. Changing a surface means re-running the check — the first audit of this redesign found 180 failures on one route (Stage 19).
 12z. **Never lay out a paragraph as a flex container.** Every element child of a flex container becomes its own flex item, so any `<strong>` inside splits the sentence into columns. Position the icon absolutely instead (Stage 19).
 12aa. **Suppress transitions across a theme swap.** A transitioned property whose value comes from a custom property can freeze at its pre-swap value and never arrive. `ThemeContext` adds `.theme-switching` for one frame; do not remove it (Stage 19).
+12ab. **A window reports only what its observations can support.** none / snapshot / directional / distributional, derived from the count inside the window, never from the window's length. Two to four points carry a direction but not a volatility; one point carries a level and nothing else. Every withheld statistic states its reason (Stage 20).
+12ac. **The Buy Box is a per-listing contest.** Pooling featured-offer wins across marketplaces turns six unchallenged winners into "one seller holds 16.7%", which says the opposite of the truth. Measure per listing, then summarise (Stage 20).
+12ad. **A non-price parameter must name the decision it changes.** If it cannot finish "…so I should ___", it is a column, not a parameter, and it does not ship. The rejected list is documented alongside the shipped one (Stage 20).
+12ae. **The demonstration set is selected, not written down.** `utils/demoSet.js` stratifies across evidence tiers with a hard per-department cap and an explicit refusal stratum. A demo set with no refusal case in it hides the behaviour most worth showing (Stage 20).
+12af. **The non-price layer never feeds the pricing engine.** It states how it corroborates or complicates the conclusion; it does not enter the arithmetic. If a store signal ever changes a recommended price, that is a bug (Stage 20).
 13. **Prefer understanding existing code over adding new abstractions.** The codebase is intentionally not over-engineered for its current scope (a class-project wireframe) — resist adding speculative infrastructure (e.g. a state-management library, a component library, a testing framework) unless the user's request genuinely requires it.
 11. **Keep this file up to date.** If you make a decision significant enough that a future session would need to know about it, add it here — particularly to §3 (evolution), §6 (critical decisions), §14/§15 (status), and §20 (historical context) as appropriate. Don't let this file go stale while the code moves on.
 12. **When in doubt about project intent, ask** rather than assume — several past requests in this project have been extremely explicit and prescriptive (see the visual-correction request that produced Stage 9); treat that as the user's established working style, not a one-off.

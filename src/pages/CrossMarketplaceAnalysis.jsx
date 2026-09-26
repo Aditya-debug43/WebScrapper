@@ -1,5 +1,5 @@
 import { useMemo } from "react";
-import { Link, useOutletContext } from "react-router-dom";
+import { Link, useOutletContext, useSearchParams } from "react-router-dom";
 import {
   ArrowRight,
   TrendingUp,
@@ -13,8 +13,22 @@ import {
   Tag,
   History as HistoryIcon,
   Scale,
+  Star,
+  Truck,
+  PackageCheck,
+  Globe,
+  Percent,
 } from "lucide-react";
 import { buildCrossMarketplaceAnalysis } from "../utils/crossMarketplaceAnalysis";
+import { buildStoreSignals } from "../utils/storeSignals";
+import {
+  OBSERVATION_WINDOWS,
+  DEFAULT_WINDOW_KEY,
+  CAPABILITY,
+  compareWindows,
+  windowByKey,
+} from "../utils/observationWindows";
+import FilterControl from "../components/common/FilterControl";
 import { formatMinor } from "../utils/money";
 import { getMarketplace } from "../data/marketplaces";
 import "./CrossMarketplaceAnalysis.css";
@@ -42,8 +56,28 @@ const DIRECTION_META = {
   neutral: { label: "Context", icon: Minus, tone: "flat" },
 };
 
+const SIGNAL_ICON = {
+  trust: Star,
+  demand: TrendingUp,
+  featured: Tag,
+  availability: PackageCheck,
+  competition: Users,
+  fulfilment: Truck,
+  shipping: Truck,
+  promotion: Percent,
+  discount: Percent,
+  reach: Globe,
+};
+
+const CAPABILITY_TONE = { none: "none", snapshot: "warn", directional: "ok", distributional: "full" };
+
 const DIMENSION_ICON = {
   Marketplace: Store,
+  "Demand proxy": TrendingUp,
+  "Featured offer": PackageCheck,
+  Delivery: Truck,
+  Promotion: Percent,
+  Reach: Globe,
   Offer: Tag,
   Competitor: Users,
   Trust: Scale,
@@ -66,7 +100,25 @@ function LadderCell({ label, value, muted, total }) {
 
 export default function CrossMarketplaceAnalysis() {
   const { productId } = useOutletContext();
+  const [params, setParams] = useSearchParams();
+  const windowKey = OBSERVATION_WINDOWS.some((w) => w.key === params.get("w"))
+    ? params.get("w")
+    : DEFAULT_WINDOW_KEY;
+
   const analysis = useMemo(() => buildCrossMarketplaceAnalysis(productId), [productId]);
+  const horizons = useMemo(() => compareWindows(productId), [productId]);
+  const signals = useMemo(
+    () => buildStoreSignals(productId, { windowDays: windowByKey(windowKey).days, analysis }),
+    [productId, windowKey, analysis]
+  );
+  const selected = horizons.windows.find((w) => w.key === windowKey) ?? horizons.windows[0];
+
+  const setWindow = (key) => {
+    const next = new URLSearchParams(params);
+    if (key === DEFAULT_WINDOW_KEY) next.delete("w");
+    else next.set("w", key);
+    setParams(next, { replace: false });
+  };
 
   if (!analysis.available) {
     return <div className="card cma-empty">{analysis.reason}</div>;
@@ -470,7 +522,137 @@ export default function CrossMarketplaceAnalysis() {
             </div>
           </header>
 
+          {/* The same product at seven horizons. What each one can support is
+              derived from the observations actually inside it, so the short
+              windows are honest about being snapshots rather than trends. */}
+          <div className="cma-horizons">
+            <div className="cma-horizon-head">
+              <span className="eyebrow">Observation window</span>
+              {horizons.cadenceDays != null && (
+                <span className="cma-horizon-cadence">
+                  this product is captured about every{" "}
+                  <strong className="tabular">{horizons.cadenceDays}</strong> days
+                </span>
+              )}
+            </div>
+
+            <div className="scroll-x cma-horizon-scroll">
+              <FilterControl
+                options={OBSERVATION_WINDOWS.map((w) => ({ value: w.key, label: w.label }))}
+                value={windowKey}
+                onChange={setWindow}
+                ariaLabel="Observation window"
+              />
+            </div>
+
+            <div className={`cma-horizon-detail tone-${CAPABILITY_TONE[selected.capability]}`}>
+              <div className="cma-horizon-detail-head">
+                <strong>{selected.label}</strong>
+                <span className="cma-chip">{CAPABILITY[selected.capability].label}</span>
+                <span className="cma-sub">
+                  {selected.n} {selected.n === 1 ? "observation" : "observations"} · {selected.from} to {selected.to}
+                </span>
+              </div>
+              <p className="cma-horizon-note">{CAPABILITY[selected.capability].note}</p>
+
+              {selected.capability === "none" || selected.capability === "snapshot" ? (
+                <ul className="cma-evidence">
+                  {selected.currentMinor != null && <li>Level {formatMinor(selected.currentMinor)}</li>}
+                  {selected.withheld.map((wd) => (
+                    <li key={wd.stat}>
+                      Withheld — {wd.stat}: {wd.reason}
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <dl className="cma-horizon-stats">
+                  <div>
+                    <dt>Change</dt>
+                    <dd className={`tabular ${selected.changePct > 0 ? "up" : "down"}`}>
+                      {selected.changePct > 0 ? "+" : ""}
+                      {selected.changePct}%
+                    </dd>
+                  </div>
+                  <div>
+                    <dt>Observed range</dt>
+                    <dd className="tabular">
+                      {formatMinor(selected.minMinor)} – {formatMinor(selected.maxMinor)}
+                    </dd>
+                  </div>
+                  <div>
+                    <dt>Median</dt>
+                    <dd className="tabular">
+                      {selected.medianMinor != null ? formatMinor(selected.medianMinor) : "withheld"}
+                    </dd>
+                  </div>
+                  <div>
+                    <dt>Volatility</dt>
+                    <dd className="tabular">
+                      {selected.volatility != null ? `${selected.volatility}% ${selected.volatilityBand}` : "withheld"}
+                    </dd>
+                  </div>
+                  <div>
+                    <dt>Platforms observed</dt>
+                    <dd className="tabular">{selected.coverage.marketplaceCount}</dd>
+                  </div>
+                  <div>
+                    <dt>Offer-days out of stock</dt>
+                    <dd className="tabular">
+                      {selected.coverage.outOfStockShare != null ? `${selected.coverage.outOfStockShare}%` : "—"}
+                    </dd>
+                  </div>
+                </dl>
+              )}
+            </div>
+
+            <div className="scroll-x">
+              <table className="cma-ladder-table">
+                <thead>
+                  <tr>
+                    <th>Horizon</th>
+                    <th className="num">Obs.</th>
+                    <th>Supports</th>
+                    <th className="num">Change</th>
+                    <th className="num">Range</th>
+                    <th className="num">Volatility</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {horizons.windows.map((w) => (
+                    <tr key={w.key} className={w.key === windowKey ? "active" : undefined}>
+                      <th scope="row">
+                        <button type="button" onClick={() => setWindow(w.key)}>
+                          {w.label}
+                        </button>
+                      </th>
+                      <td className="num tabular">{w.n}</td>
+                      <td>
+                        <span className={`cma-cap tone-${CAPABILITY_TONE[w.capability]}`}>
+                          {CAPABILITY[w.capability].label}
+                        </span>
+                      </td>
+                      <td className={`num tabular ${w.changePct == null ? "muted" : w.changePct > 0 ? "up" : "down"}`}>
+                        {w.changePct == null ? "—" : `${w.changePct > 0 ? "+" : ""}${w.changePct}%`}
+                      </td>
+                      <td className="num tabular">
+                        {w.spreadPct == null ? "—" : `${w.spreadPct}%`}
+                      </td>
+                      <td className="num tabular">
+                        {w.volatility == null ? "—" : `${w.volatility}%`}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            <p className={`cma-persistence state-${horizons.persistence.state}`}>
+              <strong>{horizons.persistence.label}.</strong> {horizons.persistence.detail}
+            </p>
+          </div>
+
           <div className="cma-hist">
+            <span className="eyebrow cma-hist-label">The 90-day basis the engine reasons on</span>
             <div className="cma-hist-stats">
               <div>
                 <span>90-day normal</span>
@@ -532,11 +714,110 @@ export default function CrossMarketplaceAnalysis() {
         </section>
       )}
 
-      {/* --------------------------- 6. CONCLUSION ------------------------- */}
-      {bridge && (
+      {/* ---------------------------- 6. BEYOND PRICE ---------------------- */}
+      {signals.available && (
         <section className="cma-section">
           <header className="cma-head">
             <span className="cma-step">6</span>
+            <div>
+              <h2>Beyond price</h2>
+              <p>
+                Price is one parameter, and on a marketplace it is not always the binding one. These are the other
+                signals the data can actually carry, each paired with the decision it informs — measured over{" "}
+                {signals.window.label.toLowerCase()}.
+              </p>
+            </div>
+          </header>
+
+          <div className="cma-signals">
+            {signals.parameters.map((prm) => {
+              const Icon = SIGNAL_ICON[prm.key] ?? Info;
+              return (
+                <article key={prm.key} className={`cma-signal${prm.available ? "" : " unavailable"}`}>
+                  <div className="cma-signal-top">
+                    <span className="cma-signal-label">
+                      <Icon size={12} strokeWidth={2} />
+                      {prm.label}
+                    </span>
+                    <span className={`cma-signal-basis ${prm.basis}`}>{prm.basis}</span>
+                  </div>
+                  <strong className="cma-signal-value tabular">{prm.display}</strong>
+                  <p className="cma-signal-decision">{prm.decision}</p>
+                  {prm.available ? (
+                    prm.detail && <p className="cma-signal-detail">{prm.detail}</p>
+                  ) : (
+                    <p className="cma-signal-detail muted">{prm.unavailableReason}</p>
+                  )}
+                  {prm.comparison && (
+                    <p className="cma-signal-compare">
+                      {prm.comparison.label} <span className="tabular">{prm.comparison.display}</span>
+                      {prm.comparison.deltaPct != null && (
+                        <em className={prm.comparison.deltaPct > 0 ? "up" : "down"}>
+                          {prm.comparison.deltaPct > 0 ? "+" : ""}
+                          {prm.comparison.deltaPct}%
+                        </em>
+                      )}
+                    </p>
+                  )}
+                </article>
+              );
+            })}
+          </div>
+
+          {signals.findings.length > 0 && (
+            <div className="cma-findings cma-signal-findings">
+              {signals.findings.map((f) => {
+                const meta = DIRECTION_META[f.direction] ?? DIRECTION_META.neutral;
+                const DimIcon = DIMENSION_ICON[f.dimension] ?? Info;
+                const DirIcon = meta.icon;
+                return (
+                  <article key={f.id} className={`cma-finding tone-${meta.tone}`}>
+                    <div className="cma-finding-head">
+                      <span className="cma-finding-dim">
+                        <DimIcon size={13} strokeWidth={2} />
+                        {f.dimension}
+                      </span>
+                      <span className={`cma-finding-dir ${meta.tone}`}>
+                        <DirIcon size={12} strokeWidth={2.25} />
+                        {meta.label}
+                      </span>
+                    </div>
+                    <h3>{f.headline}</h3>
+                    <p>{f.detail}</p>
+                    {f.evidence?.length > 0 && (
+                      <ul className="cma-evidence">
+                        {f.evidence.map((e, i) => (
+                          <li key={i}>{e}</li>
+                        ))}
+                      </ul>
+                    )}
+                  </article>
+                );
+              })}
+            </div>
+          )}
+
+          <div className="cma-gaps">
+            <span className="cma-limited-label">What a production system would use and this one cannot</span>
+            <ul>
+              {signals.knownGaps.map((g) => (
+                <li key={g}>{g}</li>
+              ))}
+            </ul>
+            <p className="cma-note">
+              <Info size={14} strokeWidth={2} />
+              These are absent from the dataset, not merely unimplemented. Inventing them would make the analysis look
+              stronger and be worth less.
+            </p>
+          </div>
+        </section>
+      )}
+
+      {/* --------------------------- 7. CONCLUSION ------------------------- */}
+      {bridge && (
+        <section className="cma-section">
+          <header className="cma-head">
+            <span className="cma-step">7</span>
             <div>
               <h2>Therefore &mdash; the price</h2>
               <p>

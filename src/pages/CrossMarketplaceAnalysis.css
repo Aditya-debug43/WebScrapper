@@ -965,3 +965,417 @@
     padding: var(--s-4);
   }
 }
+
+/* ==========================================================================
+   OBSERVATION HORIZONS (step 5)
+   The ladder is the point: seven rows of the same product, so a move that
+   only exists at the short end is visibly different from one present at
+   every horizon.
+   ========================================================================== */
+
+.cma-horizons {
+  padding-bottom: var(--s-6);
+  margin-bottom: var(--s-6);
+  border-bottom: 1px solid var(--rule);
+}
+
+.cma-horizon-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--s-4);
+  flex-wrap: wrap;
+  margin-bottom: var(--s-3);
+}
+
+.cma-horizon-cadence {
+  font-size: var(--t-xs);
+  color: var(--ink-500);
+}
+.cma-horizon-cadence strong {
+  font-weight: 500;
+  color: var(--ink-900);
+}
+
+.cma-horizon-scroll {
+  padding-bottom: 2px;
+  scrollbar-width: none;
+}
+.cma-horizon-scroll::-webkit-scrollbar {
+  display: none;
+}
+.cma-horizon-scroll .filter-control {
+  min-width: max-content;
+}
+
+/* ------------------------------------------------- the selected horizon */
+
+.cma-horizon-detail {
+  margin-top: var(--s-4);
+  padding: var(--s-4);
+  border: 1px solid var(--rule);
+  border-left-width: 2px;
+  border-left-color: var(--rule-strong);
+  border-radius: var(--r-sm);
+  background: var(--surface);
+}
+.cma-horizon-detail.tone-full {
+  border-left-color: var(--dir-up-rule);
+}
+.cma-horizon-detail.tone-ok {
+  border-left-color: var(--rule-heavy);
+}
+.cma-horizon-detail.tone-warn {
+  border-left-color: var(--warning);
+}
+.cma-horizon-detail.tone-none {
+  border-left-color: var(--critical);
+}
+
+.cma-horizon-detail-head {
+  display: flex;
+  align-items: baseline;
+  gap: var(--s-3);
+  flex-wrap: wrap;
+}
+.cma-horizon-detail-head strong {
+  font-family: var(--font-display);
+  font-weight: 400;
+  font-size: var(--t-xl);
+  letter-spacing: -0.01em;
+  color: var(--ink-900);
+}
+
+.cma-horizon-note {
+  margin-top: 8px;
+  font-size: var(--t-sm);
+  line-height: 1.65;
+  color: var(--ink-500);
+  max-width: 82ch;
+}
+
+.cma-horizon-stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: var(--s-4) var(--s-5);
+  margin-top: var(--s-4);
+  padding-top: var(--s-4);
+  border-top: 1px solid var(--rule);
+}
+.cma-horizon-stats dt {
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.11em;
+  text-transform: uppercase;
+  color: var(--ink-400);
+}
+.cma-horizon-stats dd {
+  margin: 6px 0 0;
+  font-size: var(--t-md);
+  font-weight: 500;
+  letter-spacing: -0.02em;
+  color: var(--ink-900);
+}
+.cma-horizon-stats dd.up {
+  color: var(--dir-down);
+}
+.cma-horizon-stats dd.down {
+  color: var(--dir-up);
+}
+
+/* ---------------------------------------------------------- the ladder */
+
+.cma-ladder-table {
+  width: 100%;
+  min-width: 560px;
+  margin-top: var(--s-5);
+  font-size: var(--t-sm);
+  border-top: 1px solid var(--rule-heavy);
+}
+.cma-ladder-table thead th {
+  text-align: left;
+  font-size: var(--t-micro);
+  font-weight: 600;
+  letter-spacing: 0.11em;
+  text-transform: uppercase;
+  color: var(--ink-400);
+  padding: 9px 12px 8px;
+  white-space: nowrap;
+  border-bottom: 1px solid var(--rule-strong);
+}
+.cma-ladder-table .num {
+  text-align: right;
+}
+.cma-ladder-table td,
+.cma-ladder-table tbody th {
+  padding: 9px 12px;
+  border-bottom: 1px solid var(--rule);
+  color: var(--ink-700);
+  white-space: nowrap;
+}
+.cma-ladder-table th:first-child,
+.cma-ladder-table td:first-child {
+  padding-left: 2px;
+}
+.cma-ladder-table th:last-child,
+.cma-ladder-table td:last-child {
+  padding-right: 2px;
+}
+.cma-ladder-table tbody th button {
+  border: 0;
+  background: transparent;
+  padding: 0;
+  font-size: var(--t-sm);
+  font-weight: 500;
+  color: var(--ink-900);
+  cursor: pointer;
+  text-align: left;
+}
+.cma-ladder-table tbody th button:hover {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.cma-ladder-table tbody tr {
+  transition: background var(--d-fast) var(--ease);
+}
+.cma-ladder-table tbody tr:hover,
+.cma-ladder-table tbody tr.active {
+  background: var(--surface-2);
+}
+.cma-ladder-table tbody tr.active th {
+  box-shadow: inset 2px 0 0 var(--ink-900);
+}
+.cma-ladder-table .up {
+  color: var(--dir-down);
+}
+.cma-ladder-table .down {
+  color: var(--dir-up);
+}
+.cma-ladder-table .muted {
+  color: var(--ink-400);
+}
+
+.cma-cap {
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  padding: 2px 6px;
+  border-radius: var(--r-xs);
+  border: 1px solid var(--rule);
+  background: var(--surface-2);
+  color: var(--ink-500);
+  white-space: nowrap;
+}
+.cma-cap.tone-full {
+  border-color: var(--rule-heavy);
+  color: var(--ink-900);
+}
+.cma-cap.tone-warn {
+  border-color: color-mix(in srgb, var(--warning) 30%, transparent);
+  background: var(--warning-wash);
+  color: var(--warning-ink);
+}
+.cma-cap.tone-none {
+  border-color: color-mix(in srgb, var(--critical) 30%, transparent);
+  background: var(--critical-wash);
+  color: var(--critical-ink);
+}
+
+.cma-persistence {
+  margin-top: var(--s-4);
+  padding-left: var(--s-4);
+  border-left: 2px solid var(--rule-strong);
+  font-size: var(--t-sm);
+  line-height: 1.7;
+  color: var(--ink-500);
+  max-width: 88ch;
+}
+.cma-persistence strong {
+  color: var(--ink-900);
+  font-weight: 600;
+}
+.cma-persistence.state-persistent,
+.cma-persistence.state-reversal {
+  border-left-color: var(--warning);
+}
+.cma-persistence.state-stable,
+.cma-persistence.state-settled {
+  border-left-color: var(--dir-up-rule);
+}
+
+.cma-hist-label {
+  display: block;
+  margin-bottom: var(--s-3);
+  color: var(--ink-400);
+}
+
+/* ==========================================================================
+   BEYOND PRICE (step 6)
+   Ten parameters, each carrying the decision it informs. The decision is set
+   in the display face because it is the reason the number is on the page.
+   ========================================================================== */
+
+.cma-signals {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(238px, 1fr));
+  gap: var(--s-3);
+}
+
+.cma-signal {
+  display: flex;
+  flex-direction: column;
+  padding: var(--s-4);
+  border: 1px solid var(--rule);
+  border-radius: var(--r-sm);
+  background: var(--surface);
+  transition: border-color var(--d-fast) var(--ease);
+}
+.cma-signal:hover {
+  border-color: var(--rule-strong);
+}
+.cma-signal.unavailable {
+  background: transparent;
+  border-style: dashed;
+}
+
+.cma-signal-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s-2);
+}
+
+.cma-signal-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: var(--t-micro);
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--ink-400);
+  min-width: 0;
+}
+.cma-signal-label svg {
+  flex: none;
+  color: var(--ink-300);
+}
+
+/* Observed facts and derived figures are never allowed to look alike. */
+.cma-signal-basis {
+  flex: none;
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  padding: 1px 5px;
+  border-radius: var(--r-xs);
+  border: 1px solid var(--rule);
+  color: var(--ink-500);
+}
+.cma-signal-basis.derived {
+  border-style: dashed;
+  background: var(--surface-3);
+}
+
+.cma-signal-value {
+  margin-top: var(--s-3);
+  font-size: var(--t-xl);
+  font-weight: 500;
+  line-height: 1.05;
+  letter-spacing: -0.035em;
+  color: var(--ink-900);
+}
+.cma-signal.unavailable .cma-signal-value {
+  color: var(--ink-400);
+}
+
+.cma-signal-decision {
+  margin-top: 9px;
+  font-family: var(--font-display);
+  font-size: var(--t-base);
+  line-height: 1.4;
+  color: var(--ink-800);
+}
+
+.cma-signal-detail {
+  margin-top: 9px;
+  padding-top: 9px;
+  border-top: 1px solid var(--rule);
+  font-size: var(--t-xs);
+  line-height: 1.6;
+  color: var(--ink-500);
+}
+.cma-signal-detail.muted {
+  color: var(--ink-400);
+  font-style: italic;
+}
+
+.cma-signal-compare {
+  margin-top: 8px;
+  font-size: var(--t-xs);
+  color: var(--ink-500);
+}
+.cma-signal-compare .tabular {
+  color: var(--ink-800);
+  margin-left: 4px;
+}
+.cma-signal-compare em {
+  font-style: normal;
+  font-family: var(--font-mono);
+  margin-left: 6px;
+}
+.cma-signal-compare em.up {
+  color: var(--dir-up);
+}
+.cma-signal-compare em.down {
+  color: var(--dir-down);
+}
+
+.cma-signal-findings {
+  margin-top: var(--s-6);
+  padding-top: var(--s-6);
+  border-top: 1px solid var(--rule);
+}
+
+.cma-gaps {
+  margin-top: var(--s-6);
+  padding-top: var(--s-5);
+  border-top: 1px solid var(--rule);
+}
+.cma-gaps ul {
+  margin-top: var(--s-3);
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: 9px var(--s-6);
+}
+.cma-gaps li {
+  position: relative;
+  padding-left: 14px;
+  font-size: var(--t-xs);
+  line-height: 1.65;
+  color: var(--ink-500);
+}
+.cma-gaps li::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 9px;
+  width: 6px;
+  height: 1px;
+  background: var(--ink-300);
+}
+.cma-gaps .cma-note {
+  margin-top: var(--s-4);
+  margin-bottom: 0;
+}
+
+@media (max-width: 720px) {
+  .cma-horizon-detail {
+    padding: var(--s-3);
+  }
+  .cma-signals {
+    grid-template-columns: 1fr;
+  }
+}
