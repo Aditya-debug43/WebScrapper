@@ -41,3 +41,9 @@ coverage/
 # Cache
 .cache/
 .parcel-cache/
+# Backend (server/ keeps its own .gitignore too)
+server/node_modules/
+server/.env
+server/.pglite/
+server/seed-data/
+server/dist/

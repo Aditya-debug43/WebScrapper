@@ -464,7 +464,7 @@ A design-first rebuild of the presentation layer. **No file under `src/data/`, `
 
 ---
 
-### Stage 20 — Ten products, seven horizons, and the parameters that are not price (current)
+### Stage 20 — Ten products, seven horizons, and the parameters that are not price
 
 Feedback after the professor reviewed the deployed build:
 
@@ -567,6 +567,63 @@ The non-price layer deliberately **does not feed the engine**. It sits in its ow
 **Note on the refusal case:** when the engine refuses, steps 4 and 7 are absent but the horizon ladder and all ten parameters still render — they are computed from the product's own observations and do not depend on a competitive set. A seller with no comparables still learns about their stockouts, their featured-offer position and their review velocity. Step numbers stay fixed, so a gap in the sequence is itself the signal that a step could not be produced.
 
 **Future work, in order of value:** ingest a sales or units signal, which unlocks elasticity and turns the demand proxy into a demand measurement; add competitor price-change detection over windows; model competitor reaction; and add per-window competitive comparison, which today is computed only at the current moment.
+
+---
+
+### Stage 21 — Backend, phases 1–2: architecture and the database (current)
+
+The brief: convert the frontend-heavy prototype into a real full-stack application, in eight controlled phases. Phases 1 (audit + architecture) and 2 (database + migration) are specified and complete; phases 3–8 are not yet defined.
+
+Full reasoning lives in `docs/BACKEND_ARCHITECTURE.md` and `server/README.md`. What follows is what a future reader most needs to know.
+
+---
+
+#### The stack decision, and why it contradicts an earlier note
+
+This file has said since Stage 7 that a **Java REST API** comes next. That is revisited here, deliberately.
+
+There are ~4,300 lines of tuned JavaScript in `src/utils/` — weighted interpolated quantiles, a least-squares hedonic fit with a trust gate, four sequential competitive-set gates, the promotion-class price ladder, the observation-window capability ladder. The project's own rules say *do not rewrite working pricing logic* and *do not duplicate business logic between frontend and backend*. A Java backend forces a reimplementation of all of it, and any numerical drift silently breaks guarantees that took four stages to establish.
+
+Choosing **Node + TypeScript** means that code can *move* rather than be *rewritten*, with the existing regression suite still meaningful. Everything else follows: **Fastify** (schema-based validation and serialisation built in), **PostgreSQL**, and **Drizzle**.
+
+Drizzle over Prisma for three reasons, one of them environmental and worth stating plainly: it emits plain reviewable `.sql`; it has no Rust engine binary; and it is driver-portable, so the identical schema and migrations run against `node-postgres` in production and against **PGlite** — real PostgreSQL 17 compiled to WebAssembly — locally. That last point decided it. *This machine has no PostgreSQL and no Docker*, so the alternative was shipping migrations that had never been executed. With PGlite the migrations and the 389,534-row seed are genuinely run and genuinely verified. The honest caveat: PGlite influenced the choice. The resulting property — migrations verifiable with no database service — is a real CI advantage regardless.
+
+#### Repository shape
+
+`server/` is a **standalone package** with its own `package.json` and `node_modules`. Workspaces are deliberately *not* introduced yet: declaring a workspace root now would pull the server's dependencies into the Vercel install for no benefit, because nothing is shared. Workspaces and a `shared/` package arrive in the phase that actually extracts the analytical core. The web app stays exactly where it is, so the deployment is untouched.
+
+#### What the schema asserts that the frontend never did
+
+22 tables, 30 foreign keys, 40 constraints. The decisions worth defending:
+
+- **The dataset's string ids stay as primary keys** (`prod_dove_hair_fall`). They are already stable and unique, the frontend keys everything by them — so later phases change no component — and they make production debugging far easier than opaque UUIDs. Correct uniqueness is then expressed with **composite constraints**, which is the real point: `unique(marketplace_id, external_listing_id)`, because an ASIN is unique on Amazon and not across the internet.
+- **A seller row is marketplace-scoped**, because a merchant's id, rating and fulfilment type are marketplace-scoped facts. `seller_group_id` carries cross-platform identity without pretending one row spans platforms.
+- **`unique(offer_id, observed_at)`** is what makes the observation series append-only in practice rather than append-mostly.
+- **`promotions.availability_class` is materialised**, not derived per query. It decides whether a discount may enter a price comparison at all, so the rule belongs in the schema rather than in whichever consumer remembers to apply it.
+- **`price_observations.raw_document_id` is deliberately NOT a foreign key.** Every observation carries one, but raw HTML is retained far more briefly than the facts derived from it, so the target is routinely absent. A FK there would make the retention policy fail the load. The verifier reports the dangle rather than failing on it.
+- **JSONB in seven places only**, all genuinely schemaless by design. `promotions.terms` earned it on evidence: ten distinct shapes across the dataset, discriminated by `promotion_type` (a bank offer carries `{bank, percent, capMinor, minSpendMinor, cardTypes}`; no-cost EMI carries `{bank, tenureMonths}`). Columns would mean twenty mostly-null fields or a table per type.
+
+#### Two real defects the constraints caught
+
+Both had been invisible because nothing in the frontend read the fields.
+
+1. **Duplicate marketplace seller ids.** 1,177 sellers produced only **949** distinct `(marketplace, external_seller_id)` pairs — 228 ids each shared by two genuinely different merchants ("Star Home" and "Star Home Mumbai"). `sellerGenerator.js` truncated a 32-bit hash to its last seven base-36 characters. Fixed at the root by making the id unique by construction. Engine regression after the fix: **1,043 recommended, 0 violations** — unchanged, as expected, since nothing read the field.
+
+2. **Parent products carry no spec document.** `products` holds two kinds of row — purchasable SKUs, and abstract family nodes like "Samsung Galaxy M14 5G" that exist only to group variants. Family nodes legitimately have no specs. `spec_schema_version` is nullable, and a check constraint states the actual rule: *a thing you can buy must declare its spec schema*. It holds on all 1,172 rows (2 products lack a schema; both are non-purchasable; zero purchasable rows lack one).
+
+#### The migration is two steps because the dataset is a program
+
+The legacy data is not a file — ~1,100 hand-authored seed rows expanded by a seeded PRNG at module load into 389,534 rows, through Vite-style extensionless imports Node cannot resolve. So `scripts/export-dataset.mjs` boots Vite in middleware mode and uses its own resolver to write NDJSON; `server` then loads that NDJSON with no build-time dependency on the frontend tree. The exporter is a **migration tool with a finite life** — when the database is the source of truth, it and the generators are deleted together.
+
+Load: **389,534 rows, 20 tables, 59.8 s**, every count matching the manifest.
+
+#### Verification is structural, not just counts
+
+A load can hit every row count and still have shredded the relationships, which is the specific failure mode the brief warns about. `db:verify` runs **37 checks**: counts, zero orphans on every foreign key, graph shape as *distributions* rather than totals (two products swapping a listing would leave every total untouched), and the domain invariants — no negative money, nothing above MRP, one observation per offer per day, one featured offer per listing per day, promotion class matching promotion type — plus a golden record asserting that Dove Hair Fall Rescue Shampoo still has 6 listings, 30 offers and a cheapest landed price of ₹569, the same figures the UI renders. All 37 pass.
+
+#### Phase status
+
+Phases 1 and 2 complete. There is **no HTTP layer yet** and the frontend still reads `src/data/` — nothing about the running application changed in this stage except the one generator fix. Phases 3–8 await specification.
 
 ---
 
@@ -1109,7 +1166,7 @@ Each has a real representative in the dataset. Re-run these after any pricing ch
 Based on where the project actually stands, the next steps that follow directly from the established direction (not a new roadmap):
 
 1. **Present/defend the current state** to the professor if that hasn't happened yet — the `pricing-intelligence-walkthrough.md` document was built for exactly this.
-2. **Decide the backend's real starting point:** the frontend is architecturally ready for a Java REST API (`src/api/client.js` is the swap point), but no Java code exists yet. The next natural step is standing up a minimal Java backend (framework choice — e.g. Spring Boot — was explicitly left undecided in the original build brief) that serves the *same* entity shapes the mock data already uses, so the swap is close to mechanical.
+2. **Backend — decided and under way (Stage 21).** Node/TypeScript + Fastify + PostgreSQL + Drizzle, *not* Java: the reasoning is in `docs/BACKEND_ARCHITECTURE.md` and comes down to letting ~4,300 lines of verified pricing logic move server-side rather than be rewritten. Phases 1–2 (architecture, schema, migration) are complete; `src/api/*Service.js` remains the swap point and its return shapes are the API contract.
 3. **Turn the conceptual database design (§5) into real DDL** and a real database (Postgres was the design docs' implicit assumption, given the JSONB-based Specifications design — but this was never explicitly finalized as a hard requirement).
 4. **Build (or at minimum design) the real entity-resolution/product-matching pipeline** described in the docs but never implemented — this is explicitly flagged in the original design review as "the single biggest gap."
 5. **Only after a real backend and real data exist:** revisit whether a real scraper/crawler is needed at all, versus using official marketplace APIs where available (a preference stated in the original design docs).
@@ -1162,6 +1219,11 @@ Based on where the project actually stands, the next steps that follow directly 
 12ad. **A non-price parameter must name the decision it changes.** If it cannot finish "…so I should ___", it is a column, not a parameter, and it does not ship. The rejected list is documented alongside the shipped one (Stage 20).
 12ae. **The demonstration set is selected, not written down.** `utils/demoSet.js` stratifies across evidence tiers with a hard per-department cap and an explicit refusal stratum. A demo set with no refusal case in it hides the behaviour most worth showing (Stage 20).
 12af. **The non-price layer never feeds the pricing engine.** It states how it corroborates or complicates the conclusion; it does not enter the arithmetic. If a store signal ever changes a recommended price, that is a bug (Stage 20).
+12ag. **External identifiers are marketplace-scoped.** An ASIN is unique on Amazon, not across the internet. Every external id — listing, seller, category node — is unique only in composite with its marketplace, and a seller row is marketplace-scoped for the same reason (Stage 21).
+12ah. **`price_observations.raw_document_id` must never become a foreign key.** Raw HTML is retained far more briefly than the facts derived from it, so the target is routinely absent by design. A FK there makes the retention policy fail the load (Stage 21).
+12ai. **The backend stack is Node/TypeScript, not Java.** This reverses the Stage 7 note, and the reason is that ~4,300 lines of verified pricing logic can then move rather than be rewritten. Reopening it means accepting a full reimplementation and re-verification of the engine (Stage 21).
+12aj. **A seed is a load, not an append.** It truncates the tables it owns and reloads them, so running it twice yields the same database. `users` and `tracked_products` are excluded — a data reload must not sign anybody out (Stage 21).
+12ak. **Verify structure, not just counts.** Row counts pass even when two products have swapped listings. Check orphans on every foreign key and compare graph shape as distributions (Stage 21).
 13. **Prefer understanding existing code over adding new abstractions.** The codebase is intentionally not over-engineered for its current scope (a class-project wireframe) — resist adding speculative infrastructure (e.g. a state-management library, a component library, a testing framework) unless the user's request genuinely requires it.
 11. **Keep this file up to date.** If you make a decision significant enough that a future session would need to know about it, add it here — particularly to §3 (evolution), §6 (critical decisions), §14/§15 (status), and §20 (historical context) as appropriate. Don't let this file go stale while the code moves on.
 12. **When in doubt about project intent, ask** rather than assume — several past requests in this project have been extremely explicit and prescriptive (see the visual-correction request that produced Stage 9); treat that as the user's established working style, not a one-off.

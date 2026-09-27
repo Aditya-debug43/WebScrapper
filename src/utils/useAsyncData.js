@@ -3,7 +3,7 @@ import { useEffect, useState } from "react";
 /**
  * Standardizes loading/error/data state for service calls. The fetcher is
  * always async today (resolving from mock data); this is the exact shape a
- * fetcher backed by the Java REST API would have, so pages don't change when
+ * fetcher backed by the real REST API would have, so pages do not change when
  * the service layer's internals do.
  */
 export function useAsyncData(fetcher, deps = []) {

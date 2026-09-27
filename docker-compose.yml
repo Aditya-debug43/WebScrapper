@@ -1,0 +1,25 @@
+# Real PostgreSQL for anyone who wants it. Development and CI default to
+# PGlite instead (see server/README.md), which needs no service at all — this
+# exists so the same migrations can be exercised against a networked server
+# before they reach production.
+services:
+  db:
+    image: postgres:17-alpine
+    container_name: mulya-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: mulya
+      POSTGRES_PASSWORD: mulya
+      POSTGRES_DB: mulya
+    ports:
+      - "5432:5432"
+    volumes:
+      - mulya-pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U mulya -d mulya"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  mulya-pgdata:

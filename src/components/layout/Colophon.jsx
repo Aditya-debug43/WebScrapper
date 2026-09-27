@@ -21,8 +21,8 @@ export default function Colophon() {
         <div className="colophon-block">
           <span className="eyebrow">Build</span>
           <p>
-            Mock service layer today, Java REST API next — the API boundary is already drawn, so the screens do not
-            change when the source does.
+            Mock service layer in the browser today; a Node/TypeScript API over PostgreSQL is being built behind the
+            same boundary, so the screens do not change when the source does.
           </p>
         </div>
         <div className="colophon-block">

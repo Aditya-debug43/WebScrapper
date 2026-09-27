@@ -196,7 +196,15 @@ function build() {
       sellers.push({
         id: sellerId,
         marketplaceId: mp.id,
-        externalSellerId: `${EXTERNAL_ID_PREFIX[mp.id]}${Math.abs(hashSeed(sellerId)).toString(36).toUpperCase().slice(-7)}`,
+        // Truncating a 32-bit hash to its last 7 base-36 characters collided:
+        // 1,177 sellers produced only 949 distinct marketplace ids, so 228 ids
+        // were each shared by two genuinely different merchants ("Star Home"
+        // and "Star Home Mumbai"). Nothing in the app read this field, so it
+        // went unnoticed until the database asserted the constraint that
+        // actually holds in reality — a marketplace issues one id per merchant.
+        // `i` is unique within a marketplace, so appending it makes the id
+        // unique by construction rather than by luck.
+        externalSellerId: `${EXTERNAL_ID_PREFIX[mp.id]}${Math.abs(hashSeed(sellerId)).toString(36).toUpperCase().slice(-4)}${i.toString(36).toUpperCase().padStart(3, "0")}`,
         name,
         sellerType: isOwned ? "marketplace_owned" : "third_party",
         defaultFulfilmentType: isOwned ? fulfilmentOptions[0] : pick(fulfilmentOptions, rand),

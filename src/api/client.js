@@ -1,7 +1,7 @@
 // The future integration point. Every service function in this folder is
 // already async and already returns plain JSON-shaped objects — today they
 // resolve from the local mock data layer, but the call sites in pages never
-// know that. Swapping the backend for the planned Java REST API means
+// know that. Swapping the backend for the planned Node/TypeScript REST API means
 // rewriting the bodies of the functions in this folder to call `request()`
 // below instead of the mock joins in `src/data`; nothing in `src/pages` or
 // `src/components` has to change.
