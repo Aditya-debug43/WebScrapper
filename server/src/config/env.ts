@@ -66,6 +66,13 @@ const schema = z
     SESSION_TTL_DAYS: z.coerce.number().int().positive().default(30),
 
     /**
+     * How long the token handed out by verify-reset-otp stays usable. Short:
+     * it exists only to carry proof across the two steps of one reset, and a
+     * user who has just typed a code is already at the keyboard.
+     */
+    RESET_TOKEN_TTL_SECONDS: z.coerce.number().int().positive().default(900),
+
+    /**
      * Returns the OTP in the API response. Exists so automated tests can drive
      * the flow without an inbox, and it is refused in production by the
      * refinement below — a test convenience that can be switched on in

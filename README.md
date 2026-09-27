@@ -106,16 +106,50 @@ set a price. The constraint layer sits outside it.
 
 ## Pages
 
+Everything below the masthead requires a signed-in session.
+
 | Route | What it shows |
 |---|---|
-| `/` | Dashboard — tracked products, 7-day movement, alerts |
+| `/sign-in` | Email + password |
+| `/create-account` | Registration — sends a verification code, does not sign you in |
+| `/verify-email` | The six-digit code; verifying opens the session |
+| `/forgot-password` | Starts a reset; answers the same whether or not the account exists |
+| `/reset-password` | Code + new password; revokes every session and returns you to sign-in |
+| `/` | Dashboard — the demonstration set, the chosen observation window, alerts |
 | `/catalogue` | Faceted catalogue; filters are generated from the attribute registry |
 | `/products/:id` | Product identity, specs, variant family, listings |
 | `/products/:id/marketplaces` | The same product side by side across marketplaces |
+| `/products/:id/analysis` | Cross-marketplace analysis across seven observation windows |
 | `/listings/:id` | Every competing seller on one listing, with the full price ladder |
 | `/listings/:id/history` | Price history, plotted on the effective-price basis |
 | `/products/:id/recommendation` | The three strategies, constraints, evidence and comparable set |
 | `/sources` | Capture runs, parse coverage and match confidence — the provenance layer |
+
+---
+
+## Authentication
+
+The **only** part of this application backed by a real server. Everything
+else still reads the generated dataset described below.
+
+The credential is **email + password**. A one-time code is never a way to log
+in: it proves an address at signup, and it authorises a password reset.
+
+There is no fake session anywhere. There is no development bypass, no
+hard-coded user, and no way to reach a protected route without a token the
+backend issued and still honours:
+
+- Only the token is stored in the browser, and it is re-validated against
+  `/auth/me` on every load. Until that answers, the app is in a third state
+  and renders neither the signed-in nor the signed-out interface.
+- A response missing either a token or a user is refused outright rather than
+  treated as a partial success.
+- Signing out revokes the session on the server; the token stops working
+  everywhere, not just in this tab.
+
+The API base URL comes from `VITE_API_BASE_URL` and is never hard-coded. See
+[`.env.example`](.env.example) — locally you need no env file at all, because
+the dev server proxies `/api` to the backend.
 
 ---
 
@@ -146,7 +180,19 @@ they would actually sell.
 
 ## Running it
 
-Requires Node 18+.
+Requires Node 20+.
+
+The catalogue, analysis and recommendation pages run entirely in the browser,
+so the frontend alone is enough to look at them — but **sign-in is real**, so
+you need the API running to get past the door.
+
+Start the API first (see [`server/README.md`](server/README.md)):
+
+```bash
+cd server && npm install && npm run db:migrate && npm run dev
+```
+
+Then, in another terminal:
 
 ```bash
 npm install
@@ -156,7 +202,12 @@ npm install
 npm run dev
 ```
 
-Then open the printed localhost URL. To produce a production build:
+The dev server proxies `/api` to `http://localhost:4000`, so no `.env` file is
+needed locally. Open the printed URL and create an account; with
+`EXPOSE_OTP_IN_RESPONSE=true` the API prints the verification code to its own
+console, so no mailbox is required.
+
+To produce a production build:
 
 ```bash
 npm run build
@@ -166,6 +217,18 @@ npm run build
 npm run preview
 ```
 
+### Tests
+
+```bash
+npm test        # 30 interface and source-guarantee tests (Vitest)
+npm run lint
+npm run test:e2e   # the real app against a real API — nothing mocked
+```
+
+`test:e2e` creates a throwaway PostgreSQL, migrates it, starts the API, runs
+the full register → verify → sign in → reset → sign out flow against it, and
+tears everything down. It needs no running server of its own.
+
 ---
 
 ## What is not built
@@ -174,13 +237,16 @@ Being explicit, because the screens look more finished than the system is:
 
 - **No live scraping.** Nothing fetches a marketplace. The capture runs on
   `/sources` describe a pipeline that does not exist yet.
-- **No backend and no database.** Everything is in-memory JavaScript. The
-  conceptual schema is written up in the design documents, not implemented.
-  `src/api/` is written as if it were a REST client so those functions can be
-  repointed at a real service without touching any page.
+- **The catalogue has no backend yet.** Products, listings, offers, prices and
+  recommendations are in-memory JavaScript in the browser. A real database
+  holding all of it exists in `server/`, but only the authentication endpoints
+  are wired up so far; `src/api/*Service.js` is written as a REST client so
+  those functions can be repointed without touching any page.
 - **No trained ML model.** The willingness-to-pay component is a small
   least-squares regression fitted per request, not a trained artefact.
-- **No authentication, no persistence.** Tracked products reset on reload.
+- **Authentication is real; nothing else is.** Accounts, sessions, email
+  verification and password reset all go through the API and a real database.
+  Tracked products are still browser state and reset on reload.
 - **A fixed "today".** Price series are anchored to a hardcoded date, so
   relative phrasing like "7-day movement" is measured against that.
 - **Brands and marketplaces are real; the numbers are not.** Prices, ratings,
@@ -192,12 +258,15 @@ Being explicit, because the screens look more finished than the system is:
 
 ```
 src/
-  api/          service layer — the future backend swap point
+  api/          service layer — authService talks to the real API;
+                the rest is the future backend swap point
   data/         the mock "database": entities, seeds, registries
   utils/        pricing engine, competitive set, price ladder, generators
   pages/        one file per route
   components/   presentational pieces
-  state/        tracked-product context
+  state/        auth session, tracked products, theme
+tests/          Vitest interface tests, source guarantees, and the e2e runner
+server/         the Fastify + PostgreSQL API
 ```
 
 Deeper design notes — the entity design, the reasoning behind each decision,

@@ -144,6 +144,16 @@ export const users = pgTable(
     id: uuid("id").primaryKey().defaultRandom(),
     /** Always stored normalised (trimmed, lower-cased) — see lib/email.ts. */
     email: text("email").notNull(),
+    /**
+     * Argon2id digest. NEVER a password, never a reversible encoding, never
+     * returned by any endpoint.
+     *
+     * Nullable for one reason only: accounts that predate password
+     * authentication have none, and inventing one for them would be worse
+     * than recording the absence. `login` refuses a null hash outright and
+     * directs those users through password reset. Registration always sets it.
+     */
+    passwordHash: text("password_hash"),
     displayName: text("display_name"),
     /** Set the first time an OTP for this address is successfully verified. */
     emailVerifiedAt: timestamp("email_verified_at", { withTimezone: true }),
@@ -174,15 +184,31 @@ export const otpChallenges = pgTable(
   {
     id: uuid("id").primaryKey().defaultRandom(),
     email: text("email").notNull(),
-    // A text column with a check rather than an enum: there is exactly one
-    // purpose today, and a single-value enum models a decision nobody has
-    // made. The check widens with a one-line migration when one appears.
-    purpose: text("purpose").notNull().default("login"),
+    /**
+     * What this code is FOR. The two purposes are deliberately separate
+     * values rather than one generic code: a verification code must not be
+     * usable to reset a password, and a reset code must not verify an
+     * address. The check constraint is what enforces that rather than
+     * convention.
+     */
+    purpose: text("purpose").notNull(),
     codeHash: text("code_hash").notNull(),
     attemptCount: integer("attempt_count").notNull().default(0),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
     consumedAt: timestamp("consumed_at", { withTimezone: true }),
+    /**
+     * Issued when a PASSWORD_RESET code is verified, and consumed by the
+     * password change itself.
+     *
+     * Reset is two steps — verify the code, then choose a password — and
+     * something has to carry proof between them. Storing a second hashed
+     * secret on the challenge row keeps that proof single-use and revocable
+     * for free, where a stateless signed token would need its own
+     * invalidation story.
+     */
+    resetTokenHash: text("reset_token_hash"),
+    resetTokenExpiresAt: timestamp("reset_token_expires_at", { withTimezone: true }),
     /** Kept for abuse investigation only; never used to identify a person. */
     requestIp: text("request_ip"),
   },
@@ -190,7 +216,8 @@ export const otpChallenges = pgTable(
     // "The newest live challenge for this address" is the only read path.
     index("otp_email_created_idx").on(t.email, t.createdAt.desc()),
     index("otp_expires_idx").on(t.expiresAt),
-    check("otp_purpose_known", sql`${t.purpose} in ('login')`),
+    index("otp_reset_token_idx").on(t.resetTokenHash),
+    check("otp_purpose_known", sql`${t.purpose} in ('email_verification', 'password_reset')`),
     check("otp_attempts_non_negative", sql`${t.attemptCount} >= 0`),
     check("otp_expiry_after_creation", sql`${t.expiresAt} > ${t.createdAt}`),
   ]

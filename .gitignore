@@ -47,3 +47,6 @@ server/.env
 server/.pglite/
 server/seed-data/
 server/dist/
+
+# End-to-end run artefacts (server log, throwaway data)
+tests/e2e/.run/

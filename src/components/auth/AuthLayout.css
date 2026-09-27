@@ -1,0 +1,255 @@
+/* ==========================================================================
+   AUTHENTICATION SHELL
+
+   Two columns, no card, no gradient. The left is the document's masthead;
+   the right is the form. The seam between them is a single hairline, which
+   is the same device every other surface in this application uses to
+   separate one thing from another.
+   ========================================================================== */
+
+.auth {
+  display: grid;
+  grid-template-columns: minmax(320px, 0.82fr) minmax(0, 1.18fr);
+  min-height: 100vh;
+  min-height: 100dvh;
+  background: var(--surface);
+}
+
+/* ------------------------------------------------------------------ aside */
+
+.auth-aside {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-6);
+  padding: var(--s-7) var(--s-7) var(--s-6);
+  background: var(--canvas-deep);
+  border-right: 1px solid var(--rule);
+}
+
+.auth-brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  align-self: flex-start;
+}
+
+/* The same three-bar mark as the masthead: a price ladder, not a logo. */
+.auth-mark {
+  display: inline-flex;
+  align-items: flex-end;
+  gap: 2px;
+  height: 14px;
+}
+.auth-mark span {
+  display: block;
+  width: 3px;
+  background: var(--ink-900);
+}
+.auth-mark span:nth-child(1) { height: 7px; }
+.auth-mark span:nth-child(2) { height: 14px; }
+.auth-mark span:nth-child(3) { height: 10px; }
+
+.auth-word {
+  font-family: var(--font-display);
+  font-size: var(--t-xl);
+  letter-spacing: -0.01em;
+  color: var(--ink-900);
+}
+
+.auth-statement {
+  font-size: var(--t-2xl);
+  color: var(--ink-900);
+  max-width: 17ch;
+  margin-top: auto;
+}
+.auth-statement em {
+  font-style: italic;
+  color: var(--ink-700);
+}
+
+/* ----------------------------------------------------------------- ledger
+   A progression, numbered like the workspace rail. The current step is the
+   only one set in full ink; completed steps keep their number but lose their
+   emphasis, and steps ahead are quieter still without falling below the
+   contrast floor. */
+
+.auth-ledger {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  border-top: 1px solid var(--rule);
+}
+
+.auth-step {
+  display: flex;
+  align-items: baseline;
+  gap: var(--s-3);
+  padding: 11px 0;
+  border-bottom: 1px solid var(--rule);
+  font-size: var(--t-sm);
+  color: var(--ink-400);
+  transition: color var(--d-mid) var(--ease);
+}
+
+.auth-step-n {
+  font-size: var(--t-micro);
+  letter-spacing: 0.06em;
+  color: var(--ink-400);
+  min-width: 2.2ch;
+}
+
+.auth-step.done {
+  color: var(--ink-500);
+}
+.auth-step.done .auth-step-n {
+  color: var(--ink-400);
+}
+
+.auth-step.current {
+  color: var(--ink-900);
+  font-weight: 500;
+}
+.auth-step.current .auth-step-n {
+  color: var(--ink-900);
+}
+/* A rule-weight marker rather than a filled dot: the step is indicated by
+   the same hairline vocabulary as everything else. */
+.auth-step.current {
+  box-shadow: inset 2px 0 0 var(--accent);
+  padding-left: var(--s-3);
+  margin-left: calc(var(--s-3) * -1);
+}
+
+.auth-aside-foot {
+  font-size: var(--t-xs);
+  line-height: 1.55;
+  color: var(--ink-400);
+  max-width: 34ch;
+}
+
+/* ------------------------------------------------------------------ stage */
+
+.auth-stage {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  padding: var(--s-6) var(--s-7) var(--s-7);
+  background: var(--surface);
+}
+
+.auth-stage-top {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.auth-sheet {
+  width: 100%;
+  max-width: 41ch;
+  margin: auto 0;
+  padding: var(--s-6) 0;
+  animation: rise var(--d-slow) var(--ease-out) both;
+}
+
+.auth-eyebrow {
+  color: var(--ink-400);
+  margin-bottom: var(--s-3);
+}
+
+.auth-title {
+  font-size: var(--t-3xl);
+  color: var(--ink-900);
+}
+
+.auth-lede {
+  margin-top: var(--s-3);
+  font-size: var(--t-md);
+  line-height: 1.55;
+  color: var(--ink-500);
+}
+
+.auth-stage-foot {
+  font-size: var(--t-xs);
+  color: var(--ink-400);
+  border-top: 1px solid var(--rule);
+  padding-top: var(--s-4);
+}
+
+/* ==========================================================================
+   RESPONSIVE
+   ========================================================================== */
+
+@media (max-width: 1080px) {
+  .auth-aside,
+  .auth-stage {
+    padding-left: var(--s-6);
+    padding-right: var(--s-6);
+  }
+}
+
+@media (max-width: 860px) {
+  .auth {
+    grid-template-columns: 1fr;
+    min-height: 100dvh;
+  }
+
+  .auth-aside {
+    gap: var(--s-4);
+    padding: var(--s-5) var(--s-4) var(--s-4);
+    border-right: 0;
+    border-bottom: 1px solid var(--rule);
+  }
+
+  /* The editorial statement is the part that does not earn its space on a
+     phone. The ledger does — it is the only thing telling the reader how
+     many steps are left — so it survives, laid out horizontally. */
+  .auth-statement,
+  .auth-aside-foot {
+    display: none;
+  }
+
+  .auth-ledger {
+    flex-direction: row;
+    gap: var(--s-4);
+    border-top: 0;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+  .auth-ledger::-webkit-scrollbar {
+    display: none;
+  }
+
+  .auth-step {
+    flex: none;
+    gap: 7px;
+    padding: 0 0 7px;
+    border-bottom: 2px solid transparent;
+    font-size: var(--t-xs);
+    white-space: nowrap;
+  }
+  .auth-step.current {
+    box-shadow: none;
+    padding-left: 0;
+    margin-left: 0;
+    border-bottom-color: var(--accent);
+  }
+
+  .auth-stage {
+    padding: var(--s-3) var(--s-4) var(--s-6);
+  }
+  .auth-sheet {
+    max-width: none;
+    margin: 0;
+    padding-top: var(--s-4);
+  }
+  .auth-title {
+    font-size: var(--t-2xl);
+  }
+}
+
+@media (max-width: 420px) {
+  .auth-aside,
+  .auth-stage {
+    padding-left: var(--s-4);
+    padding-right: var(--s-4);
+  }
+}

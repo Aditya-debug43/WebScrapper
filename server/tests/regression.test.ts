@@ -142,16 +142,47 @@ describe("REG — Phase 2 baseline is undisturbed", () => {
     }
   });
 
-  it("the users table no longer carries a password column", async (t) => {
+  it("the users table carries the password-authentication shape, and nothing older", async (t) => {
     if (!available) return t.skip("development database not seeded");
-    const r = await db!.query<{ column_name: string }>(
-      `select column_name from information_schema.columns where table_name='users'`
+    const r = await db!.query<{ column_name: string; data_type: string; is_nullable: string }>(
+      `select column_name, data_type, is_nullable from information_schema.columns where table_name='users'`
     );
-    const columns = r.rows.map((c) => c.column_name);
-    assert.ok(!columns.includes("password_hash"), "password_hash was dropped in 0002");
-    assert.ok(!columns.includes("role"), "role was dropped in 0002");
-    assert.ok(columns.includes("email_verified_at"));
-    assert.ok(columns.includes("last_login_at"));
+    const columns = new Map(r.rows.map((c) => [c.column_name, c]));
+
+    // Reintroduced in 0003 for email + password authentication. Nullable on
+    // purpose: an account created before password auth has no digest, and
+    // inventing one would be worse than recording the absence.
+    const hash = columns.get("password_hash");
+    assert.ok(hash, "password_hash was reintroduced in 0003");
+    assert.equal(hash!.data_type, "text");
+    assert.equal(hash!.is_nullable, "YES");
+
+    assert.ok(!columns.has("role"), "role was dropped in 0002 and has not come back");
+    assert.ok(!columns.has("password"), "a plaintext password column must never exist");
+    assert.ok(columns.has("email_verified_at"));
+    assert.ok(columns.has("last_login_at"));
+  });
+
+  it("one-time codes are scoped to a purpose, and logging is no longer one of them", async (t) => {
+    if (!available) return t.skip("development database not seeded");
+    const cols = await db!.query<{ column_name: string }>(
+      `select column_name from information_schema.columns where table_name='otp_challenges'`
+    );
+    const columns = cols.rows.map((c) => c.column_name);
+    for (const expected of ["purpose", "reset_token_hash", "reset_token_expires_at"]) {
+      assert.ok(columns.includes(expected), `otp_challenges.${expected} is missing`);
+    }
+
+    // The check constraint, not convention, is what stops a verification code
+    // authorising a reset — and what removed 'login' as a purpose entirely.
+    const check = await db!.query<{ definition: string }>(
+      `select pg_get_constraintdef(oid) as definition from pg_constraint where conname='otp_purpose_known'`
+    );
+    assert.equal(check.rows.length, 1, "otp_purpose_known is missing");
+    const definition = check.rows[0]!.definition;
+    assert.match(definition, /email_verification/);
+    assert.match(definition, /password_reset/);
+    assert.ok(!/'login'/.test(definition), "'login' is no longer a valid purpose");
   });
 });
 

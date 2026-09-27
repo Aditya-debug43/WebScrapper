@@ -122,27 +122,39 @@ async function seedCatalogue(db: ReturnType<typeof drizzle>) {
 
 export type Json = Record<string, any>;
 
-/** Drive the whole OTP flow and return the bearer token. */
+/** The password every helper-created account is given. */
+export const TEST_PASSWORD = "harness-test-password";
+
+/**
+ * Register, verify the address, and return the resulting bearer token.
+ *
+ * This is the real flow over the real HTTP surface — no direct row inserts
+ * and no fabricated session — so a test that depends on being signed in
+ * fails if sign-in itself breaks.
+ */
 let signInIp = 0;
-export async function signIn(h: Harness, email: string) {
+export async function signIn(h: Harness, email: string, password = TEST_PASSWORD) {
   // Distinct source address per sign-in, so helper traffic never eats the
   // per-IP budget a rate-limit test is relying on.
   const remoteAddress = `10.200.${Math.floor(++signInIp / 256) % 256}.${signInIp % 256}`;
-  const request = await h.app.inject({
-    method: "POST",
-    url: "/api/v1/auth/request-otp",
-    payload: { email },
-    remoteAddress,
-  });
-  const code = (request.json() as Json)["devCode"] as string;
-  const verify = await h.app.inject({
-    method: "POST",
-    url: "/api/v1/auth/verify-otp",
-    payload: { email, code },
-    remoteAddress,
-  });
-  const body = verify.json() as Json;
-  return { token: body["token"] as string, user: body["user"] as Json, isNewUser: body["isNewUser"] as boolean };
+  const post = (url: string, payload: object) =>
+    h.app.inject({ method: "POST", url: `/api/v1${url}`, payload, remoteAddress });
+
+  const registered = await post("/auth/register", { email, password });
+  if (registered.statusCode !== 201) {
+    // The account already exists and is verified — just log in.
+    const login = await post("/auth/login", { email, password });
+    const body = login.json() as Json;
+    return { token: body["token"] as string, user: body["user"] as Json, isNewUser: false };
+  }
+
+  const code = (registered.json() as Json)["devCode"] as string;
+  const verified = await post("/auth/verify-email", { email, code });
+  const body = verified.json() as Json;
+  if (verified.statusCode !== 200) {
+    throw new Error(`signIn(${email}) failed at verify-email: ${verified.statusCode} ${verified.body}`);
+  }
+  return { token: body["token"] as string, user: body["user"] as Json, isNewUser: true };
 }
 
 export const bearer = (token: string) => ({ authorization: `Bearer ${token}` });

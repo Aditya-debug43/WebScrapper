@@ -22,6 +22,13 @@
       "when": 1790487049984,
       "tag": "0002_drop_password_and_role",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1790506281994,
+      "tag": "0003_password_auth",
+      "breakpoints": true
     }
   ]
 }

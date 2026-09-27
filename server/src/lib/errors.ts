@@ -19,6 +19,10 @@ export type ErrorCode =
   | "OTP_ALREADY_USED"
   | "OTP_TOO_MANY_ATTEMPTS"
   | "OTP_COOLDOWN"
+  | "EMAIL_IN_USE"
+  | "INVALID_CREDENTIALS"
+  | "EMAIL_NOT_VERIFIED"
+  | "RESET_TOKEN_INVALID"
   | "ACCOUNT_INACTIVE"
   | "EMAIL_SEND_FAILED"
   | "INTERNAL_ERROR";
@@ -34,6 +38,12 @@ const STATUS: Record<ErrorCode, number> = {
   OTP_ALREADY_USED: 409,
   OTP_TOO_MANY_ATTEMPTS: 429,
   OTP_COOLDOWN: 429,
+  EMAIL_IN_USE: 409,
+  // 401, not 404 or 422: the client must not be able to tell an unknown
+  // address from a wrong password by reading the status line either.
+  INVALID_CREDENTIALS: 401,
+  EMAIL_NOT_VERIFIED: 403,
+  RESET_TOKEN_INVALID: 400,
   ACCOUNT_INACTIVE: 403,
   EMAIL_SEND_FAILED: 502,
   INTERNAL_ERROR: 500,

@@ -1,0 +1,255 @@
+/* ==========================================================================
+   AUTHENTICATION FORM PRIMITIVES
+
+   Fields are hairline-bordered on an inset ground, matching the rest of the
+   application's input vocabulary. The label sits above in tracked caps —
+   the same eyebrow used to title a section — so a form reads as part of the
+   document rather than as a widget dropped into it.
+   ========================================================================== */
+
+.auth-form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-4);
+  margin-top: var(--s-5);
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+
+.field-label {
+  font-size: var(--t-micro);
+  font-weight: 600;
+  letter-spacing: 0.13em;
+  text-transform: uppercase;
+  color: var(--ink-500);
+}
+
+.field-input {
+  width: 100%;
+  min-height: 42px;
+  padding: 10px 13px;
+  font-family: var(--font-sans);
+  font-size: var(--t-base);
+  color: var(--ink-900);
+  background: var(--surface-inset);
+  border: 1px solid var(--rule-strong);
+  border-radius: var(--r-sm);
+  transition: border-color var(--d-fast) var(--ease), background var(--d-fast) var(--ease);
+}
+.field-input::placeholder {
+  color: var(--ink-400);
+}
+.field-input:hover:not(:disabled) {
+  border-color: var(--rule-heavy);
+}
+.field-input:focus {
+  outline: 2px solid var(--signal);
+  outline-offset: 1px;
+  border-color: var(--signal);
+  background: var(--surface);
+}
+.field-input:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.field.has-error .field-input {
+  border-color: var(--critical);
+}
+
+/* The code is a readout, so it is set like one — mono, wide tracking. */
+.field-code {
+  font-size: var(--t-xl);
+  letter-spacing: 0.4em;
+  text-indent: 0.4em;
+  padding-top: 8px;
+  padding-bottom: 8px;
+}
+.field-code::placeholder {
+  color: var(--ink-200);
+  letter-spacing: 0.4em;
+}
+
+.field-affix {
+  position: relative;
+  display: flex;
+}
+.field-affix .field-input {
+  padding-right: 42px;
+}
+
+.field-reveal {
+  position: absolute;
+  top: 50%;
+  right: 5px;
+  transform: translateY(-50%);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  border: 0;
+  border-radius: var(--r-xs);
+  background: transparent;
+  color: var(--ink-400);
+  cursor: pointer;
+  transition: color var(--d-fast) var(--ease), background var(--d-fast) var(--ease);
+}
+.field-reveal:hover {
+  color: var(--ink-900);
+  background: var(--accent-wash);
+}
+
+.field-hint {
+  font-size: var(--t-xs);
+  line-height: 1.5;
+  color: var(--ink-400);
+}
+
+.field-error {
+  display: flex;
+  gap: 5px;
+  font-size: var(--t-xs);
+  line-height: 1.5;
+  color: var(--critical-ink);
+}
+
+/* ------------------------------------------------------------- notices */
+
+.form-notice {
+  position: relative;
+  display: block;
+  padding: 11px 13px 11px 36px;
+  border: 1px solid;
+  border-radius: var(--r-sm);
+  font-size: var(--t-sm);
+  line-height: 1.5;
+}
+
+/* The icon is positioned rather than laid out: a flex container would make
+   every element child its own column and shatter a sentence containing a
+   <strong> or a <button> into pieces. */
+.form-notice-icon {
+  position: absolute;
+  top: 12px;
+  left: 13px;
+}
+
+.form-notice.error {
+  background: var(--critical-wash);
+  border-color: var(--critical);
+  color: var(--critical-ink);
+}
+.form-notice.good {
+  background: var(--good-wash);
+  border-color: var(--good);
+  color: var(--good-ink);
+}
+.form-notice.neutral {
+  background: var(--surface-2);
+  border-color: var(--rule-strong);
+  color: var(--ink-700);
+}
+
+.form-notice-action {
+  display: inline;
+}
+.form-notice-action button {
+  border: 0;
+  background: transparent;
+  padding: 0;
+  font-size: inherit;
+  font-weight: 600;
+  color: inherit;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  cursor: pointer;
+}
+.form-notice-action button:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+  text-decoration: none;
+}
+
+/* ------------------------------------------------------------- actions */
+
+.auth-submit {
+  min-height: 42px;
+  width: 100%;
+  margin-top: var(--s-1);
+}
+
+.spin {
+  animation: spin 900ms linear infinite;
+}
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* A row of quieter choices under the primary action. */
+.auth-alt {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--s-2) var(--s-4);
+  margin-top: var(--s-4);
+  padding-top: var(--s-4);
+  border-top: 1px solid var(--rule);
+  font-size: var(--t-sm);
+  color: var(--ink-500);
+}
+
+.auth-link {
+  color: var(--signal);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  text-decoration-thickness: 1px;
+  font-weight: 500;
+}
+.auth-link:hover {
+  color: var(--signal-hover);
+}
+
+/* An inline text button that must read as a link, not a control. */
+.auth-linkbutton {
+  border: 0;
+  background: transparent;
+  padding: 0;
+  font-family: inherit;
+  font-size: inherit;
+  font-weight: 500;
+  color: var(--signal);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  cursor: pointer;
+}
+.auth-linkbutton:hover {
+  color: var(--signal-hover);
+}
+.auth-linkbutton:disabled {
+  color: var(--ink-400);
+  cursor: not-allowed;
+  text-decoration: none;
+}
+
+/* The address a code was sent to, restated so the reader can check it. */
+.auth-target {
+  font-family: var(--font-mono);
+  font-size: var(--t-sm);
+  font-variant-numeric: tabular-nums;
+  color: var(--ink-900);
+}
+
+.auth-meta {
+  margin-top: var(--s-3);
+  font-size: var(--t-xs);
+  line-height: 1.55;
+  color: var(--ink-400);
+}

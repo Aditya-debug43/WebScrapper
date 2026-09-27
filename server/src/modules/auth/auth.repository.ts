@@ -3,17 +3,29 @@ import type { Db } from "../../db/client.js";
 import { otpChallenges, sessions, users } from "../../db/schema.js";
 
 /**
- * All SQL for authentication lives here. Services hold the rules; this holds
- * the queries. Nothing above this layer writes a WHERE clause.
+ * All SQL for authentication. Services hold the rules; this holds the
+ * queries. Nothing above this layer writes a WHERE clause.
  */
+
+/**
+ * What a one-time code is for. Kept as a closed union here and as a check
+ * constraint in the database, so a verification code can never authorise a
+ * password reset and vice versa.
+ */
+export const OTP_PURPOSE = {
+  emailVerification: "email_verification",
+  passwordReset: "password_reset",
+} as const;
+export type OtpPurpose = (typeof OTP_PURPOSE)[keyof typeof OTP_PURPOSE];
+
 export class AuthRepository {
   constructor(private readonly db: Db) {}
 
   /* ------------------------------------------------------------- users */
 
   /**
-   * Looked up on `lower(email)` so the query can use the unique functional
-   * index, and so a lookup cannot miss a row that differs only in case.
+   * Looked up on `lower(email)` so the query uses the functional unique index
+   * and cannot miss a row differing only in case.
    */
   async findUserByEmail(email: string) {
     const rows = await this.db
@@ -30,37 +42,41 @@ export class AuthRepository {
   }
 
   /**
-   * Create-or-return, resolved by the database rather than by a read followed
-   * by a write. Two verifications arriving together would both see "no user"
-   * and both insert; `onConflictDoNothing` against the unique index makes the
-   * loser return nothing, and the follow-up read gets the winner's row. This
-   * is why repeated verification cannot produce duplicate accounts.
+   * Insert, or return the row that already exists.
+   *
+   * Resolved by the database rather than by a read followed by a write: two
+   * simultaneous registrations would both see "no user" and both insert.
+   * `onConflictDoNothing` against the unique index makes the loser a no-op,
+   * and the follow-up read returns the winner.
    */
-  async createUserIfAbsent(email: string, now: Date) {
-    await this.db
-      .insert(users)
-      .values({ email, emailVerifiedAt: now, lastLoginAt: now })
-      .onConflictDoNothing();
+  async createUser(email: string, passwordHash: string) {
+    await this.db.insert(users).values({ email, passwordHash }).onConflictDoNothing();
     const user = await this.findUserByEmail(email);
-    if (!user) throw new Error(`User row missing immediately after upsert for ${email}`);
+    if (!user) throw new Error(`User row missing immediately after insert for ${email}`);
     return user;
   }
 
-  async markLogin(userId: string, now: Date, verifyEmail: boolean) {
+  /** Replace the credential on an account that exists but is not yet verified. */
+  async replacePasswordHash(userId: string, passwordHash: string, now: Date) {
+    await this.db.update(users).set({ passwordHash, updatedAt: now }).where(eq(users.id, userId));
+  }
+
+  async markEmailVerified(userId: string, now: Date) {
     await this.db
       .update(users)
-      .set({
-        lastLoginAt: now,
-        updatedAt: now,
-        ...(verifyEmail ? { emailVerifiedAt: now } : {}),
-      })
+      .set({ emailVerifiedAt: now, updatedAt: now })
       .where(eq(users.id, userId));
+  }
+
+  async markLogin(userId: string, now: Date) {
+    await this.db.update(users).set({ lastLoginAt: now, updatedAt: now }).where(eq(users.id, userId));
   }
 
   /* -------------------------------------------------------- challenges */
 
   async createChallenge(row: {
     email: string;
+    purpose: OtpPurpose;
     codeHash: string;
     expiresAt: Date;
     requestIp: string | null;
@@ -69,43 +85,53 @@ export class AuthRepository {
     return inserted[0]!;
   }
 
-  /** The newest challenge for this address, consumed or not. */
-  async latestChallenge(email: string) {
+  /** The newest challenge of this purpose, consumed or not. */
+  async latestChallenge(email: string, purpose: OtpPurpose) {
     const rows = await this.db
       .select()
       .from(otpChallenges)
-      .where(eq(otpChallenges.email, email))
+      .where(and(eq(otpChallenges.email, email), eq(otpChallenges.purpose, purpose)))
       .orderBy(desc(otpChallenges.createdAt))
       .limit(1);
     return rows[0] ?? null;
   }
 
   /**
-   * The newest challenge that is still usable: unconsumed and unexpired.
-   * Verification deliberately targets only this one, so an older outstanding
-   * code cannot be used after a resend.
+   * The newest challenge of this purpose that is still usable. Verification
+   * targets only this one, so an older outstanding code cannot be used after
+   * a resend.
    */
-  async activeChallenge(email: string, now: Date) {
+  async activeChallenge(email: string, purpose: OtpPurpose, now: Date) {
     const rows = await this.db
       .select()
       .from(otpChallenges)
       .where(
-        and(eq(otpChallenges.email, email), isNull(otpChallenges.consumedAt), gt(otpChallenges.expiresAt, now))
+        and(
+          eq(otpChallenges.email, email),
+          eq(otpChallenges.purpose, purpose),
+          isNull(otpChallenges.consumedAt),
+          gt(otpChallenges.expiresAt, now)
+        )
       )
       .orderBy(desc(otpChallenges.createdAt))
       .limit(1);
     return rows[0] ?? null;
   }
 
-  async countChallengesSince(email: string, since: Date) {
+  async countChallengesSince(email: string, purpose: OtpPurpose, since: Date) {
     const rows = await this.db
       .select({ n: sql<number>`count(*)::int` })
       .from(otpChallenges)
-      .where(and(eq(otpChallenges.email, email), gt(otpChallenges.createdAt, since)));
+      .where(
+        and(
+          eq(otpChallenges.email, email),
+          eq(otpChallenges.purpose, purpose),
+          gt(otpChallenges.createdAt, since)
+        )
+      );
     return rows[0]?.n ?? 0;
   }
 
-  /** Returns the new attempt count, so the caller need not re-read. */
   async incrementAttempts(id: string) {
     const rows = await this.db
       .update(otpChallenges)
@@ -118,8 +144,7 @@ export class AuthRepository {
   /**
    * Consume, conditional on still being unconsumed. The `isNull` in the WHERE
    * is what makes reuse impossible under concurrency: two simultaneous
-   * verifications of the same code both pass validation, but only one UPDATE
-   * matches a row, and the other is rejected.
+   * verifications both pass validation, but only one UPDATE matches a row.
    */
   async consumeChallenge(id: string, now: Date) {
     const rows = await this.db
@@ -130,12 +155,48 @@ export class AuthRepository {
     return rows.length === 1;
   }
 
-  /** Invalidate outstanding codes once one has been used. */
-  async consumeAllForEmail(email: string, now: Date) {
+  /** Supersede every outstanding code of one purpose for this address. */
+  async consumeAllForPurpose(email: string, purpose: OtpPurpose, now: Date) {
     await this.db
       .update(otpChallenges)
       .set({ consumedAt: now })
-      .where(and(eq(otpChallenges.email, email), isNull(otpChallenges.consumedAt)));
+      .where(
+        and(
+          eq(otpChallenges.email, email),
+          eq(otpChallenges.purpose, purpose),
+          isNull(otpChallenges.consumedAt)
+        )
+      );
+  }
+
+  /* ------------------------------------------------------ reset tokens */
+
+  async attachResetToken(id: string, tokenHash: string, expiresAt: Date) {
+    await this.db
+      .update(otpChallenges)
+      .set({ resetTokenHash: tokenHash, resetTokenExpiresAt: expiresAt })
+      .where(eq(otpChallenges.id, id));
+  }
+
+  /**
+   * A reset token is only honoured while its challenge is unconsumed, so the
+   * password change itself is what spends it — one token, one password.
+   */
+  async findResetChallenge(email: string, tokenHash: string, now: Date) {
+    const rows = await this.db
+      .select()
+      .from(otpChallenges)
+      .where(
+        and(
+          eq(otpChallenges.email, email),
+          eq(otpChallenges.purpose, OTP_PURPOSE.passwordReset),
+          eq(otpChallenges.resetTokenHash, tokenHash),
+          isNull(otpChallenges.consumedAt),
+          gt(otpChallenges.resetTokenExpiresAt, now)
+        )
+      )
+      .limit(1);
+    return rows[0] ?? null;
   }
 
   /* ----------------------------------------------------------- sessions */
@@ -173,5 +234,19 @@ export class AuthRepository {
       .where(and(eq(sessions.tokenHash, tokenHash), isNull(sessions.revokedAt)))
       .returning({ id: sessions.id });
     return rows.length === 1;
+  }
+
+  /**
+   * Every live session for a user. Called after a password reset: whoever
+   * changed the password may not be whoever was signed in, so the old
+   * sessions must not survive it.
+   */
+  async revokeAllSessions(userId: string, now: Date) {
+    const rows = await this.db
+      .update(sessions)
+      .set({ revokedAt: now })
+      .where(and(eq(sessions.userId, userId), isNull(sessions.revokedAt)))
+      .returning({ id: sessions.id });
+    return rows.length;
   }
 }

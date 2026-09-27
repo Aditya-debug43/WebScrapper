@@ -32,7 +32,7 @@ describe("EMAIL", () => {
   });
 
   it("EMAIL-01: the OTP message states the code, its lifetime and its single use", async () => {
-    const message = otpMessage("reader@example.com", "123456", 600);
+    const message = otpMessage("reader@example.com", "123456", 600, "email_verification");
     assert.equal(message.to, "reader@example.com");
     assert.ok(message.text.includes("123456"));
     assert.ok(/10 minutes/.test(message.text), "states the expiry in minutes");
@@ -43,8 +43,8 @@ describe("EMAIL", () => {
     h.email.clear();
     await h.app.inject({
       method: "POST",
-      url: "/api/v1/auth/request-otp",
-      payload: { email: "routing@example.com" },
+      url: "/api/v1/auth/register",
+      payload: { email: "routing@example.com", password: "routing-test-password" },
       remoteAddress: "10.90.0.1",
     });
     assert.equal(h.email.sent.length, 1);
@@ -88,15 +88,26 @@ describe("API foundation", () => {
 
   it("API-02: malformed requests are rejected with 4xx before reaching a service", async () => {
     const cases: Array<[string, string, unknown, number]> = [
-      ["POST", "/api/v1/auth/request-otp", {}, 400],
-      ["POST", "/api/v1/auth/request-otp", { email: 42 }, 400],
-      ["POST", "/api/v1/auth/request-otp", { email: "a@b.com", extra: "no" }, 400],
-      ["POST", "/api/v1/auth/verify-otp", { email: "a@b.com" }, 400],
-      ["POST", "/api/v1/auth/verify-otp", { email: "a@b.com", code: "12" }, 400],
-      ["POST", "/api/v1/auth/verify-otp", { email: "a@b.com", code: "abcdef" }, 400],
+      ["POST", "/api/v1/auth/register", {}, 400],
+      ["POST", "/api/v1/auth/register", { email: 42, password: "a-valid-password" }, 400],
+      ["POST", "/api/v1/auth/register", { email: "a@b.com" }, 400],
+      ["POST", "/api/v1/auth/register", { email: "a@b.com", password: "a-valid-password", extra: "no" }, 400],
+      ["POST", "/api/v1/auth/verify-email", { email: "a@b.com" }, 400],
+      ["POST", "/api/v1/auth/verify-email", { email: "a@b.com", code: "12" }, 400],
+      ["POST", "/api/v1/auth/verify-email", { email: "a@b.com", code: "abcdef" }, 400],
+      ["POST", "/api/v1/auth/login", { email: "a@b.com" }, 400],
+      ["POST", "/api/v1/auth/reset-password", { email: "a@b.com", resetToken: "tooshort", password: "a-valid-password" }, 400],
     ];
+    // One source address per case: there are more cases than the per-IP auth
+    // budget allows, and a 429 here would look like the schema working.
+    let n = 0;
     for (const [method, url, payload, expected] of cases) {
-      const res = await h.app.inject({ method: method as "POST", url, payload: payload as object, remoteAddress: "10.91.0.1" });
+      const res = await h.app.inject({
+        method: method as "POST",
+        url,
+        payload: payload as object,
+        remoteAddress: `10.91.0.${++n}`,
+      });
       assert.equal(res.statusCode, expected, `${method} ${url} ${JSON.stringify(payload)}`);
     }
   });
@@ -104,8 +115,8 @@ describe("API foundation", () => {
   it("API-03: validation errors use the standard envelope with field detail", async () => {
     const res = await h.app.inject({
       method: "POST",
-      url: "/api/v1/auth/request-otp",
-      payload: { email: "nope" },
+      url: "/api/v1/auth/register",
+      payload: { email: "nope", password: "a-valid-enough-password" },
       remoteAddress: "10.92.0.1",
     });
     assert.equal(res.statusCode, 400);

@@ -3,8 +3,10 @@
 The backend for the marketplace pricing intelligence platform.
 
 **Phase 2** built the database. **Phase 3** added authentication and the API
-foundation. Analysis, competitor and pricing-recommendation services still live
-in the frontend and move server-side in a later phase.
+foundation. A follow-up change replaced the credential with **email +
+password**, leaving one-time codes to verify an address and authorise a
+reset. Analysis, competitor and pricing-recommendation services still live in
+the frontend and move server-side in a later phase.
 
 Architecture and the reasoning behind the stack:
 [`../docs/BACKEND_ARCHITECTURE.md`](../docs/BACKEND_ARCHITECTURE.md).
@@ -45,40 +47,115 @@ Two different things that are never merged:
 | **`users`** | a person signing in to this product |
 | **`sellers`** | a merchant observed on Amazon, Flipkart, Meesho, Myntra, AJIO or Nykaa |
 
-They share no key and no table. `users` is deliberately minimal: email is the
-identity, **there is no password column at all**, and there are no roles,
-organisations or permissions — none of those exist as product concepts yet, and
-a column encoding an unmade decision is worse than no column.
+They share no key and no table. Merging them would turn "which of my
+competitors is also a customer" into a schema question instead of a product
+one.
+
+**The credential is email + password.** A one-time code is never a way to log
+in; it does exactly two jobs, and the database enforces the difference:
+
+| `otp_challenges.purpose` | what it authorises |
+|---|---|
+| `email_verification` | proving the address at signup |
+| `password_reset` | replacing a forgotten password |
+
+A `CHECK` constraint admits those two values and nothing else — `login` was
+removed in `0003_password_auth.sql`. The code hash is additionally salted by
+purpose, so even if the two ever met, the digest would not match.
 
 Email uniqueness is enforced by a **functional unique index on `lower(email)`**,
 not by the application remembering to normalise. `Ada@x.com` and `ada@x.com`
 are one account at the database level.
 
-### The flow
+### Passwords
+
+`argon2id` via the `argon2` package, at the library defaults — 64 MiB, 3
+iterations, 4 lanes — which sit on OWASP's recommendation for new
+applications. They are restated explicitly in `lib/password.ts` so that
+raising the cost is a visible diff rather than an inherited surprise.
+
+Nothing is hand-rolled: the library owns the salt, the encoding and the
+verification, and the digest string carries its own parameters, so the cost
+can be raised later without invalidating existing hashes.
+
+The policy is deliberately short — length 8–128, no leading or trailing
+space, and a small common-password denylist:
+
+- **No character-class rules.** They reliably produce `Password1!`. Length is
+  the requirement that actually correlates with strength.
+- **No confirm-password field.** It is a second chance to make the same typo,
+  and it is why people pick passwords they can type twice rather than ones
+  they can remember. The reveal toggle does the same job honestly.
+- The 128 ceiling is **not** a strength rule. It stops a multi-megabyte
+  request body becoming a memory-hard hashing job.
+
+`password_hash` is nullable for one reason only: accounts predating password
+authentication have none. `login` refuses a null digest outright and sends
+those users through reset. It is **never** returned by any endpoint, and
+`/auth/me` is asserted against that in the test suite.
+
+### The flows
 
 ```
-email ──▶ POST /auth/request-otp ──▶ challenge stored (hash only) ──▶ email sent
-                                                                        │
-      ┌─────────────────────────────────────────────────────────────────┘
-      ▼
-POST /auth/verify-otp ──▶ code checked ──▶ challenge consumed ──▶ user created
-                                                                  if first time
-                                                                        │
-                                                                        ▼
-                                                        session token returned
+REGISTER          POST /auth/register        → 201, account created UNVERIFIED,
+                                                no session, verification code sent
+                  POST /auth/verify-email    → 200 { token, expiresAt, user }
+
+SIGN IN           POST /auth/login           → 200 { token, expiresAt, user }
+
+RESET             POST /auth/forgot-password → 202, always the same answer
+                  POST /auth/verify-reset-otp→ 200 { resetToken, expiresAt }
+                  POST /auth/reset-password  → 200, every session revoked
 ```
 
-The response to `request-otp` is **identical whether or not the account
-exists**. Saying "no such user" would make the endpoint a membership oracle,
-and there is no product reason to reveal it — the next step works the same
-either way.
+Registering **does not sign anybody in**: the account exists with
+`email_verified_at` null and is inert until the address is proven. Verifying
+does sign the user in, because reaching that point required the password
+*and* control of the mailbox, which is strictly more than a login
+establishes.
+
+Re-registering an address that exists but was **never verified** replaces the
+password and resends a code. It is a corrected signup, not an error, and it
+does not create a second row. A *verified* address is a hard 409.
+
+### Not telling an attacker who has an account
+
+Two places would otherwise become membership oracles, and both are closed:
+
+| Endpoint | What it does |
+|---|---|
+| `POST /auth/login` | An unknown address and a wrong password return the **same code and the same message** (`INVALID_CREDENTIALS`, 401). The unknown path still pays for a decoy Argon2id verification, because otherwise the response *time* enumerates accounts however careful the wording is. |
+| `POST /auth/forgot-password` | Always 202, always the same sentence. No work is done at all when there is no account. |
+
+`EMAIL_NOT_VERIFIED` is checked **after** the password, deliberately.
+Announcing it to anyone who types an address would leak which addresses have
+accounts; announcing it to someone who has already proved they know the
+password leaks nothing they did not know, and they are the only person who
+can act on it.
+
+`POST /auth/resend-verification` answers identically whether the account is
+missing, already verified, or genuinely waiting.
+
+### Reset: two calls, one code
+
+`verify-reset-otp` issues a short-lived token and **does not consume the
+challenge**; `reset-password` consumes it. That keeps "one code, one password
+change" true across a two-step flow, makes the token single-use and revocable
+for free, and lets an abandoned reset expire on its own. The token is stored
+hashed on the challenge row — a stateless signed token would need its own
+invalidation story.
+
+A completed reset **revokes every session on the account**. A reset is a
+recovery action: the person performing it may not be the person signed in,
+and if the account was compromised, the attacker's session is exactly what
+must not survive.
 
 ### How codes are protected
 
 | Control | Setting | Why |
 |---|---|---|
 | Generation | `crypto.randomInt` | a predictable code is not a second factor |
-| Storage | HMAC-SHA256 under `AUTH_SECRET` | six digits is a million possibilities; a bare digest falls to a lookup table the moment the database leaks. The pepper is not in the database |
+| Storage | HMAC-SHA256 under `AUTH_SECRET`, salted with `purpose:email` | six digits is a million possibilities; a bare digest falls to a lookup table the moment the database leaks. The pepper is not in the database, and the salt stops a hash being replayed for the other purpose |
 | Comparison | `timingSafeEqual` | a wrong code cannot be narrowed by timing |
 | Expiry | `OTP_TTL_SECONDS` (600) | |
 | Single use | `consumed_at`, set by a conditional `UPDATE … WHERE consumed_at IS NULL` | two simultaneous verifications both validate, but only one `UPDATE` matches a row |
@@ -86,6 +163,7 @@ either way.
 | Resend | `OTP_RESEND_COOLDOWN_SECONDS` (60) | |
 | Per address | `OTP_MAX_PER_EMAIL_PER_HOUR` (5) | |
 | Per caller | `AUTH_RATE_LIMIT_MAX` per IP | one attacker with many addresses and many attackers with one address are different problems and need separate bounds |
+| Reset token | `RESET_TOKEN_TTL_SECONDS` (900), stored hashed | only has to cover "type a new password" |
 
 Verification targets only the **newest live** challenge, so an older
 outstanding code cannot be used after a resend, and a successful verification
@@ -127,8 +205,13 @@ identifiers.
 | Method | Path | Auth | Notes |
 |---|---|---|---|
 | `GET` | `/health` | – | liveness only; discloses nothing about the infrastructure |
-| `POST` | `/api/v1/auth/request-otp` | – | 202; neutral message; rate limited |
-| `POST` | `/api/v1/auth/verify-otp` | – | 200 with `{ token, expiresAt, isNewUser, user }` |
+| `POST` | `/api/v1/auth/register` | – | 201; creates an UNVERIFIED account and sends a code; no session |
+| `POST` | `/api/v1/auth/resend-verification` | – | 202; neutral whether the account exists or is already verified |
+| `POST` | `/api/v1/auth/verify-email` | – | 200 with `{ token, expiresAt, user }` — verifies and signs in |
+| `POST` | `/api/v1/auth/login` | – | 200 with `{ token, expiresAt, user }`; 401 `INVALID_CREDENTIALS`; 403 `EMAIL_NOT_VERIFIED` |
+| `POST` | `/api/v1/auth/forgot-password` | – | 202; always the same answer |
+| `POST` | `/api/v1/auth/verify-reset-otp` | – | 200 with `{ resetToken, expiresAt }`; does not consume the code |
+| `POST` | `/api/v1/auth/reset-password` | – | 200 with `{ sessionsRevoked }`; spends the code, revokes every session |
 | `POST` | `/api/v1/auth/logout` | bearer | 204; idempotent |
 | `GET` | `/api/v1/auth/me` | bearer | 200 with `{ user }` |
 | `GET` | `/api/v1/products` | – | page, pageSize, search, category, productType, brand, marketplace, sort |
@@ -209,8 +292,9 @@ CORS origins come from `CORS_ORIGINS` (comma separated). Production refuses a
 wildcard and refuses plain `http` for anything that is not localhost —
 credentialed cross-origin requests cannot use `*`.
 
-Logging is structured (pino) with `authorization`, `cookie`, `body.code` and
-`body.otp` redacted at the logger. Addresses are **masked** before they are
+Logging is structured (pino) with `authorization`, `cookie`, `body.code`,
+`body.otp`, `body.password`, `body.newPassword`, `body.currentPassword`,
+`body.passwordHash` and `body.resetToken` redacted at the logger. Addresses are **masked** before they are
 logged. A one-time code is never written to a log, because a log sink outlives
 the ten-minute window the code itself is bounded by.
 
@@ -219,7 +303,7 @@ the ten-minute window the code itself is bounded by.
 ## Tests
 
 ```bash
-npm test              # 54 tests
+npm test              # 71 tests
 npx tsx --test tests/auth.test.ts      # one file
 ```
 
@@ -228,10 +312,10 @@ exercised with `app.inject()`, so nothing binds a port.
 
 | File | Covers | Tests |
 |---|---|---|
-| `tests/auth.test.ts` | AUTH-01…AUTH-20 | 18 |
+| `tests/auth.test.ts` | AUTH-REG, AUTH-VER, AUTH-LOGIN, AUTH-RESET, AUTH-SEC | 34 |
 | `tests/email-and-api.test.ts` | EMAIL-01…04, API-01…05 | 11 |
 | `tests/catalogue.test.ts` | PROD-01…12, CAT, BRAND, MARKET | 17 |
-| `tests/regression.test.ts` | REG-11, REG-12, Phase 2 baseline | 8 |
+| `tests/regression.test.ts` | REG-11, REG-12, Phase 2 baseline | 9 |
 
 ### Isolation
 
@@ -248,11 +332,24 @@ database has not been seeded.
 
 ### What the tests assert
 
-Behaviour and state, not status codes. `request-otp` is checked to create
-exactly one challenge row, store a digest rather than the code, invoke the
-email port with the right recipient, and keep the code out of the response.
-Pagination is checked to return *different records* on page two, not merely a
-200.
+Behaviour and state, not status codes.
+
+Registration is checked to create exactly one challenge row, store a digest
+rather than the code, invoke the email port with the right recipient, and
+write a credential matching `/^$argon2id$/` that does not contain the
+password. A reset is checked to produce a *different* digest from the one
+before it, to make the old password stop working and the new one start, and
+to leave the pre-reset session token rejected by `/auth/me`. A wrong password
+and an unknown address are compared with `deepEqual`, so a difference in
+wording would fail. Pagination is checked to return *different records* on
+page two, not merely a 200.
+
+Two checks are about the source rather than a response: that the logger's
+redact list names the credential fields, and that no module under `src/`
+(outside the email adapters, which *are* the delivery channel) hands a
+credential to the logger. Both were mutation-tested — a deliberately planted
+`request.log.info({ userId, password })` made them fail before it was
+reverted.
 
 ---
 

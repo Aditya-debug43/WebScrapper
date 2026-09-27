@@ -1,7 +1,9 @@
 import { useEffect, useRef, useState } from "react";
 import { NavLink, useNavigate, useLocation } from "react-router-dom";
-import { Search, Sun, Moon, Menu, X, BellDot } from "lucide-react";
+import { Search, Sun, Moon, Menu, X, BellDot, LogOut } from "lucide-react";
 import { useTheme } from "../../state/ThemeContext";
+import { useAuth } from "../../state/AuthContext";
+import AccountMenu, { SignInAction } from "../auth/AccountMenu";
 import "./Masthead.css";
 
 const NAV = [
@@ -25,6 +27,7 @@ const NAV = [
 export default function Masthead({ alertCount = 0 }) {
   const navigate = useNavigate();
   const location = useLocation();
+  const { isAuthenticated, user, signOut } = useAuth();
   const [query, setQuery] = useState("");
   const [menuOpen, setMenuOpen] = useState(false);
   const searchRef = useRef(null);
@@ -107,6 +110,8 @@ export default function Masthead({ alertCount = 0 }) {
 
             <ThemeToggle />
 
+            {isAuthenticated ? <AccountMenu /> : <SignInAction onNavigate={() => navigate("/sign-in")} />}
+
             <button
               type="button"
               className="icon-btn mast-menu"
@@ -141,6 +146,41 @@ export default function Masthead({ alertCount = 0 }) {
                 </NavLink>
               ))}
             </nav>
+
+            {/* The account menu is a hover-scale dropdown, which is the wrong
+                shape on a phone. The same two facts — who you are and how to
+                leave — are restated here as part of the sheet instead. */}
+            <div className="mast-sheet-account">
+              {isAuthenticated ? (
+                <>
+                  <span className="eyebrow">Signed in as</span>
+                  <span className="mast-sheet-email">{user?.email}</span>
+                  <button
+                    type="button"
+                    className="btn btn-secondary btn-sm"
+                    onClick={async () => {
+                      setMenuOpen(false);
+                      await signOut();
+                      navigate("/sign-in");
+                    }}
+                  >
+                    <LogOut size={13} strokeWidth={1.9} aria-hidden="true" />
+                    Sign out
+                  </button>
+                </>
+              ) : (
+                <button
+                  type="button"
+                  className="btn btn-primary btn-sm"
+                  onClick={() => {
+                    setMenuOpen(false);
+                    navigate("/sign-in");
+                  }}
+                >
+                  Sign in
+                </button>
+              )}
+            </div>
           </div>
         </>
       )}

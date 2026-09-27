@@ -627,9 +627,11 @@ Phases 1 and 2 complete. There is **no HTTP layer yet** and the frontend still r
 
 ---
 
-### Stage 22 — Backend phase 3: authentication and the API foundation (current)
+### Stage 22 — Backend phase 3: authentication and the API foundation
 
 Phase 3 of the eight-phase backend plan: email-OTP authentication, the Fastify foundation, and the first database-backed read APIs. Full detail in `server/README.md`; this records what a future reader needs and would not guess.
+
+> **The credential model here was replaced in Stage 23.** Passwordless OTP login is gone: the credential is now email + password, and a one-time code only verifies an address or authorises a reset. Everything below about the Fastify foundation, the session design, the OTP *mechanism*, the catalogue APIs and the five defects still stands — only "a code is how you log in" does not. The two paragraphs that state it are marked inline.
 
 **A correction to the phase brief's premise.** It stated that Phase 1 established a "Fastify + TypeScript foundation". Phase 1 *chose* Fastify; no HTTP code existed. There was also no test runner. Both were built here.
 
@@ -638,6 +640,8 @@ Phase 3 of the eight-phase backend plan: email-OTP authentication, the Fastify f
 #### Application user is not marketplace seller
 
 Two concepts that share no key and no table: `users` is a person signing in to this product, `sellers` is a merchant observed on a marketplace. Phase 2 had stubbed `users` with a `password_hash` column and a three-value role enum; Phase 3 removes both, because the brief rules them out and an unused enum encodes a decision nobody has made. Email is the identity and **there is no password column at all**.
+
+> *Superseded by Stage 23:* `password_hash` is back, deliberately and with a different meaning — an Argon2id digest, nullable, written only by registration and reset. The role enum has not come back. The user/seller separation is unchanged and is now asserted by a test.
 
 Uniqueness is a **functional unique index on `lower(email)`**, not application discipline. Normalisation that depends on every caller remembering to normalise is not a guarantee.
 
@@ -654,6 +658,8 @@ The pepper is the non-obvious part. Six digits is a million possibilities, so `s
 Single use is enforced by a **conditional update** (`set consumed_at … where consumed_at is null`), so two simultaneous verifications both validate but only one `UPDATE` matches a row. The same technique — `onConflictDoNothing` against the unique index, then re-read — is what makes repeated verification unable to create a second account.
 
 `request-otp` answers **identically whether or not the account exists**. Saying otherwise turns the endpoint into a membership oracle, and the next step works the same either way.
+
+> *Superseded by Stage 23:* `request-otp` and `verify-otp` no longer exist. The neutrality principle moved with the flow — `forgot-password` and `resend-verification` answer identically whether or not the account exists, and login answers identically for an unknown address and a wrong password.
 
 ---
 
@@ -680,6 +686,73 @@ Node's built-in runner via `tsx`, no framework. HTTP through `app.inject()`, so 
 #### Scope held
 
 No competitor engine, no cross-marketplace analysis, no historical engine, no recommendation migration, no scraping, and **no frontend API migration** — `git status` shows zero changed files under `src/`. The frontend still reads `src/data/` and is untouched.
+
+---
+
+### Stage 23 — Email + password, and the frontend that actually uses it (current)
+
+The credential becomes **email + password**. A one-time code keeps exactly two jobs — proving an address at signup, and authorising a reset — and is never a way to log in. The frontend stops being a mock-only application: the five authentication screens and the session they establish are real, and every one of them talks to the Phase 3 API over HTTP.
+
+Full API detail in `server/README.md`. This records what a reader would not guess.
+
+#### Two purposes, enforced by the database
+
+`otp_challenges.purpose` was a single-valued text column with a check constraint; migration `0003_password_auth.sql` narrows it to `email_verification | password_reset` and drops `login` outright. A verification code cannot authorise a reset and a reset code cannot verify an address — and that is a constraint, not a convention.
+
+The code hash is **salted by purpose**: `hashOtp(code, ` + "`${purpose}:${email}`" + `)`. Even if the two challenges somehow met, the digest would not match.
+
+The migration begins with `DELETE FROM otp_challenges WHERE purpose = 'login'`, hand-added before the new CHECK is applied. Without it, applying this migration to any database with an outstanding login code fails the constraint and the deploy stops. Old migrations were not edited — a migration that may already have run is history.
+
+#### Argon2id, and what the policy deliberately does not include
+
+`argon2` at the library defaults (64 MiB, t=3, p=4), which sit on OWASP's recommendation, stated explicitly in `lib/password.ts` so raising the cost is a visible diff. Nothing is hand-rolled; the digest carries its own parameters, so the cost can rise later without invalidating existing hashes.
+
+The policy is length (8–128), no leading/trailing space, and a twelve-entry common-password denylist. **No character-class rules** — they reliably produce `Password1!` and nothing else. **No confirm-password field** — it is a second chance to make the same typo, and it is why people choose passwords they can type twice rather than ones they can remember; a reveal toggle does the same job honestly. The 128 upper bound is not a strength rule: it stops a multi-megabyte body becoming a memory-hard hashing job.
+
+#### The two places an oracle would otherwise open
+
+1. **Login.** An unknown address and a wrong password return the same code *and the same message*, and the unknown path still pays for a decoy Argon2id verification (`equalisePasswordTiming`). Without that, response *time* enumerates accounts however careful the wording is. `EMAIL_NOT_VERIFIED` is checked **after** the password, deliberately: telling anyone who types an address that it is unverified leaks which addresses have accounts; telling someone who has already proved they know the password leaks nothing, and they are the only person who can act on it.
+2. **Forgot password.** Always 202, always the same sentence, and the frontend always navigates to the same next screen. Branching in the UI would undo the server's refusal to disclose.
+
+#### Reset is two calls and one screen
+
+`verify-reset-otp` hands back a short-lived token and **does not consume the challenge**; `reset-password` consumes it. That keeps "one code, one password change" true across a two-step flow, makes the token single-use and revocable for free, and lets an abandoned reset expire on its own. The token is stored hashed on the challenge row — a second secret on a row that already has one, rather than a stateless signed token with its own invalidation story.
+
+A completed reset **revokes every session** and deliberately does **not** sign the browser in. Whoever performed the reset may not be whoever was signed in, and if the account was compromised the attacker's session is exactly what must not survive; handing this browser a new session without the new password being typed once undermines the point.
+
+#### The frontend: no fake state anywhere
+
+- **One place adopts a session** — `adoptSession` in `AuthContext`, and it throws unless the server returned both a token and a user. A `{ user }` with no token cannot authorise a single subsequent request, so treating it as a session is precisely the fake login state the design exists to rule out. A test asserts that `state/AuthContext.jsx` is the *only* file that names the storage key.
+- **A stored token proves nothing.** On load the app sits in a third state, `restoring`, until `/auth/me` answers. Rendering the signed-in shell would flash it at someone signed out; redirecting to the door would bounce a signed-in user on every reload. The guard reads `isAuthenticated`/`isRestoring` and never reads storage.
+- **Only the token is persisted.** The user record is always re-fetched — a cached copy is a claim about server state that nothing keeps true.
+- The pending address for a two-screen flow lives in **sessionStorage, not the URL**. An address in a query string lands in history, referrer headers and every access log on the way.
+- `VITE_API_BASE_URL` is read from the environment with a **relative** `/api/v1` default; the dev server proxies `/api`, so local development needs no env file and no CORS. A test refuses any absolute origin in `src/api` or `src/state`, and any `fetch()` of an absolute URL anywhere.
+
+#### Art direction of the door
+
+The same system as the rest of the application, not a separate login theme: a two-column document, a hairline seam, the wordmark's three-bar price ladder, ink as the only accent. The left column carries one editorial line and a **numbered ledger** of the flow's steps — the same device as the workspace rail. Below 860px the editorial half is dropped and the ledger goes horizontal: the step count is the part that earns space on a phone.
+
+The six-digit code is **one input**, set in tracked mono, not six boxes. Six boxes break paste, break screen readers and break the browser's own one-time-code autofill.
+
+#### What the tests actually assert
+
+Backend **71/71**. `tests/auth.test.ts` was rewritten for the password model and asserts state: that the stored credential matches `/^\$argon2id\$/` and does not contain the password, that a failed attempt does not spend a code, that a reset produces a *different* digest and kills the pre-reset session, that a wrong password and an unknown address are byte-identical responses.
+
+Frontend **30/30** (Vitest + Testing Library). These assert what reaches the network and what the browser is left holding — the fake API is a stand-in for the *server*, never for the app's own client, and every test checks the actual request body.
+
+End-to-end **7/7**, nothing mocked: `npm run test:e2e` creates a throwaway PGlite, migrates it, starts the real API, and drives the shipped React components and the shipped fetch client over real HTTP. The verification codes are read out of the server's own console email adapter, so even the six digits typed into the form are digits the server issued.
+
+Two regression assertions from Stage 22 were **rewritten rather than deleted**: "the users table no longer carries a password column" was true then and is wrong now, so it now asserts the column exists, is text, is nullable and has a stated reason — and that `role` and a plaintext `password` column are still absent. A second asserts the purpose constraint no longer admits `login`.
+
+Each of the three suites was mutation-checked: a deliberately planted credential-log, and a planted `DEV_USER`, each made the relevant test fail before being reverted. A test that cannot fail is not evidence.
+
+#### Verified in a real browser
+
+Both servers up, the full flow driven through the browser pane: register → code from the API log → verify → dashboard; reload restores the session; sign out revokes and redirects; wrong password refused; reset replaces the credential and lands signed out. Contrast audited in-page across all five screens × both themes — **158 text elements, 0 failures** — and 375px shows no horizontal overflow. The walkthrough account was then removed from the development database, which is back to 0 users / 0 sessions / 0 challenges with the catalogue untouched.
+
+#### Scope held
+
+No Phase 4. The catalogue, product, analysis and recommendation pages still read `src/data/` through `src/api/*Service.js` — that swap is a later phase. Nothing in the pricing engine, the observation-window analysis or the store-signal layer was touched.
 
 ---
 
@@ -1222,7 +1295,7 @@ Each has a real representative in the dataset. Re-run these after any pricing ch
 Based on where the project actually stands, the next steps that follow directly from the established direction (not a new roadmap):
 
 1. **Present/defend the current state** to the professor if that hasn't happened yet — the `pricing-intelligence-walkthrough.md` document was built for exactly this.
-2. **Backend — decided and under way (Stage 21).** Node/TypeScript + Fastify + PostgreSQL + Drizzle, *not* Java: the reasoning is in `docs/BACKEND_ARCHITECTURE.md` and comes down to letting ~4,300 lines of verified pricing logic move server-side rather than be rewritten. Phases 1–2 (architecture, schema, migration) are complete; `src/api/*Service.js` remains the swap point and its return shapes are the API contract.
+2. **Backend — decided and under way (Stages 21–23).** Node/TypeScript + Fastify + PostgreSQL + Drizzle, *not* Java: the reasoning is in `docs/BACKEND_ARCHITECTURE.md` and comes down to letting ~4,300 lines of verified pricing logic move server-side rather than be rewritten. Phases 1–3 (architecture, schema, migration, authentication, API foundation) are complete, and Stage 23 replaced the credential with email + password and wired the frontend's auth layer to it for real. **Phase 4 has not been started and is awaiting the user's review.** `src/api/*Service.js` remains the swap point for the catalogue and pricing data, and its return shapes are the API contract; `src/api/authService.js` is the one service in that folder that already calls the real backend.
 3. **Turn the conceptual database design (§5) into real DDL** and a real database (Postgres was the design docs' implicit assumption, given the JSONB-based Specifications design — but this was never explicitly finalized as a hard requirement).
 4. **Build (or at minimum design) the real entity-resolution/product-matching pipeline** described in the docs but never implemented — this is explicitly flagged in the original design review as "the single biggest gap."
 5. **Only after a real backend and real data exist:** revisit whether a real scraper/crawler is needed at all, versus using official marketplace APIs where available (a preference stated in the original design docs).
@@ -1286,6 +1359,15 @@ Based on where the project actually stands, the next steps that follow directly 
 12ao. **Order on `lower(...)`, never on the bare column.** Collation differs between PGlite and a managed Postgres, so the same query can order differently in development and production (Stage 22).
 12ap. **Fastify's AJV strips unknown fields unless told not to.** `removeAdditional` must stay false, or `additionalProperties: false` is decorative and a misspelled field is accepted as correct (Stage 22).
 12aq. **Test-only affordances must be refused in production by the config schema, not by convention.** `EXPOSE_OTP_IN_RESPONSE`, `DB_DRIVER=pglite` and a non-`http` email adapter are startup failures under `NODE_ENV=production`. A test convenience that *can* be switched on in production is a backdoor (Stage 22).
+12ar. **A one-time code is not a credential.** It proves an address at signup and authorises a reset. Logging in is email + password, and `purpose` is a database check constraint so a code issued for one job cannot do the other. The code hash is salted by purpose as well (Stage 23).
+12as. **Equalise the timing, not just the wording.** An unknown address and a wrong password return identical bodies *and* the unknown path still pays for a decoy Argon2id verification. Without that, response time is the enumeration oracle the careful wording was meant to close (Stage 23).
+12at. **Order the checks so the leak is impossible, not merely unlikely.** `EMAIL_NOT_VERIFIED` is reported only after the password is correct. Before that, saying it would tell any passer-by which addresses have accounts (Stage 23).
+12au. **A reset revokes every session and does not sign you in.** The person resetting may not be the person signed in; if the account was compromised, the attacker's session is exactly what must not survive (Stage 23).
+12av. **A stored token is not a session.** The frontend holds a third state — `restoring` — until `/auth/me` answers. Trusting the token flashes the app at someone signed out; distrusting its absence bounces a signed-in user on every reload (Stage 23).
+12aw. **One place may adopt a session, and it requires both halves.** A `{ user }` with no token cannot authorise a request, so accepting it *is* the fake login state. A test asserts only `AuthContext` names the storage key (Stage 23).
+12ax. **A migration that may already have run is history.** Change the model with a new migration, and make it survive rows the old model allowed — `0003` deletes outstanding `login` challenges before adding the CHECK that would reject them (Stage 23).
+12ay. **An address belongs in sessionStorage, not the URL.** A query-string email lands in history, referrer headers and every access log the request passes (Stage 23).
+12az. **A test that cannot fail is not evidence.** Every source-scanning guarantee in this project was mutation-checked — a planted violation must make it go red before it is trusted (Stage 23).
 13. **Prefer understanding existing code over adding new abstractions.** The codebase is intentionally not over-engineered for its current scope (a class-project wireframe) — resist adding speculative infrastructure (e.g. a state-management library, a component library, a testing framework) unless the user's request genuinely requires it.
 11. **Keep this file up to date.** If you make a decision significant enough that a future session would need to know about it, add it here — particularly to §3 (evolution), §6 (critical decisions), §14/§15 (status), and §20 (historical context) as appropriate. Don't let this file go stale while the code moves on.
 12. **When in doubt about project intent, ask** rather than assume — several past requests in this project have been extremely explicit and prescriptive (see the visual-correction request that produced Stage 9); treat that as the user's established working style, not a one-off.

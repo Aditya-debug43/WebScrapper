@@ -1,10 +1,12 @@
+import { randomBytes } from "node:crypto";
 import { env } from "../../config/env.js";
 import { AppError } from "../../lib/errors.js";
 import { normalizeEmail, maskEmail } from "../../lib/email.js";
 import { generateOtp, hashOtp, verifyOtpHash } from "../../lib/otp.js";
 import { generateSessionToken, hashToken } from "../../lib/tokens.js";
+import { hashPassword, verifyPassword, validatePasswordStrength, equalisePasswordTiming } from "../../lib/password.js";
 import { otpMessage, type EmailAdapter } from "../../email/index.js";
-import type { AuthRepository } from "./auth.repository.js";
+import { OTP_PURPOSE, type AuthRepository, type OtpPurpose } from "./auth.repository.js";
 
 export type PublicUser = {
   id: string;
@@ -16,8 +18,17 @@ export type PublicUser = {
 };
 
 /**
- * The authentication rules. No SQL, no HTTP — the repository owns one and the
- * routes own the other, so this file can be read as the policy it is.
+ * AUTHENTICATION POLICY
+ * =====================
+ *
+ * The credential is **email + password**. A one-time code is never a way to
+ * log in; it does exactly two jobs, and the database enforces the difference:
+ *
+ *   email_verification  proves the address at signup
+ *   password_reset      authorises replacing a forgotten password
+ *
+ * No SQL and no HTTP here — the repository owns one and the routes own the
+ * other, so this file reads as the policy it is.
  */
 export class AuthService {
   constructor(
@@ -26,82 +37,305 @@ export class AuthService {
     private readonly now: () => Date = () => new Date()
   ) {}
 
+  /* ===================================================== registration */
+
   /**
-   * Step one: issue a code.
+   * Create an account and send a verification code.
    *
-   * The response is IDENTICAL whether or not an account exists. Saying "no
-   * such user" would turn this endpoint into a membership oracle — anyone
-   * could enumerate who has an account — and there is no product reason to
-   * reveal it, because the next step works the same either way.
+   * The user row is written BEFORE verification, with `emailVerifiedAt` null.
+   * The alternative — holding a pending signup somewhere else until the code
+   * is confirmed — is a second user table with extra steps, and it gives up
+   * the unique index that makes duplicate accounts impossible. An unverified
+   * row cannot log in and cannot reach anything protected, so it is inert
+   * until the address is proven.
+   *
+   * Re-registering an address that exists but was never verified is treated
+   * as correcting an abandoned signup: the password is replaced and a fresh
+   * code is sent. It is not an error, and it does not create a second row.
    */
-  async requestOtp(rawEmail: string, ctx: { ip: string | null }) {
+  async register(rawEmail: string, password: string, ctx: { ip: string | null }) {
+    const email = normalizeEmail(rawEmail);
+    validatePasswordStrength(password);
+    const now = this.now();
+
+    const existing = await this.repo.findUserByEmail(email);
+
+    if (existing?.emailVerifiedAt) {
+      // A verified account is a hard stop. Registration is the one place this
+      // is worth stating plainly: the alternative is a user who cannot sign
+      // up, cannot sign in, and is told nothing useful about why.
+      throw new AppError("EMAIL_IN_USE", "An account already exists for this email. Try signing in instead.");
+    }
+
+    const passwordHash = await hashPassword(password);
+    const user = existing
+      ? (await this.repo.replacePasswordHash(existing.id, passwordHash, now), existing)
+      : await this.repo.createUser(email, passwordHash);
+
+    const challenge = await this.issueCode(email, OTP_PURPOSE.emailVerification, ctx.ip, now);
+
+    return {
+      email,
+      maskedEmail: maskEmail(email),
+      userId: user.id,
+      expiresAt: challenge.expiresAt,
+      ...(challenge.devCode ? { devCode: challenge.devCode } : {}),
+    };
+  }
+
+  /** A fresh verification code for an account that has not verified yet. */
+  async resendVerification(rawEmail: string, ctx: { ip: string | null }) {
+    const email = normalizeEmail(rawEmail);
+    const now = this.now();
+    const user = await this.repo.findUserByEmail(email);
+
+    // Neutral when there is nothing to do: neither "no such account" nor
+    // "already verified" is worth telling an unauthenticated caller.
+    if (!user || user.emailVerifiedAt) {
+      return { email, maskedEmail: maskEmail(email), expiresAt: null as string | null };
+    }
+
+    const challenge = await this.issueCode(email, OTP_PURPOSE.emailVerification, ctx.ip, now);
+    return {
+      email,
+      maskedEmail: maskEmail(email),
+      expiresAt: challenge.expiresAt,
+      ...(challenge.devCode ? { devCode: challenge.devCode } : {}),
+    };
+  }
+
+  /**
+   * Confirm the address and sign the user in.
+   *
+   * Signing them in here is safe and is the better experience: to reach this
+   * point they supplied the password at registration *and* proved control of
+   * the mailbox, which is strictly more than a normal login establishes.
+   */
+  async verifyEmail(rawEmail: string, code: string, ctx: { ip: string | null; userAgent: string | null }) {
     const email = normalizeEmail(rawEmail);
     const now = this.now();
 
-    // Resend cooldown, measured from the last challenge issued to this address.
-    const latest = await this.repo.latestChallenge(email);
+    const challenge = await this.consumeCode(email, OTP_PURPOSE.emailVerification, code, now);
+
+    const user = await this.repo.findUserByEmail(email);
+    if (!user) throw new AppError("OTP_INVALID", "That code is not correct.");
+    if (!user.isActive) throw new AppError("ACCOUNT_INACTIVE", "This account is not active.");
+
+    if (!user.emailVerifiedAt) await this.repo.markEmailVerified(user.id, now);
+    await this.repo.markLogin(user.id, now);
+    await this.repo.consumeAllForPurpose(email, OTP_PURPOSE.emailVerification, now);
+    void challenge;
+
+    const session = await this.openSession(user.id, ctx, now);
+    const fresh = (await this.repo.findUserById(user.id))!;
+    return { ...session, user: toPublicUser(fresh) };
+  }
+
+  /* ============================================================ login */
+
+  /**
+   * Email + password. The only way in.
+   *
+   * Every failure that is not "your address is unverified" returns the same
+   * error, and the unknown-account path still pays the cost of a password
+   * hash — otherwise the response *time* enumerates accounts however careful
+   * the wording is.
+   */
+  async login(rawEmail: string, password: string, ctx: { ip: string | null; userAgent: string | null }) {
+    const email = normalizeEmail(rawEmail);
+    const now = this.now();
+    const user = await this.repo.findUserByEmail(email);
+
+    if (!user) {
+      await equalisePasswordTiming(password);
+      throw new AppError("INVALID_CREDENTIALS", "Email or password is incorrect.");
+    }
+
+    const ok = await verifyPassword(user.passwordHash, password);
+    if (!ok) throw new AppError("INVALID_CREDENTIALS", "Email or password is incorrect.");
+    if (!user.isActive) throw new AppError("ACCOUNT_INACTIVE", "This account is not active.");
+
+    /**
+     * Checked AFTER the password, deliberately. Announcing "this address is
+     * unverified" to anyone who types it would leak which addresses have
+     * accounts; announcing it to someone who already proved they know the
+     * password leaks nothing they did not already know, and they are the only
+     * person who can act on it.
+     */
+    if (!user.emailVerifiedAt) {
+      throw new AppError("EMAIL_NOT_VERIFIED", "Verify your email address before signing in.", {
+        details: { email, maskedEmail: maskEmail(email) },
+      });
+    }
+
+    await this.repo.markLogin(user.id, now);
+    const session = await this.openSession(user.id, ctx, now);
+    const fresh = (await this.repo.findUserById(user.id))!;
+    return { ...session, user: toPublicUser(fresh) };
+  }
+
+  /* =================================================== password reset */
+
+  /**
+   * Always answers the same way. Whether an account exists is not something
+   * an unauthenticated caller gets to learn, so the work is done only when
+   * there is something to do and the response never varies.
+   */
+  async forgotPassword(rawEmail: string, ctx: { ip: string | null }) {
+    const email = normalizeEmail(rawEmail);
+    const now = this.now();
+    const user = await this.repo.findUserByEmail(email);
+
+    if (!user || !user.isActive) {
+      return { maskedEmail: maskEmail(email) };
+    }
+
+    const challenge = await this.issueCode(email, OTP_PURPOSE.passwordReset, ctx.ip, now);
+    return {
+      maskedEmail: maskEmail(email),
+      ...(challenge.devCode ? { devCode: challenge.devCode } : {}),
+    };
+  }
+
+  /**
+   * Verify the reset code and hand back a short-lived token.
+   *
+   * The challenge is NOT consumed here — the password change spends it. That
+   * keeps "one code, one password change" true even though the flow has two
+   * steps, and it means an abandoned reset expires on its own.
+   */
+  async verifyResetOtp(rawEmail: string, code: string) {
+    const email = normalizeEmail(rawEmail);
+    const now = this.now();
+    const challenge = await this.checkCode(email, OTP_PURPOSE.passwordReset, code, now);
+
+    const resetToken = randomBytes(32).toString("base64url");
+    const expiresAt = new Date(now.getTime() + env.RESET_TOKEN_TTL_SECONDS * 1000);
+    await this.repo.attachResetToken(challenge.id, hashToken(resetToken), expiresAt);
+
+    return { resetToken, expiresAt: expiresAt.toISOString() };
+  }
+
+  async resetPassword(rawEmail: string, resetToken: string, newPassword: string) {
+    const email = normalizeEmail(rawEmail);
+    validatePasswordStrength(newPassword);
+    const now = this.now();
+
+    const challenge = await this.repo.findResetChallenge(email, hashToken(resetToken), now);
+    if (!challenge) {
+      throw new AppError("RESET_TOKEN_INVALID", "This password reset link has expired. Start again.");
+    }
+
+    const user = await this.repo.findUserByEmail(email);
+    if (!user) throw new AppError("RESET_TOKEN_INVALID", "This password reset link has expired. Start again.");
+
+    // Spend the challenge first: if anything below fails, the code is still
+    // gone, which is the safe direction to fail in.
+    const spent = await this.repo.consumeChallenge(challenge.id, now);
+    if (!spent) {
+      throw new AppError("RESET_TOKEN_INVALID", "This password reset link has expired. Start again.");
+    }
+
+    await this.repo.replacePasswordHash(user.id, await hashPassword(newPassword), now);
+
+    /**
+     * A reset is a recovery action: the person doing it may not be the person
+     * currently signed in, and if the account was compromised the attacker's
+     * session is exactly what must not survive. Everything is revoked and the
+     * user signs in again with the new password.
+     */
+    const revoked = await this.repo.revokeAllSessions(user.id, now);
+
+    // Verifying a reset code also proves the address, for an account that
+    // never finished signup.
+    if (!user.emailVerifiedAt) await this.repo.markEmailVerified(user.id, now);
+
+    return { sessionsRevoked: revoked };
+  }
+
+  /* ========================================================== session */
+
+  async authenticate(token: string) {
+    const now = this.now();
+    const hit = await this.repo.findLiveSession(hashToken(token), now);
+    if (!hit) return null;
+    if (!hit.user.isActive) return null;
+    // An unverified account cannot hold a session, but check anyway: a token
+    // issued before a state change must not outlive it.
+    if (!hit.user.emailVerifiedAt) return null;
+    await this.repo.touchSession(hit.session.id, now);
+    return { user: toPublicUser(hit.user), sessionId: hit.session.id };
+  }
+
+  /** Idempotent: logging out a dead session is a success, not an error. */
+  async logout(token: string) {
+    await this.repo.revokeSession(hashToken(token), this.now());
+  }
+
+  /* ========================================================== internals */
+
+  private async openSession(
+    userId: string,
+    ctx: { ip: string | null; userAgent: string | null },
+    now: Date
+  ) {
+    const token = generateSessionToken();
+    const expiresAt = new Date(now.getTime() + env.SESSION_TTL_DAYS * 86_400_000);
+    await this.repo.createSession({
+      userId,
+      tokenHash: hashToken(token),
+      expiresAt,
+      userAgent: ctx.userAgent,
+      ip: ctx.ip,
+    });
+    return { token, expiresAt: expiresAt.toISOString() };
+  }
+
+  /** Cooldown, hourly ceiling, generate, store the hash, send. */
+  private async issueCode(email: string, purpose: OtpPurpose, ip: string | null, now: Date) {
+    const latest = await this.repo.latestChallenge(email, purpose);
     if (latest) {
-      const elapsedMs = now.getTime() - new Date(latest.createdAt).getTime();
-      const cooldownMs = env.OTP_RESEND_COOLDOWN_SECONDS * 1000;
-      if (elapsedMs < cooldownMs) {
-        const retryAfter = Math.ceil((cooldownMs - elapsedMs) / 1000);
+      const elapsed = now.getTime() - new Date(latest.createdAt).getTime();
+      const cooldown = env.OTP_RESEND_COOLDOWN_SECONDS * 1000;
+      if (elapsed < cooldown) {
+        const retryAfter = Math.ceil((cooldown - elapsed) / 1000);
         throw new AppError("OTP_COOLDOWN", `Please wait ${retryAfter} seconds before requesting another code.`, {
           details: { retryAfterSeconds: retryAfter },
         });
       }
     }
 
-    // Per-address hourly ceiling, independent of the per-IP limit: one
-    // attacker behind many addresses and many attackers behind one address
-    // are different problems and need separate bounds.
-    const hourAgo = new Date(now.getTime() - 3600_000);
-    const recent = await this.repo.countChallengesSince(email, hourAgo);
-    if (recent >= env.OTP_MAX_PER_EMAIL_PER_HOUR) {
+    const hourAgo = new Date(now.getTime() - 3_600_000);
+    if ((await this.repo.countChallengesSince(email, purpose, hourAgo)) >= env.OTP_MAX_PER_EMAIL_PER_HOUR) {
       throw new AppError("RATE_LIMITED", "Too many codes requested for this address. Try again later.");
     }
 
     const code = generateOtp();
     const expiresAt = new Date(now.getTime() + env.OTP_TTL_SECONDS * 1000);
-
     await this.repo.createChallenge({
       email,
-      codeHash: hashOtp(code, email),
+      purpose,
+      codeHash: hashOtp(code, `${purpose}:${email}`),
       expiresAt,
-      requestIp: ctx.ip,
+      requestIp: ip,
     });
 
-    // Sending can fail; the challenge is already stored, which is the right
-    // way round — a code that exists but was not delivered is recoverable by
-    // resending, whereas a delivered code with no record is not verifiable.
-    await this.email.send(otpMessage(email, code, env.OTP_TTL_SECONDS));
+    await this.email.send(otpMessage(email, code, env.OTP_TTL_SECONDS, purpose));
 
     return {
-      email,
       expiresAt: expiresAt.toISOString(),
-      // Test/development affordance only; the environment schema refuses to
-      // start production with this enabled.
-      ...(env.EXPOSE_OTP_IN_RESPONSE ? { devCode: code } : {}),
+      devCode: env.EXPOSE_OTP_IN_RESPONSE ? code : undefined,
     };
   }
 
   /**
-   * Step two: verify, then create the account if this is a first sign-in.
-   *
-   * Ordering matters. The code is checked against the newest LIVE challenge
-   * only; attempts are counted before the comparison so a wrong guess always
-   * costs something; and the challenge is consumed with a conditional update
-   * before any user row is touched, so a replay cannot slip in behind it.
+   * Validate a code without consuming it. Attempts are counted BEFORE the
+   * comparison, so a wrong guess always costs something.
    */
-  async verifyOtp(rawEmail: string, code: string, ctx: { ip: string | null; userAgent: string | null }) {
-    const email = normalizeEmail(rawEmail);
-    const now = this.now();
-
-    const challenge = await this.repo.activeChallenge(email, now);
+  private async checkCode(email: string, purpose: OtpPurpose, code: string, now: Date) {
+    const challenge = await this.repo.activeChallenge(email, purpose, now);
     if (!challenge) {
-      // An expired-or-consumed challenge and no challenge at all are reported
-      // the same way; distinguishing them tells an attacker whether the
-      // address was recently used.
-      const latest = await this.repo.latestChallenge(email);
+      const latest = await this.repo.latestChallenge(email, purpose);
       if (latest?.consumedAt) {
         throw new AppError("OTP_ALREADY_USED", "That code has already been used. Request a new one.");
       }
@@ -114,7 +348,7 @@ export class AuthService {
 
     const attempts = await this.repo.incrementAttempts(challenge.id);
 
-    if (!verifyOtpHash(code, email, challenge.codeHash)) {
+    if (!verifyOtpHash(code, `${purpose}:${email}`, challenge.codeHash)) {
       const remaining = Math.max(env.OTP_MAX_ATTEMPTS - attempts, 0);
       if (remaining === 0) {
         throw new AppError("OTP_TOO_MANY_ATTEMPTS", "Too many incorrect attempts. Request a new code.");
@@ -124,69 +358,20 @@ export class AuthService {
       });
     }
 
-    const consumed = await this.repo.consumeChallenge(challenge.id, now);
-    if (!consumed) {
-      // Lost a race with a concurrent verification of the same code.
+    return challenge;
+  }
+
+  /** Validate and spend, in that order. */
+  private async consumeCode(email: string, purpose: OtpPurpose, code: string, now: Date) {
+    const challenge = await this.checkCode(email, purpose, code, now);
+    if (!(await this.repo.consumeChallenge(challenge.id, now))) {
       throw new AppError("OTP_ALREADY_USED", "That code has already been used. Request a new one.");
     }
-    // Any other outstanding code for this address dies with it.
-    await this.repo.consumeAllForEmail(email, now);
-
-    const existing = await this.repo.findUserByEmail(email);
-    if (existing && !existing.isActive) {
-      throw new AppError("ACCOUNT_INACTIVE", "This account is not active.");
-    }
-
-    const isNewUser = existing === null;
-    const user = existing ?? (await this.repo.createUserIfAbsent(email, now));
-    if (existing) {
-      await this.repo.markLogin(user.id, now, existing.emailVerifiedAt === null);
-    }
-
-    const token = generateSessionToken();
-    const expiresAt = new Date(now.getTime() + env.SESSION_TTL_DAYS * 86_400_000);
-    await this.repo.createSession({
-      userId: user.id,
-      tokenHash: hashToken(token),
-      expiresAt,
-      userAgent: ctx.userAgent,
-      ip: ctx.ip,
-    });
-
-    const fresh = (await this.repo.findUserById(user.id))!;
-    return {
-      token,
-      expiresAt: expiresAt.toISOString(),
-      isNewUser,
-      user: toPublicUser(fresh),
-    };
-  }
-
-  /** Resolve a bearer token to a user, or null. Used by the auth decorator. */
-  async authenticate(token: string) {
-    const now = this.now();
-    const hit = await this.repo.findLiveSession(hashToken(token), now);
-    if (!hit) return null;
-    if (!hit.user.isActive) return null;
-    await this.repo.touchSession(hit.session.id, now);
-    return { user: toPublicUser(hit.user), sessionId: hit.session.id };
-  }
-
-  /**
-   * Idempotent by design: logging out an already-dead session is a success,
-   * because the caller's desired state has been reached and reporting an
-   * error would only tell them whether the token was real.
-   */
-  async logout(token: string) {
-    await this.repo.revokeSession(hashToken(token), this.now());
-  }
-
-  /** Masked address, for logs. */
-  static logSafeEmail(email: string) {
-    return maskEmail(normalizeEmail(email));
+    return challenge;
   }
 }
 
+/** The only shape a user ever leaves the server in. No hash, ever. */
 export function toPublicUser(u: {
   id: string;
   email: string;

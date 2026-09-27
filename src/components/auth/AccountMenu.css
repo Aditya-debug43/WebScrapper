@@ -1,0 +1,128 @@
+/* ==========================================================================
+   ACCOUNT — the masthead's right edge
+
+   A 30px ink square with initials. No photograph, no coloured ring: the
+   only chromatic life in this interface belongs to the marketplaces being
+   analysed, and an account chip is not data.
+   ========================================================================== */
+
+.account {
+  position: relative;
+  flex: none;
+}
+
+.account-trigger {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  padding: 0;
+  border: 1px solid var(--rule-strong);
+  border-radius: var(--r-sm);
+  background: var(--surface);
+  cursor: pointer;
+  transition: border-color var(--d-fast) var(--ease), background var(--d-fast) var(--ease);
+}
+.account-trigger:hover {
+  border-color: var(--rule-heavy);
+  background: var(--surface-2);
+}
+.account-trigger[aria-expanded="true"] {
+  border-color: var(--rule-heavy);
+  background: var(--accent-wash);
+}
+
+.account-initials {
+  font-size: var(--t-micro);
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  color: var(--ink-900);
+}
+
+/* ------------------------------------------------------------------ panel */
+
+.account-panel {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  z-index: 70;
+  min-width: 232px;
+  background: var(--surface);
+  border: 1px solid var(--rule-strong);
+  border-radius: var(--r-sm);
+  box-shadow: var(--shadow-float);
+  animation: rise var(--d-fast) var(--ease-out) both;
+  overflow: hidden;
+}
+
+.account-identity {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 12px 13px;
+  border-bottom: 1px solid var(--rule);
+}
+
+.account-email {
+  font-family: var(--font-mono);
+  font-size: var(--t-xs);
+  color: var(--ink-900);
+  overflow-wrap: anywhere;
+}
+
+.account-detail {
+  font-size: var(--t-xs);
+  color: var(--ink-400);
+}
+
+.account-action {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 11px 13px;
+  border: 0;
+  background: transparent;
+  font-size: var(--t-sm);
+  color: var(--ink-700);
+  text-align: left;
+  cursor: pointer;
+  transition: background var(--d-fast) var(--ease), color var(--d-fast) var(--ease);
+}
+.account-action:hover {
+  background: var(--accent-wash);
+  color: var(--ink-900);
+}
+.account-action:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+/* --------------------------------------------------------------- signed out */
+
+.account-signin {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 32px;
+  padding: 0 11px;
+  border: 1px solid var(--rule-strong);
+  border-radius: var(--r-sm);
+  background: var(--accent);
+  color: var(--accent-ink);
+  font-size: var(--t-xs);
+  font-weight: 500;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background var(--d-fast) var(--ease);
+}
+.account-signin:hover {
+  background: var(--accent-hover);
+}
+
+@media (max-width: 560px) {
+  .account-signin span {
+    display: none;
+  }
+}

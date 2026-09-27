@@ -314,3 +314,24 @@
     padding: 0 8px;
   }
 }
+
+/* ---------------------------------------------------- account, in the sheet
+   The masthead's account dropdown does not translate to a phone, so the
+   sheet restates the same two facts: who is signed in, and the way out. */
+
+.mast-sheet-account {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--s-2);
+  margin-top: var(--s-4);
+  padding-top: var(--s-4);
+  border-top: 1px solid var(--rule);
+}
+
+.mast-sheet-email {
+  font-family: var(--font-mono);
+  font-size: var(--t-xs);
+  color: var(--ink-900);
+  overflow-wrap: anywhere;
+}
