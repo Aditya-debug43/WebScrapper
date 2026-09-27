@@ -1,3 +1,4 @@
+import type { PgDatabase, PgQueryResultHKT } from "drizzle-orm/pg-core";
 import { env } from "../config/env.js";
 import { schema } from "./schema.js";
 
@@ -13,7 +14,16 @@ import { schema } from "./schema.js";
  * Callers get a Drizzle instance and never see which driver is underneath.
  */
 
-export type Db = Awaited<ReturnType<typeof createDb>>["db"];
+/**
+ * One canonical handle type.
+ *
+ * Deriving it from the return of createDb made it a UNION of the two driver
+ * types, and a method call on a union resolves to the intersection of their
+ * signatures — which quietly stripped the argument from .returning({...}).
+ * Both drivers are a PgDatabase over the same schema, so naming that directly
+ * is both accurate and stable.
+ */
+export type Db = PgDatabase<PgQueryResultHKT, typeof schema>;
 
 export async function createDb() {
   if (env.DB_DRIVER === "postgres") {

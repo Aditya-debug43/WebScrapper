@@ -8,6 +8,20 @@
       "when": 1790486013779,
       "tag": "0000_amusing_vindicator",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1790487047530,
+      "tag": "0001_add_auth_tables",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1790487049984,
+      "tag": "0002_drop_password_and_role",
+      "breakpoints": true
     }
   ]
 }

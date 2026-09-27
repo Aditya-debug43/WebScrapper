@@ -119,30 +119,112 @@ export const mappedByEnum = pgEnum("mapped_by", ["rule", "model", "human"]);
 export const attributeDataTypeEnum = pgEnum("attribute_data_type", ["integer", "decimal", "boolean", "text"]);
 export const filterTypeEnum = pgEnum("filter_type", ["range", "enum", "boolean"]);
 export const runStatusEnum = pgEnum("run_status", ["success", "partial", "failed"]);
-export const userRoleEnum = pgEnum("user_role", ["viewer", "seller", "admin"]);
+
 
 /* ========================================================================== */
 /* Identity                                                                    */
 /* ========================================================================== */
 
 /**
- * No user data exists in the mock dataset. The table is modelled now so Phase 3
- * has something to authenticate against, and so the entities that are logically
- * per-seller (cost inputs, tracked products) can point somewhere real.
+ * THE APPLICATION USER — not a marketplace seller.
+ *
+ * These are two entirely different things and the schema keeps them apart:
+ * `users` is a person logging in to this product; `sellers` is a merchant
+ * observed on Amazon or Flipkart. They share no key and no table.
+ *
+ * Deliberately minimal. Email is the identity, there is no password column at
+ * all — authentication is a one-time code to that address — and there are no
+ * roles, organisations or permissions, because none of those exist as product
+ * concepts yet and a column that encodes an unmade decision is worse than no
+ * column.
  */
 export const users = pgTable(
   "users",
   {
     id: uuid("id").primaryKey().defaultRandom(),
+    /** Always stored normalised (trimmed, lower-cased) — see lib/email.ts. */
     email: text("email").notNull(),
-    passwordHash: text("password_hash").notNull(),
     displayName: text("display_name"),
-    role: userRoleEnum("role").notNull().default("viewer"),
+    /** Set the first time an OTP for this address is successfully verified. */
+    emailVerifiedAt: timestamp("email_verified_at", { withTimezone: true }),
     isActive: boolean("is_active").notNull().default(true),
+    lastLoginAt: timestamp("last_login_at", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },
-  (t) => [uniqueIndex("users_email_key").on(t.email)]
+  (t) => [
+    // On lower(email), not on email. The application normalises before writing,
+    // but uniqueness that depends on every caller remembering to normalise is
+    // not uniqueness — this makes "Ada@x.com" and "ada@x.com" the same row at
+    // the database level.
+    uniqueIndex("users_email_lower_key").on(sql`lower(${t.email})`),
+  ]
+);
+
+/**
+ * An outstanding one-time code.
+ *
+ * Keyed by EMAIL rather than by user, because the whole point is that the
+ * account may not exist yet: the first successful verification is what creates
+ * it. Only a hash of the code is stored — see lib/otp.ts for why it is an HMAC
+ * with a server-side pepper rather than a plain digest.
+ */
+export const otpChallenges = pgTable(
+  "otp_challenges",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    email: text("email").notNull(),
+    // A text column with a check rather than an enum: there is exactly one
+    // purpose today, and a single-value enum models a decision nobody has
+    // made. The check widens with a one-line migration when one appears.
+    purpose: text("purpose").notNull().default("login"),
+    codeHash: text("code_hash").notNull(),
+    attemptCount: integer("attempt_count").notNull().default(0),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+    consumedAt: timestamp("consumed_at", { withTimezone: true }),
+    /** Kept for abuse investigation only; never used to identify a person. */
+    requestIp: text("request_ip"),
+  },
+  (t) => [
+    // "The newest live challenge for this address" is the only read path.
+    index("otp_email_created_idx").on(t.email, t.createdAt.desc()),
+    index("otp_expires_idx").on(t.expiresAt),
+    check("otp_purpose_known", sql`${t.purpose} in ('login')`),
+    check("otp_attempts_non_negative", sql`${t.attemptCount} >= 0`),
+    check("otp_expiry_after_creation", sql`${t.expiresAt} > ${t.createdAt}`),
+  ]
+);
+
+/**
+ * A logged-in session.
+ *
+ * Opaque random tokens, stored only as a hash, rather than a self-contained
+ * JWT. The reason is logout: revoking a stateless token needs a denylist,
+ * which is a session table with extra steps. An opaque token also carries no
+ * claims, so nothing sensitive can leak from it by construction.
+ */
+export const sessions = pgTable(
+  "sessions",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    tokenHash: text("token_hash").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+    lastSeenAt: timestamp("last_seen_at", { withTimezone: true }),
+    revokedAt: timestamp("revoked_at", { withTimezone: true }),
+    userAgent: text("user_agent"),
+    ip: text("ip"),
+  },
+  (t) => [
+    uniqueIndex("sessions_token_hash_key").on(t.tokenHash),
+    index("sessions_user_idx").on(t.userId),
+    index("sessions_expires_idx").on(t.expiresAt),
+    check("sessions_expiry_after_creation", sql`${t.expiresAt} > ${t.createdAt}`),
+  ]
 );
 
 /* ========================================================================== */
@@ -689,6 +771,8 @@ export const fieldCoverage = pgTable(
 
 export const schema = {
   users,
+  otpChallenges,
+  sessions,
   categories,
   productTypes,
   brands,

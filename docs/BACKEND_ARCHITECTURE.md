@@ -1,6 +1,6 @@
 # Backend architecture — decision record
 
-**Status:** Phase 1 complete (audit + architecture). Phase 2 complete (database + migration).
+**Status:** Phases 1–3 complete (architecture, database, authentication + API foundation).
 **Date:** 2026-09-27
 
 This document is the output of Phase 1. It records what the system is today, what

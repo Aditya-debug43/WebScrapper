@@ -570,7 +570,7 @@ The non-price layer deliberately **does not feed the engine**. It sits in its ow
 
 ---
 
-### Stage 21 — Backend, phases 1–2: architecture and the database (current)
+### Stage 21 — Backend, phases 1–2: architecture and the database
 
 The brief: convert the frontend-heavy prototype into a real full-stack application, in eight controlled phases. Phases 1 (audit + architecture) and 2 (database + migration) are specified and complete; phases 3–8 are not yet defined.
 
@@ -624,6 +624,62 @@ A load can hit every row count and still have shredded the relationships, which 
 #### Phase status
 
 Phases 1 and 2 complete. There is **no HTTP layer yet** and the frontend still reads `src/data/` — nothing about the running application changed in this stage except the one generator fix. Phases 3–8 await specification.
+
+---
+
+### Stage 22 — Backend phase 3: authentication and the API foundation (current)
+
+Phase 3 of the eight-phase backend plan: email-OTP authentication, the Fastify foundation, and the first database-backed read APIs. Full detail in `server/README.md`; this records what a future reader needs and would not guess.
+
+**A correction to the phase brief's premise.** It stated that Phase 1 established a "Fastify + TypeScript foundation". Phase 1 *chose* Fastify; no HTTP code existed. There was also no test runner. Both were built here.
+
+---
+
+#### Application user is not marketplace seller
+
+Two concepts that share no key and no table: `users` is a person signing in to this product, `sellers` is a merchant observed on a marketplace. Phase 2 had stubbed `users` with a `password_hash` column and a three-value role enum; Phase 3 removes both, because the brief rules them out and an unused enum encodes a decision nobody has made. Email is the identity and **there is no password column at all**.
+
+Uniqueness is a **functional unique index on `lower(email)`**, not application discipline. Normalisation that depends on every caller remembering to normalise is not a guarantee.
+
+#### Why opaque session tokens rather than JWT
+
+The decisive reason is logout: revoking a stateless token requires a denylist, which is a session table with extra steps and worse failure modes. A secondary one is that an opaque random string carries no claims, so the "no sensitive data in tokens" rule is satisfied by having nothing to leak rather than by remembering what to leave out. Sent as a bearer header rather than a cookie because Vercel and Railway are different registrable domains, where third-party cookie blocking makes `SameSite=None` unreliable. No refresh rotation — a revocable 30-day session is the right amount of machinery for this product today.
+
+#### OTP protection, and the one non-obvious choice
+
+Codes are `crypto.randomInt`, stored as **HMAC-SHA256 under a server-side pepper**, compared in constant time, expiring in ten minutes, single-use, attempt-limited, cooldown-limited and rate-limited per address *and* per IP separately.
+
+The pepper is the non-obvious part. Six digits is a million possibilities, so `sha256(code)` falls to a lookup table the instant the database leaks; an HMAC under a secret the database does not contain does not. Deliberately not bcrypt: the secret provides the work factor, and a deliberate 100ms on the login path is a denial-of-service lever rather than a security gain.
+
+Single use is enforced by a **conditional update** (`set consumed_at … where consumed_at is null`), so two simultaneous verifications both validate but only one `UPDATE` matches a row. The same technique — `onConflictDoNothing` against the unique index, then re-read — is what makes repeated verification unable to create a second account.
+
+`request-otp` answers **identically whether or not the account exists**. Saying otherwise turns the endpoint into a membership oracle, and the next step works the same either way.
+
+---
+
+#### Five defects found by writing the tests
+
+Each was invisible until something asserted against it. They are the reason this phase took the time it did, and the reason the tests assert state rather than status codes.
+
+1. **Correlated subqueries silently returned zero.** Interpolating a Drizzle column inside a raw `sql` subquery renders it **unqualified**: `where l.marketplace_id = ${marketplaces.id}` became `where l.marketplace_id = "id"`, which the inner scope resolves to `listings.id`. Every `productCount` and `listingCount` was 0. It passed a shape check (`typeof === "number"`) and only failed when a test asserted AJIO had listings.
+2. **Pattern injection in search.** Binding a parameter stops SQL injection but not LIKE-pattern injection — a search for `%` returned the entire catalogue.
+3. **Collation-dependent ordering.** `ORDER BY canonical_name` put "AGARO" before "Accu-Chek" under PGlite's collation, and a managed Postgres need not agree — so dev and production could order differently. Sorting on `lower(...)` makes it deterministic.
+4. **Fastify strips unknown fields by default.** AJV's `removeAdditional` is on, so `additionalProperties: false` had no effect and a request with a misspelled field was accepted as correct.
+5. **A custom rate-limit `errorResponseBuilder` broke the error shape**, turning every 429 into a 500.
+
+Two further failures were my own test data violating the Phase 2 check constraints — setting `expires_at` into the past without moving `created_at`, which `otp_expiry_after_creation` correctly refuses. The constraints were right; the tests were wrong.
+
+#### Test architecture
+
+Node's built-in runner via `tsx`, no framework. HTTP through `app.inject()`, so nothing binds a port. **Every run gets its own PostgreSQL** — `new PGlite()` with no path is a real engine held in memory — so tests cannot reach the development database and the destructive auth tests are safe by construction. Each test uses its own email address *and its own source IP*: sharing one address made the whole file draw on a single per-IP rate budget and the suite began 429-ing partway through, which was the limiter working and the tests being wrong.
+
+`tests/regression.test.ts` is the deliberate exception: it reads the **real** development database, because "did Phase 3 disturb Phase 2's data?" cannot be answered against a fixture.
+
+**54 tests, all passing.** Baseline after Phase 3 is unchanged: 1,043 recommended / 0 MRP, floor, ordering or CF-1 violations / 0 contradictions, and all 37 database integrity checks still pass with every Phase 2 row count exact.
+
+#### Scope held
+
+No competitor engine, no cross-marketplace analysis, no historical engine, no recommendation migration, no scraping, and **no frontend API migration** — `git status` shows zero changed files under `src/`. The frontend still reads `src/data/` and is untouched.
 
 ---
 
@@ -1224,6 +1280,12 @@ Based on where the project actually stands, the next steps that follow directly 
 12ai. **The backend stack is Node/TypeScript, not Java.** This reverses the Stage 7 note, and the reason is that ~4,300 lines of verified pricing logic can then move rather than be rewritten. Reopening it means accepting a full reimplementation and re-verification of the engine (Stage 21).
 12aj. **A seed is a load, not an append.** It truncates the tables it owns and reloads them, so running it twice yields the same database. `users` and `tracked_products` are excluded — a data reload must not sign anybody out (Stage 21).
 12ak. **Verify structure, not just counts.** Row counts pass even when two products have swapped listings. Check orphans on every foreign key and compare graph shape as distributions (Stage 21).
+12al. **Application user and marketplace seller are different entities.** `users` is someone signing in; `sellers` is a merchant observed on a platform. They share no key and no table, and merging them would make "which of my competitors is also a customer" a schema question instead of a product one (Stage 22).
+12am. **Never interpolate a Drizzle column bare inside a raw `sql` subquery.** It renders unqualified and the inner scope captures it, producing a silently wrong zero rather than an error. Use `sql.identifier(table).sql.identifier(column)` (Stage 22).
+12an. **Bound parameters stop SQL injection, not pattern injection.** A `%` inside a LIKE value is still a wildcard. Escape `%`, `_` and `\\` before building a search pattern (Stage 22).
+12ao. **Order on `lower(...)`, never on the bare column.** Collation differs between PGlite and a managed Postgres, so the same query can order differently in development and production (Stage 22).
+12ap. **Fastify's AJV strips unknown fields unless told not to.** `removeAdditional` must stay false, or `additionalProperties: false` is decorative and a misspelled field is accepted as correct (Stage 22).
+12aq. **Test-only affordances must be refused in production by the config schema, not by convention.** `EXPOSE_OTP_IN_RESPONSE`, `DB_DRIVER=pglite` and a non-`http` email adapter are startup failures under `NODE_ENV=production`. A test convenience that *can* be switched on in production is a backdoor (Stage 22).
 13. **Prefer understanding existing code over adding new abstractions.** The codebase is intentionally not over-engineered for its current scope (a class-project wireframe) — resist adding speculative infrastructure (e.g. a state-management library, a component library, a testing framework) unless the user's request genuinely requires it.
 11. **Keep this file up to date.** If you make a decision significant enough that a future session would need to know about it, add it here — particularly to §3 (evolution), §6 (critical decisions), §14/§15 (status), and §20 (historical context) as appropriate. Don't let this file go stale while the code moves on.
 12. **When in doubt about project intent, ask** rather than assume — several past requests in this project have been extremely explicit and prescriptive (see the visual-correction request that produced Stage 9); treat that as the user's established working style, not a one-off.

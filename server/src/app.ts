@@ -1,0 +1,139 @@
+import Fastify, { type FastifyInstance } from "fastify";
+import cors from "@fastify/cors";
+import rateLimit from "@fastify/rate-limit";
+import { env } from "./config/env.js";
+import { createDb, type Db } from "./db/client.js";
+import { registerErrorHandling } from "./plugins/errors.js";
+import { registerAuth } from "./plugins/auth.js";
+import { createEmailAdapter, type EmailAdapter } from "./email/index.js";
+import { AuthRepository } from "./modules/auth/auth.repository.js";
+import { AuthService } from "./modules/auth/auth.service.js";
+import { registerAuthRoutes } from "./modules/auth/auth.routes.js";
+import { CatalogueRepository } from "./modules/catalogue/catalogue.repository.js";
+import { CatalogueService } from "./modules/catalogue/catalogue.service.js";
+import { registerCatalogueRoutes } from "./modules/catalogue/catalogue.routes.js";
+
+export type BuiltApp = {
+  app: FastifyInstance;
+  db: Db;
+  email: EmailAdapter;
+  close: () => Promise<void>;
+};
+
+/**
+ * The composition root.
+ *
+ * Everything is wired here and nowhere else, which is what lets a test build a
+ * complete application against an in-memory database and a capturing email
+ * adapter with no globals to reset and no network to stub. `server.ts` does
+ * nothing but call this and listen.
+ */
+export async function buildApp(
+  overrides: { db?: Db; email?: EmailAdapter; closeDb?: () => Promise<void> } = {}
+): Promise<BuiltApp> {
+  let closeDb = overrides.closeDb ?? (async () => {});
+  let db = overrides.db;
+  if (!db) {
+    const conn = await createDb();
+    db = conn.db;
+    closeDb = () => conn.close();
+  }
+
+  const email = overrides.email ?? createEmailAdapter();
+
+  const app = Fastify({
+    logger: {
+      level: env.LOG_LEVEL,
+      // Credentials must never reach a log sink, where they would outlive the
+      // ten-minute window the code itself is bounded by.
+      redact: {
+        paths: [
+          "req.headers.authorization",
+          "req.headers.cookie",
+          "req.body.code",
+          "req.body.otp",
+          "res.headers['set-cookie']",
+        ],
+        censor: "[redacted]",
+      },
+      serializers: {
+        req: (req) => ({ method: req.method, url: req.url, id: req.id }),
+      },
+    },
+    // Trust the proxy Railway puts in front, so `request.ip` is the caller's
+    // address rather than the load balancer's — without this every per-IP
+    // limit would be shared by the entire internet.
+    trustProxy: true,
+    /**
+     * Fastify's AJV defaults to `removeAdditional: true`, which silently
+     * STRIPS unknown properties instead of rejecting them — so
+     * `additionalProperties: false` in a schema had no effect and a request
+     * carrying a misspelled field was accepted as if it were correct. That
+     * hides client bugs, so unknown input is now refused.
+     */
+    ajv: { customOptions: { removeAdditional: false, coerceTypes: "array", allErrors: true } },
+    // Per-request access logs are noise in a test run; the logger itself is
+    // already silent there, this just keeps the deprecation surface small.
+    disableRequestLogging: env.NODE_ENV === "test",
+  });
+
+  registerErrorHandling(app);
+
+  await app.register(cors, {
+    origin: (origin, cb) => {
+      // Same-origin and non-browser callers (curl, health checks) send no
+      // Origin header at all; rejecting those would break monitoring.
+      if (!origin) return cb(null, true);
+      cb(null, env.CORS_ORIGINS.includes(origin));
+    },
+    credentials: true,
+    methods: ["GET", "POST", "PATCH", "DELETE", "OPTIONS"],
+    allowedHeaders: ["content-type", "authorization"],
+    maxAge: 600,
+  });
+
+  await app.register(rateLimit, {
+    global: true,
+    max: env.RATE_LIMIT_MAX,
+    timeWindow: env.RATE_LIMIT_WINDOW_SECONDS * 1000,
+    // Per-IP by default; the auth routes add their own tighter budget, and
+    // the auth service adds a per-address one on top, because one attacker
+    // with many addresses and many attackers with one address are different
+    // problems.
+    keyGenerator: (request) => request.ip,
+    // No errorResponseBuilder: it replaces the thrown error's shape and the
+    // central handler then cannot recognise a 429, which surfaced as a 500.
+    // The handler in plugins/errors.ts already renders 429 in the standard
+    // envelope, so there is one place that formats errors rather than two.
+  });
+
+  const authService = new AuthService(new AuthRepository(db), email);
+  registerAuth(app, authService);
+
+  const catalogueService = new CatalogueService(new CatalogueRepository(db));
+
+  /**
+   * Liveness only. No version, no commit, no database host, no dependency
+   * detail — a health endpoint is unauthenticated by necessity and is the
+   * cheapest reconnaissance target on any deployment.
+   */
+  app.get("/health", async () => ({ status: "ok" }));
+
+  await app.register(
+    async (v1) => {
+      registerAuthRoutes(v1, authService);
+      registerCatalogueRoutes(v1, catalogueService);
+    },
+    { prefix: "/api/v1" }
+  );
+
+  return {
+    app,
+    db,
+    email,
+    close: async () => {
+      await app.close();
+      await closeDb();
+    },
+  };
+}
