@@ -312,7 +312,7 @@ export class AuthService {
 
     const code = generateOtp();
     const expiresAt = new Date(now.getTime() + env.OTP_TTL_SECONDS * 1000);
-    await this.repo.createChallenge({
+    const challenge = await this.repo.createChallenge({
       email,
       purpose,
       codeHash: hashOtp(code, `${purpose}:${email}`),
@@ -320,7 +320,26 @@ export class AuthService {
       requestIp: ip,
     });
 
-    await this.email.send(otpMessage(email, code, env.OTP_TTL_SECONDS, purpose));
+    /**
+     * The row is written before the send, so a code can never be delivered
+     * that this server cannot verify. The cost is that a FAILED send leaves
+     * a challenge behind — and the cooldown would then punish the user for
+     * our outage, answering their retry with "please wait 47 seconds" when
+     * nothing was ever delivered.
+     *
+     * So a failed send removes its own challenge — removes, not consumes,
+     * because the cooldown is measured from the newest row whether or not
+     * it was spent. The error still propagates: the caller is told delivery
+     * failed, never that a code is on its way. Transports that cannot fail
+     * (memory, console) never take this path, which is why it did not exist
+     * before SMTP.
+     */
+    try {
+      await this.email.send(otpMessage(email, code, env.OTP_TTL_SECONDS, purpose));
+    } catch (cause) {
+      await this.repo.deleteChallenge(challenge.id).catch(() => {});
+      throw cause;
+    }
 
     return {
       expiresAt: expiresAt.toISOString(),

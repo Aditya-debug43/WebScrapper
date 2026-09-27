@@ -84,11 +84,30 @@ const schema = z
       .transform((v) => v === "true"),
 
     /* -------------------------------------------------------------- email */
-    EMAIL_ADAPTER: z.enum(["memory", "console", "http"]).default("console"),
+    EMAIL_ADAPTER: z.enum(["memory", "console", "http", "smtp"]).default("console"),
     EMAIL_FROM: z.string().default("Mulya <no-reply@mulya.local>"),
     /** Generic transactional-email HTTP endpoint; provider-agnostic on purpose. */
     EMAIL_API_URL: z.string().url().optional(),
     EMAIL_API_KEY: z.string().optional(),
+
+    /**
+     * SMTP. Required only when EMAIL_ADAPTER=smtp, checked by the refinement
+     * below so the failure names the exact variable that is missing.
+     *
+     * SMTP_PASS must be a provider app password — for Gmail, a Google App
+     * Password issued under 2-Step Verification. A normal account password
+     * will simply be refused by Gmail, and putting one here would expose the
+     * whole account rather than one revocable credential.
+     */
+    SMTP_HOST: z.string().min(1).optional(),
+    SMTP_PORT: z.coerce.number().int().positive().max(65535).optional(),
+    /** true → implicit TLS (465). false → STARTTLS upgrade (587). */
+    SMTP_SECURE: z
+      .enum(["true", "false"])
+      .default("true")
+      .transform((v) => v === "true"),
+    SMTP_USER: z.string().min(1).optional(),
+    SMTP_PASS: z.string().min(1).optional(),
 
     /* -------------------------------------------------------- rate limits */
     RATE_LIMIT_MAX: z.coerce.number().int().positive().default(100),
@@ -110,6 +129,48 @@ const schema = z
       fail("EMAIL_API_URL", "EMAIL_API_URL and EMAIL_API_KEY are required when EMAIL_ADAPTER=http.");
     }
 
+    if (v.EMAIL_ADAPTER === "smtp") {
+      // Named one at a time: "SMTP configuration is incomplete" sends people
+      // reading their own .env line by line, which is the slow way to find
+      // the one variable they forgot.
+      if (!v.SMTP_HOST) fail("SMTP_HOST", "SMTP_HOST is required when EMAIL_ADAPTER=smtp (Gmail: smtp.gmail.com).");
+      if (!v.SMTP_PORT) fail("SMTP_PORT", "SMTP_PORT is required when EMAIL_ADAPTER=smtp (465 for TLS, 587 for STARTTLS).");
+      if (!v.SMTP_USER) fail("SMTP_USER", "SMTP_USER is required when EMAIL_ADAPTER=smtp (the full email address to send from).");
+      if (!v.SMTP_PASS) {
+        fail(
+          "SMTP_PASS",
+          "SMTP_PASS is required when EMAIL_ADAPTER=smtp. For Gmail this must be a Google App Password, not the account password."
+        );
+      }
+
+      /**
+       * Gmail will not send as an address the authenticated account does not
+       * own — it silently rewrites the header, so the mail arrives looking
+       * wrong and nothing reports an error. Better to refuse at startup.
+       */
+      if (v.SMTP_USER && v.EMAIL_FROM) {
+        const address = v.EMAIL_FROM.match(/<([^>]+)>/)?.[1] ?? v.EMAIL_FROM;
+        if (address.trim().toLowerCase() !== v.SMTP_USER.trim().toLowerCase()) {
+          fail(
+            "EMAIL_FROM",
+            `EMAIL_FROM must send as the authenticated SMTP account. Use "${v.SMTP_USER}" or "Some Name <${v.SMTP_USER}>".`
+          );
+        }
+      }
+
+      /**
+       * The two settings contradict each other: SMTP exists to deliver the
+       * code to an inbox, and this would hand it to any caller instead. With
+       * both on, nobody would notice delivery was broken.
+       */
+      if (v.EXPOSE_OTP_IN_RESPONSE) {
+        fail(
+          "EXPOSE_OTP_IN_RESPONSE",
+          "Set EXPOSE_OTP_IN_RESPONSE=false when EMAIL_ADAPTER=smtp — a real send must not also return the code."
+        );
+      }
+    }
+
     if (v.NODE_ENV === "production") {
       if (v.DB_DRIVER !== "postgres") {
         fail("DB_DRIVER", "PGlite is a development and test driver; production must use DB_DRIVER=postgres.");
@@ -117,8 +178,11 @@ const schema = z
       if (v.EXPOSE_OTP_IN_RESPONSE) {
         fail("EXPOSE_OTP_IN_RESPONSE", "Refusing to start: this would return one-time codes to any caller.");
       }
-      if (v.EMAIL_ADAPTER !== "http") {
-        fail("EMAIL_ADAPTER", "Production must send real email; set EMAIL_ADAPTER=http.");
+      // `memory` and `console` do not deliver anything. `http` and `smtp`
+      // both do, and which one is right is an operational choice rather than
+      // a correctness one — the auth service cannot tell them apart.
+      if (v.EMAIL_ADAPTER !== "http" && v.EMAIL_ADAPTER !== "smtp") {
+        fail("EMAIL_ADAPTER", "Production must send real email; set EMAIL_ADAPTER=http or EMAIL_ADAPTER=smtp.");
       }
       if (v.CORS_ORIGINS.includes("*")) {
         fail("CORS_ORIGINS", "A wildcard origin cannot be used with credentialed requests in production.");
@@ -128,6 +192,14 @@ const schema = z
       }
     }
   });
+
+/**
+ * Exported so the configuration rules can be tested directly, against
+ * explicit inputs, without a test having to mutate `process.env` and reimport
+ * this module. The rules are the thing under test; the process environment is
+ * just one caller of them.
+ */
+export const envSchema = schema;
 
 const parsed = schema.safeParse(process.env);
 

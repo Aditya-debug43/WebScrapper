@@ -689,7 +689,7 @@ No competitor engine, no cross-marketplace analysis, no historical engine, no re
 
 ---
 
-### Stage 23 — Email + password, and the frontend that actually uses it (current)
+### Stage 23 — Email + password, and the frontend that actually uses it
 
 The credential becomes **email + password**. A one-time code keeps exactly two jobs — proving an address at signup, and authorising a reset — and is never a way to log in. The frontend stops being a mock-only application: the five authentication screens and the session they establish are real, and every one of them talks to the Phase 3 API over HTTP.
 
@@ -753,6 +753,136 @@ Both servers up, the full flow driven through the browser pane: register → cod
 #### Scope held
 
 No Phase 4. The catalogue, product, analysis and recommendation pages still read `src/data/` through `src/api/*Service.js` — that swap is a later phase. Nothing in the pricing engine, the observation-window analysis or the store-signal layer was touched.
+
+---
+
+### Stage 24 — Gmail SMTP, behind the same port (current)
+
+A transport, not an architecture. The `EmailAdapter` port from Stage 22 gains
+a fourth implementation and the authentication service is unchanged — which
+is the whole return on having had a port in the first place.
+
+```
+AuthService ──▶ EmailAdapter ──┬── memory   tests
+                               ├── console  development, no mailbox
+                               ├── http     a transactional-email API
+                               └── smtp     Nodemailer over TLS  ← new
+```
+
+Setup instructions and the full rule table are in `server/README.md`. This
+records the reasoning.
+
+#### The one auth-side change, and why it was unavoidable
+
+Delivery could not fail before. `memory` pushes to an array and `console`
+prints; neither has a failure path, so `issueCode` wrote the challenge row
+and called `send` with no thought about what happens if `send` throws.
+
+With SMTP it throws, and then the row is still there. The resend cooldown is
+measured from the newest challenge **whether or not it was consumed**, so a
+failed delivery answered the user's retry with "please wait 47 seconds" — a
+timer counting down for an email that never left the building.
+
+So a failed send now **deletes** its own challenge. Not consumes: a consumed
+row still sets the cooldown. A code that was not delivered was never issued,
+and the row should say so. Nothing else in the auth service moved — the same
+generation, hashing, expiry, attempt limits and flows.
+
+#### Fail at boot, not at somebody's signup
+
+`EMAIL_ADAPTER=smtp` makes `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER` and
+`SMTP_PASS` required, each **named individually** in the failure. "SMTP
+configuration is incomplete" sends people reading their own `.env` line by
+line, which is the slow way to find the one variable they forgot.
+
+Then `buildApp` calls the adapter's optional `verify()` — a real handshake
+and AUTH exchange that sends nothing and costs a few hundred milliseconds.
+A wrong App Password becomes a refusal to start. An API that boots with a
+broken mail path accepts registrations it cannot complete, and every one of
+those users is stranded with an unverified account.
+
+Deliberately **not** in `/health`: that endpoint is unauthenticated and
+discloses nothing about the infrastructure, and an SMTP probe there would
+both advertise the transport and make liveness depend on Google.
+
+#### Two configuration rules that exist because of how Gmail behaves
+
+- **`EMAIL_FROM` must equal `SMTP_USER`.** Gmail will not send as an address
+  the authenticated account does not own — it rewrites the header *silently*,
+  so the mail arrives looking wrong and nothing reports an error. Startup
+  refuses the mismatch instead.
+- **`EXPOSE_OTP_IN_RESPONSE` must be false with `smtp`.** The two contradict
+  each other: one exists to deliver the code to an inbox, the other hands it
+  to any caller. With both on, nobody would notice delivery was broken.
+
+`SMTP_PASS` is documented everywhere as a **Google App Password**, never the
+account password — Gmail refuses the latter over SMTP anyway, and putting it
+in a file exposes the whole Google account rather than one revocable
+credential.
+
+#### Errors are built from the code, never the message
+
+A provider can quote the failed `AUTH PLAIN` line back at you, credential
+included. So `describe()` switches on the error's `code` and builds its own
+sentence; the provider's message is never read. A test plants a fake error
+whose message contains a secret and asserts it reaches neither the message,
+the details, nor the log context.
+
+The caller gets the standard envelope and a 502. The host, the port and the
+SMTP dialogue stay in the log context, where the central handler's redact
+list already governs them.
+
+#### One honest trade-off, recorded rather than hidden
+
+`forgot-password` normally answers 202 whether or not the account exists. If
+SMTP is down it answers 502 — but only for addresses that *do* have an
+account, because no send is attempted for the others. During a mail outage
+that is a narrow membership oracle.
+
+It is deliberate. The alternative is swallowing delivery failures and telling
+every user a code is on its way when none is, which is both a worse failure
+and an invisible one. The window is the length of the outage.
+
+#### The email itself
+
+Plain text plus HTML, no links and no images. A code typed by hand cannot be
+consumed by a corporate link scanner and gives a phishing lookalike nothing
+to imitate. The HTML is a single-column table with inline styles and system
+fonts, because Gmail strips `<style>` blocks and web fonts and Outlook
+ignores most modern layout — anything clever degrades into something worse.
+
+Neither part carries a user id, a session, a request id or any other
+internal. Subjects are "Verify your Mulya account" and "Reset your Mulya
+password"; the two bodies differ because an unexpected verification code is
+noise while an unexpected reset code is a warning worth acting on.
+
+#### A defect the tests found in the test harness
+
+The end-to-end runner's teardown signalled only the process it spawned.
+Under `shell: true` on Windows, `npx tsx src/server.ts` is three processes
+deep, so the actual listener survived — and the *next* run found something
+answering `/health`, decided the API was up, and ran the whole suite against
+a stale server with the old email format. Five tests failed for a reason
+that had nothing to do with the code.
+
+Fixed twice over: teardown kills the process tree (`taskkill /T`, or a POSIX
+process group), and startup refuses to run at all if anything is already
+listening on the port. A suite that can silently test the wrong server is
+worse than one that fails.
+
+#### Tests
+
+**Backend 103/103** (71 + 32 new), **frontend 31/31**, **end-to-end 7/7**.
+No automated test sends real mail: the adapter takes a transport factory so
+a stub can stand in, and the configuration rules are exercised against the
+exported `envSchema` directly rather than by mutating `process.env`.
+
+Two existing assertions moved with the requirement rather than being deleted
+— the email subjects changed, so the tests that asserted the old ones now
+assert the new ones.
+
+Mutation-checked: replacing `describe()` with one that interpolates the
+provider's message made two tests fail before it was reverted.
 
 ---
 
@@ -1295,7 +1425,7 @@ Each has a real representative in the dataset. Re-run these after any pricing ch
 Based on where the project actually stands, the next steps that follow directly from the established direction (not a new roadmap):
 
 1. **Present/defend the current state** to the professor if that hasn't happened yet — the `pricing-intelligence-walkthrough.md` document was built for exactly this.
-2. **Backend — decided and under way (Stages 21–23).** Node/TypeScript + Fastify + PostgreSQL + Drizzle, *not* Java: the reasoning is in `docs/BACKEND_ARCHITECTURE.md` and comes down to letting ~4,300 lines of verified pricing logic move server-side rather than be rewritten. Phases 1–3 (architecture, schema, migration, authentication, API foundation) are complete, and Stage 23 replaced the credential with email + password and wired the frontend's auth layer to it for real. **Phase 4 has not been started and is awaiting the user's review.** `src/api/*Service.js` remains the swap point for the catalogue and pricing data, and its return shapes are the API contract; `src/api/authService.js` is the one service in that folder that already calls the real backend.
+2. **Backend — decided and under way (Stages 21–24).** Node/TypeScript + Fastify + PostgreSQL + Drizzle, *not* Java: the reasoning is in `docs/BACKEND_ARCHITECTURE.md` and comes down to letting ~4,300 lines of verified pricing logic move server-side rather than be rewritten. Phases 1–3 (architecture, schema, migration, authentication, API foundation) are complete; Stage 23 replaced the credential with email + password and wired the frontend's auth layer to it for real, and Stage 24 added a Gmail SMTP transport behind the existing email port. **Phase 4 has not been started and is awaiting the user's review.** `src/api/*Service.js` remains the swap point for the catalogue and pricing data, and its return shapes are the API contract; `src/api/authService.js` is the one service in that folder that already calls the real backend.
 3. **Turn the conceptual database design (§5) into real DDL** and a real database (Postgres was the design docs' implicit assumption, given the JSONB-based Specifications design — but this was never explicitly finalized as a hard requirement).
 4. **Build (or at minimum design) the real entity-resolution/product-matching pipeline** described in the docs but never implemented — this is explicitly flagged in the original design review as "the single biggest gap."
 5. **Only after a real backend and real data exist:** revisit whether a real scraper/crawler is needed at all, versus using official marketplace APIs where available (a preference stated in the original design docs).
@@ -1368,6 +1498,11 @@ Based on where the project actually stands, the next steps that follow directly 
 12ax. **A migration that may already have run is history.** Change the model with a new migration, and make it survive rows the old model allowed — `0003` deletes outstanding `login` challenges before adding the CHECK that would reject them (Stage 23).
 12ay. **An address belongs in sessionStorage, not the URL.** A query-string email lands in history, referrer headers and every access log the request passes (Stage 23).
 12az. **A test that cannot fail is not evidence.** Every source-scanning guarantee in this project was mutation-checked — a planted violation must make it go red before it is trusted (Stage 23).
+12ba. **A port earns its keep when the fourth implementation changes no caller.** Adding Gmail SMTP touched the email folder, the config schema and one failure path — not the auth service, not the routes, not the frontend (Stage 24).
+12bb. **A failed send must retire its own challenge.** The resend cooldown reads the newest row whether or not it was consumed, so a delivery failure otherwise answers the retry with a timer counting down for an email that never left (Stage 24).
+12bc. **Build an operator-facing error from the error CODE, never the provider's message.** A mail server can quote the failed AUTH line back at you, credential included (Stage 24).
+12bd. **Prove a remote credential at boot.** A handshake that sends nothing turns a wrong app password into a refusal to start, instead of a user stranded mid-signup three days later. It does not belong in an unauthenticated /health (Stage 24).
+12be. **A test harness that can silently test the wrong server is worse than one that fails.** Kill the process tree, and refuse to start when the port is already answering (Stage 24).
 13. **Prefer understanding existing code over adding new abstractions.** The codebase is intentionally not over-engineered for its current scope (a class-project wireframe) — resist adding speculative infrastructure (e.g. a state-management library, a component library, a testing framework) unless the user's request genuinely requires it.
 11. **Keep this file up to date.** If you make a decision significant enough that a future session would need to know about it, add it here — particularly to §3 (evolution), §6 (critical decisions), §14/§15 (status), and §20 (historical context) as appropriate. Don't let this file go stale while the code moves on.
 12. **When in doubt about project intent, ask** rather than assume — several past requests in this project have been extremely explicit and prescriptive (see the visual-correction request that produced Stage 9); treat that as the user's established working style, not a one-off.

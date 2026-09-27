@@ -100,7 +100,8 @@ describe("AUTH-REG — registration", () => {
     const delivered = h.email.to(email);
     assert.equal(delivered.length, 1);
     assert.ok(delivered[0]!.text.includes(body["devCode"] as string));
-    assert.match(delivered[0]!.subject, /verification code/i);
+    assert.equal(delivered[0]!.subject, "Verify your Mulya account");
+    assert.ok(delivered[0]!.html, "an HTML part is delivered alongside the text");
   });
 
   it("AUTH-REG-02: an invalid email is rejected and nothing is written", async () => {
@@ -493,9 +494,10 @@ describe("AUTH-RESET — forgot and reset password", () => {
     // AUTH-RESET-04: delivered, with reset wording rather than verification.
     const delivered = h.email.to(email);
     const last = delivered[delivered.length - 1]!;
-    assert.match(last.subject, /password reset/i);
+    assert.equal(last.subject, "Reset your Mulya password");
     assert.ok(last.text.includes((known.json() as Json)["devCode"] as string));
-    assert.match(last.text, /did not request a password reset/i, "an unexpected reset code is a warning");
+    assert.match(last.text, /did not request this/i, "an unexpected reset code is a warning");
+    assert.match(last.text, /your password has not changed/i);
   });
 
   it("AUTH-RESET-05/09/10/11/12: the full flow replaces the password and kills existing sessions", async () => {

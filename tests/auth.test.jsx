@@ -147,6 +147,26 @@ describe("UI-AUTH — creating an account", () => {
     expect(window.localStorage.getItem(TOKEN_KEY)).toBeNull();
   });
 
+  it("a failed email delivery keeps the reader here, rather than sending them to wait for a code", async () => {
+    // With a real SMTP transport this is reachable: the account is created,
+    // the send fails, and the server answers 502. Walking the user to "check
+    // your email" would leave them waiting for a message that never left.
+    installFakeApi({
+      "POST /auth/register": fails(502, "EMAIL_SEND_FAILED", "The email could not be sent. Please try again in a moment."),
+    });
+    const user = userEvent.setup();
+    renderAuthApp({ route: "/create-account" });
+
+    await user.type(screen.getByLabelText(/work email/i), EMAIL);
+    await user.type(screen.getByLabelText(/^password$/i), PASSWORD);
+    await user.click(screen.getByRole("button", { name: /create account/i }));
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(/could not be sent/i);
+    expect(screen.queryByRole("heading", { name: /check your email/i })).not.toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: /set up your pricing desk/i })).toBeInTheDocument();
+    expect(window.localStorage.getItem(TOKEN_KEY)).toBeNull();
+  });
+
   it("field-level validation from the server is attached to the field it belongs to", async () => {
     installFakeApi({
       "POST /auth/register": fails(400, "VALIDATION_FAILED", "Password must be at least 8 characters.", [

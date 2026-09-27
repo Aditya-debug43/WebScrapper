@@ -41,6 +41,28 @@ export async function buildApp(
 
   const email = overrides.email ?? createEmailAdapter();
 
+  /**
+   * Prove the mail transport before serving a single request.
+   *
+   * Only adapters with something to prove implement `verify` — an SMTP one
+   * performs the handshake and the AUTH exchange and stops, sending nothing.
+   * It costs a few hundred milliseconds once, and it is the difference
+   * between finding a wrong app password now and finding it when somebody
+   * cannot receive their signup code.
+   *
+   * Failing startup is the point. An API that boots with a broken mail path
+   * accepts registrations it cannot complete, and every one of those users
+   * is stranded with an unverified account.
+   */
+  if (email.verify) {
+    try {
+      await email.verify();
+    } catch (cause) {
+      const detail = cause instanceof Error ? cause.message : String(cause);
+      throw new Error(`Email transport (${email.name}) failed its startup check.\n\n  ${detail}\n`);
+    }
+  }
+
   const app = Fastify({
     logger: {
       level: env.LOG_LEVEL,

@@ -31,22 +31,28 @@ const addr = (tag) => `e2e-${tag}-${stamp}@example.com`;
  * Polls, because the email is written to the log a moment after the HTTP
  * response the browser already has.
  */
+const escape = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
 async function codeSentTo(email, { subject }) {
+  // The console adapter prints `→ <address> · <subject>` and then the body;
+  // the code sits on its own indented line a few lines down.
+  const header = new RegExp(`\\[email:console\\] → ${escape(email)} · ${escape(subject)}`, "g");
+
   for (let attempt = 0; attempt < 40; attempt++) {
     const log = await readFile(LOG, "utf8").catch(() => "");
-    const pattern = new RegExp(
-      `\\[email:console\\] → ${email.replace(/[.*+?^${}()|[\\]\\\\]/g, "\\\\$&")} · (\\d{6}) is your Mulya ${subject}`,
-      "g"
-    );
-    const matches = [...log.matchAll(pattern)];
-    if (matches.length) return matches.at(-1)[1];
+    const headers = [...log.matchAll(header)];
+    if (headers.length) {
+      const body = log.slice(headers.at(-1).index);
+      const code = body.match(/^\s{2,}(\d{6})\s*$/m)?.[1];
+      if (code) return code;
+    }
     await new Promise((r) => setTimeout(r, 250));
   }
-  throw new Error(`No ${subject} code was delivered to ${email}. Check ${LOG}.`);
+  throw new Error(`No "${subject}" email reached ${email}. Check ${LOG}.`);
 }
 
-const verificationCodeFor = (email) => codeSentTo(email, { subject: "verification code" });
-const resetCodeFor = (email) => codeSentTo(email, { subject: "password reset code" });
+const verificationCodeFor = (email) => codeSentTo(email, { subject: "Verify your Mulya account" });
+const resetCodeFor = (email) => codeSentTo(email, { subject: "Reset your Mulya password" });
 
 describe("E2E — the real application against the real API", () => {
   it("E2E-00: the test really is talking to a live server", async () => {

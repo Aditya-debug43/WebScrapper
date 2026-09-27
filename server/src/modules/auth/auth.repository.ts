@@ -155,6 +155,19 @@ export class AuthRepository {
     return rows.length === 1;
   }
 
+  /**
+   * Remove a challenge outright.
+   *
+   * The one caller is a FAILED send. Consuming it would not do: the resend
+   * cooldown is measured from the newest challenge whether or not it was
+   * consumed, so a code that never left the building would still lock the
+   * user out of asking for another one. A code that was not delivered was
+   * never issued, and the row should say so.
+   */
+  async deleteChallenge(id: string) {
+    await this.db.delete(otpChallenges).where(eq(otpChallenges.id, id));
+  }
+
   /** Supersede every outstanding code of one purpose for this address. */
   async consumeAllForPurpose(email: string, purpose: OtpPurpose, now: Date) {
     await this.db

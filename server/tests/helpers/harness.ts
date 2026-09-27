@@ -6,7 +6,7 @@ import { fileURLToPath } from "node:url";
 import { PGlite } from "@electric-sql/pglite";
 import { drizzle } from "drizzle-orm/pglite";
 import { buildApp, type BuiltApp } from "../../src/app.js";
-import { MemoryEmailAdapter } from "../../src/email/index.js";
+import { MemoryEmailAdapter, type EmailAdapter } from "../../src/email/index.js";
 import { schema } from "../../src/db/schema.js";
 import * as t from "../../src/db/schema.js";
 
@@ -26,6 +26,26 @@ const SEED_DIR = join(HERE, "..", "..", "seed-data");
 export type Harness = BuiltApp & { email: MemoryEmailAdapter };
 
 export async function createTestApp(opts: { seedCatalogue?: boolean } = {}): Promise<Harness> {
+  const email = new MemoryEmailAdapter();
+  const built = await bootstrap(email, opts);
+  return { ...built, email };
+}
+
+/**
+ * The same application, wired to a specific email adapter.
+ *
+ * Exists so a test can drive a transport that FAILS. Delivery could not fail
+ * before SMTP — memory and console always succeed — so the failure path had
+ * no way to be exercised through the real HTTP surface until now.
+ */
+export async function createTestAppWith(
+  email: EmailAdapter,
+  opts: { seedCatalogue?: boolean } = {}
+): Promise<BuiltApp> {
+  return bootstrap(email, opts);
+}
+
+async function bootstrap(email: EmailAdapter, opts: { seedCatalogue?: boolean }): Promise<BuiltApp> {
   const client = new PGlite();
   await client.waitReady;
   const db = drizzle(client, { schema });
@@ -41,9 +61,7 @@ export async function createTestApp(opts: { seedCatalogue?: boolean } = {}): Pro
 
   if (opts.seedCatalogue) await seedCatalogue(db);
 
-  const email = new MemoryEmailAdapter();
-  const built = await buildApp({ db, email, closeDb: async () => client.close() });
-  return { ...built, email };
+  return buildApp({ db, email, closeDb: async () => client.close() });
 }
 
 /**

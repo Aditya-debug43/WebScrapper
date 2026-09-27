@@ -253,7 +253,7 @@ src/
   app.ts               composition root — everything is wired here and nowhere else
   server.ts            listen and shut down; no wiring
   config/env.ts        parsed and validated once; nothing reads process.env directly
-  lib/                 errors, email normalisation, OTP, tokens, pagination
+  lib/                 errors, email normalisation, OTP, passwords, tokens, pagination
   email/               the port + memory / console / http adapters
   plugins/             error handling, auth decorator
   modules/
@@ -272,17 +272,129 @@ email adapter, with no globals to reset and no network to stub.
 ## Email
 
 The auth service depends on an **`EmailAdapter` port**, never on a provider
-SDK. Swapping providers is a new adapter and one environment variable.
+SDK. It cannot tell where a message went, which is why adding SMTP changed no
+authentication code — the only auth-side change was the failure path, because
+delivery could not fail before.
+
+```
+AuthService ──▶ EmailAdapter ──┬── memory   tests
+                               ├── console  development, no mailbox
+                               ├── http     a transactional-email API
+                               └── smtp     a real mail server (Gmail)
+```
 
 | Adapter | Use | Behaviour |
 |---|---|---|
 | `memory` | tests | captures messages in an array for assertion |
 | `console` | development | logs that a message was sent, to a **masked** address. The body — which contains the code — is printed only when `EXPOSE_OTP_IN_RESPONSE` is on |
 | `http` | production | posts to any transactional-email API; endpoint and key from the environment |
+| `smtp` | local development, or production | Nodemailer over TLS. Verifies its connection at startup and sends real mail |
 
-No credential appears in source. `EMAIL_API_KEY` and `EMAIL_API_URL` are read
-from the environment and a test asserts that the adapters contain no literal
-key.
+`memory` and `console` deliver nothing, so production refuses both. `http` and
+`smtp` both deliver, and choosing between them is operational.
+
+No credential appears in source. Every provider setting is read from the
+environment, and tests assert that the adapters contain no literal key and
+that `SMTP_PASS` is referenced exactly once — in the transport's auth block.
+
+### Gmail SMTP for local development
+
+Set this up once and real verification and reset codes arrive in your own
+inbox, which is the only way to see the whole flow work.
+
+**1 — Use a Gmail account you are willing to send application mail from.**
+A separate account is better if you have one: an App Password grants SMTP
+send on whichever account issues it.
+
+**2 — Turn on 2-Step Verification.**
+Google Account → Security → 2-Step Verification. App passwords do not exist
+without it.
+
+**3 — Create an App Password.**
+Google Account → Security → 2-Step Verification → App passwords. Name it
+something like `Mulya local`. Google shows a 16-character value once.
+
+> **`SMTP_PASS` must contain a Google App Password, not your normal Gmail
+> account password.** Gmail refuses the account password over SMTP anyway,
+> and putting it in a file would expose the entire Google account instead of
+> one credential you can revoke on its own.
+
+**4 — Put it in `server/.env`** — never in `.env.example`, and never in a
+commit:
+
+```
+EMAIL_ADAPTER=smtp
+EMAIL_FROM=your-address@gmail.com
+
+SMTP_HOST=smtp.gmail.com
+SMTP_PORT=465
+SMTP_SECURE=true
+SMTP_USER=your-address@gmail.com
+SMTP_PASS=your-16-character-app-password
+
+EXPOSE_OTP_IN_RESPONSE=false
+```
+
+**5 — Check it before relying on it.**
+
+```bash
+npm run email:check -- you@gmail.com
+```
+
+This verifies the transport and sends one real message with a placeholder
+code, printing the adapter, host, masked account and delivery time. It prints
+no credential. If the message does not arrive, look in spam — a brand-new
+sending account is often filtered on its first message.
+
+**6 — Start the server.** `npm run dev`. If the credential is wrong it says so
+immediately, rather than at somebody's signup.
+
+### What is enforced, and why
+
+| Rule | Reason |
+|---|---|
+| `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS` are each required, **by name** | "SMTP configuration is incomplete" sends you reading your own `.env` line by line |
+| `EMAIL_FROM` must equal `SMTP_USER` | Gmail will not send as an address the authenticated account does not own. It rewrites the header silently, so the mail arrives looking wrong and nothing reports an error |
+| `EXPOSE_OTP_IN_RESPONSE` must be `false` | Returning the code as well as mailing it would hide a broken send completely |
+| The transport is **verified at startup** | A handshake and an AUTH exchange, sending nothing, costing a few hundred milliseconds. A wrong App Password becomes a refusal to start, not a stranded user |
+| A failed send **deletes its own challenge** | The resend cooldown is measured from the newest challenge. Without this, a failed delivery answers the user's retry with "please wait 47 seconds" for an email that never left |
+
+Port `465` with `SMTP_SECURE=true` is implicit TLS and is the simplest thing
+that works. Port `587` with `SMTP_SECURE=false` upgrades through STARTTLS and
+is the fallback when 465 is blocked. Both encrypt before authenticating.
+
+**Startup verification is not part of `/health`.** That endpoint is
+unauthenticated and deliberately discloses nothing about the infrastructure;
+adding an SMTP probe would both advertise the transport and make liveness
+depend on a third party. Configuration is proven once, at boot, where a
+failure can still stop the rollout.
+
+### One honest trade-off
+
+`forgot-password` normally answers `202` whether or not the account exists. If
+SMTP is down it answers `502` — but only for addresses that *do* have an
+account, since no send is attempted for the others. During a mail outage that
+is a narrow membership oracle.
+
+It is deliberate. The alternative is swallowing delivery failures and telling
+every user a code is on its way when none is, which is a worse failure and one
+nobody would notice. The window is the length of the outage, and the fix for
+it is fixing the outage.
+
+### Message content
+
+Plain text and HTML, no links and no images. A code typed by hand cannot be
+consumed by a corporate link scanner and gives a phishing lookalike nothing to
+imitate. The HTML is a single-column table with inline styles and system
+fonts, because Gmail strips `<style>` blocks and web fonts.
+
+Nothing internal appears in either part — no user id, no session, no request
+id. An email is the least trustworthy place a system's internals can end up.
+
+| Purpose | Subject |
+|---|---|
+| `email_verification` | Verify your Mulya account |
+| `password_reset` | Reset your Mulya password |
 
 ---
 
@@ -303,7 +415,7 @@ the ten-minute window the code itself is bounded by.
 ## Tests
 
 ```bash
-npm test              # 71 tests
+npm test              # 109 tests
 npx tsx --test tests/auth.test.ts      # one file
 ```
 
@@ -316,6 +428,8 @@ exercised with `app.inject()`, so nothing binds a port.
 | `tests/email-and-api.test.ts` | EMAIL-01…04, API-01…05 | 11 |
 | `tests/catalogue.test.ts` | PROD-01…12, CAT, BRAND, MARKET | 17 |
 | `tests/regression.test.ts` | REG-11, REG-12, Phase 2 baseline | 9 |
+| `tests/smtp.test.ts` | SMTP-01…SMTP-12 (stubbed transport) | 32 |
+| `tests/smtp-socket.test.ts` | SMTP-13 — a real SMTP conversation | 6 |
 
 ### Isolation
 
@@ -408,6 +522,7 @@ balancer; without it every per-IP limit would be shared by the entire internet.
 | `npm run db:migrate:prod` | same, from `dist/`, without devDependencies |
 | `npm run db:seed` | truncate the seeded tables and load from `seed-data/` |
 | `npm run db:verify` | 37 integrity checks; non-zero exit on failure |
+| `npm run email:check -- you@example.com` | verify the transport and send one real test message |
 
 ---
 

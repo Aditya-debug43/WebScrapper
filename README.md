@@ -151,6 +151,12 @@ The API base URL comes from `VITE_API_BASE_URL` and is never hard-coded. See
 [`.env.example`](.env.example) — locally you need no env file at all, because
 the dev server proxies `/api` to the backend.
 
+Verification and reset codes are sent by the API through its own email port.
+With `EMAIL_ADAPTER=smtp` they arrive as real email; the frontend neither
+knows nor cares which transport delivered them. If a send fails, the screen
+says so and stays put rather than walking you to a page to wait for a message
+that never left.
+
 ---
 
 ## Mock data
@@ -203,9 +209,15 @@ npm run dev
 ```
 
 The dev server proxies `/api` to `http://localhost:4000`, so no `.env` file is
-needed locally. Open the printed URL and create an account; with
-`EXPOSE_OTP_IN_RESPONSE=true` the API prints the verification code to its own
-console, so no mailbox is required.
+needed on this side. Open the printed URL and create an account.
+
+The verification code reaches you one of two ways, depending on how the API
+is configured:
+
+| `EMAIL_ADAPTER` | Where the code goes |
+|---|---|
+| `console` (default) | printed to the API's own terminal — no mailbox needed |
+| `smtp` | a real email, to a real inbox. Gmail setup is in [`server/README.md`](server/README.md#gmail-smtp-for-local-development) |
 
 To produce a production build:
 
@@ -220,7 +232,7 @@ npm run preview
 ### Tests
 
 ```bash
-npm test        # 30 interface and source-guarantee tests (Vitest)
+npm test        # 31 interface and source-guarantee tests (Vitest)
 npm run lint
 npm run test:e2e   # the real app against a real API — nothing mocked
 ```

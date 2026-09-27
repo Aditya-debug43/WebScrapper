@@ -38,6 +38,22 @@ let logPath;
 let api;
 
 async function main() {
+  /**
+   * Refuse to run against somebody else's server.
+   *
+   * A leftover API from an earlier run answers /health perfectly well, so
+   * without this the suite waits, finds it "up", and tests a stale build
+   * against a database this run never migrated. That failure looks like a
+   * product bug and is not one — it cost a debugging cycle, so it is a
+   * pre-flight check now.
+   */
+  if (await portAnswers()) {
+    throw new Error(
+      `Something is already listening on ${BASE}.\n` +
+        `That is almost certainly a leftover API from an earlier run — stop it and try again.`
+    );
+  }
+
   dataDir = await mkdtemp(join(tmpdir(), "mulya-e2e-"));
   const logDir = join(ROOT, "tests", "e2e", ".run");
   await mkdir(logDir, { recursive: true });
@@ -82,7 +98,14 @@ async function main() {
 
   step(`starting the API on ${BASE}`);
   const log = createWriteStream(logPath, { flags: "w" });
-  api = spawn(npx, ["tsx", "src/server.ts"], { cwd: SERVER, env, shell: isWindows });
+  api = spawn(npx, ["tsx", "src/server.ts"], {
+    cwd: SERVER,
+    env,
+    shell: isWindows,
+    // On POSIX this makes the child its own process group, so teardown can
+    // signal the whole tree. Windows uses taskkill /T instead.
+    detached: !isWindows,
+  });
   api.stdout.pipe(log);
   api.stderr.pipe(log);
   api.on("exit", (code) => {
@@ -104,6 +127,16 @@ async function main() {
   );
 
   return code;
+}
+
+/** True when anything at all responds on the API port. */
+async function portAnswers() {
+  try {
+    await fetch(`${BASE}/health`, { signal: AbortSignal.timeout(1500) });
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 async function waitForHealth(attempts = 90) {
@@ -142,11 +175,27 @@ function run(command, args, { cwd, env, inherit = false, allowFailure = false } 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const step = (message) => console.log(`\n▸ ${message}`);
 
+/**
+ * Kill the server AND its children.
+ *
+ * `npx tsx src/server.ts` under a shell is three processes deep, and
+ * signalling only the one we spawned leaves the actual listener alive —
+ * which is what poisoned a previous run. `taskkill /T` and a POSIX process
+ * group each take the whole tree.
+ */
 async function shutdown() {
-  if (api && !api.killed) {
-    api.kill("SIGTERM");
-    await sleep(700);
-    if (!api.killed) api.kill("SIGKILL");
+  if (api?.pid && !api.killed) {
+    if (isWindows) {
+      await run("taskkill", ["/PID", String(api.pid), "/T", "/F"], { allowFailure: true }).catch(() => {});
+    } else {
+      try {
+        process.kill(-api.pid, "SIGTERM");
+      } catch {
+        api.kill("SIGTERM");
+      }
+    }
+    // Wait for the port to actually free, so a re-run does not race it.
+    for (let i = 0; i < 20 && (await portAnswers()); i++) await sleep(250);
   }
   if (dataDir) await rm(dataDir, { recursive: true, force: true }).catch(() => {});
 }
