@@ -249,11 +249,18 @@ Being explicit, because the screens look more finished than the system is:
 
 - **No live scraping.** Nothing fetches a marketplace. The capture runs on
   `/sources` describe a pipeline that does not exist yet.
-- **The catalogue has no backend yet.** Products, listings, offers, prices and
-  recommendations are in-memory JavaScript in the browser. A real database
-  holding all of it exists in `server/`, but only the authentication endpoints
-  are wired up so far; `src/api/*Service.js` is written as a REST client so
-  those functions can be repointed without touching any page.
+- **The catalogue screens still read the browser's copy.** Products, listings,
+  offers, prices and recommendations render from in-memory JavaScript. The
+  same data also lives in a real PostgreSQL database in `server/`, and it is
+  now served by a full set of read APIs — marketplaces, listings, sellers,
+  offers, price history across seven observation windows, reviews, seller
+  ratings and promotions. Only authentication is wired to the backend so far;
+  `src/api/*Service.js` is written as a REST client so the rest can be
+  repointed without touching any page. That migration is a later phase.
+- **Nothing scrapes anything.** The marketplace URLs in the data were generated
+  at seed time with the right shape for each platform. They are the right
+  field to build a "View on Amazon" link against once real ingestion exists,
+  and they do not resolve today.
 - **No trained ML model.** The willingness-to-pay component is a small
   least-squares regression fitted per request, not a trained artefact.
 - **Authentication is real; nothing else is.** Accounts, sessions, email

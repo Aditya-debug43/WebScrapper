@@ -756,7 +756,7 @@ No Phase 4. The catalogue, product, analysis and recommendation pages still read
 
 ---
 
-### Stage 24 — Gmail SMTP, behind the same port (current)
+### Stage 24 — Gmail SMTP, behind the same port
 
 A transport, not an architecture. The `EmailAdapter` port from Stage 22 gains
 a fourth implementation and the authentication service is unchanged — which
@@ -883,6 +883,141 @@ assert the new ones.
 
 Mutation-checked: replacing `describe()` with one that interpolates the
 provider's message made two tests fail before it was reverted.
+
+---
+
+### Stage 25 — Backend phase 4: marketplace data and historical intelligence APIs (current)
+
+Twelve read-only endpoints that make the database the source of truth for
+marketplace data. **Data access, not decision-making**: no recommendation,
+no competitor scoring, no analysis migration, no scraping. Those remain
+where they are, and this is the foundation they will read from.
+
+Full endpoint contracts in `server/README.md`. This records the reasoning.
+
+#### The audit came first, and changed the plan twice
+
+Two things the schema already had, which a less careful start would have
+duplicated:
+
+1. **`listings.listing_url` is populated for all 2,947 listings**, correctly
+   shaped per marketplace. The brief allowed for generating a URL from the
+   marketplace plus the external id; none was needed, and generating one
+   would have produced a second, competing answer to a question the column
+   already answers.
+2. **`listings_product_marketplace_key`** makes a product's listing on a
+   given platform unique. That is what lets the marketplace summary expose a
+   single `sourceUrl` rather than a list, and it is why `listingCount` is
+   always 1 — a fact worth stating rather than a bug worth hiding.
+
+#### One effective price, proven rather than asserted
+
+The whole phase turns on not inventing a second definition of "effective
+price". `src/lib/priceLadder.ts` is the ladder in SQL, and it is a
+translation of `src/utils/priceLayers.js` — same clamp, same inclusive
+`valid_from <= date <= valid_to`, same exclusion of cashback and EMI from
+every rung.
+
+Asserting that in a test was awkward: the engine's modules use Vite-style
+extensionless imports that the backend test runner cannot resolve. So
+`scripts/export-price-parity-fixture.mjs` runs on the frontend side and
+writes down what the ENGINE says for 330 real observations; the backend test
+asks the database the same questions and compares all ten rungs — 3,300
+comparisons.
+
+The fixture samples each promotion's validity boundary, at, before and
+after. That is the detail that earns its keep: making `valid_from` exclusive
+as a deliberate mutation broke exactly **2 of 3,300** comparisons, and the
+test caught it. A fixture sampling only the newest row would have passed.
+
+#### Statistics are computed on the daily series, not on raw observations
+
+A median over raw observations counts a marketplace once per offer it
+happens to carry, so a platform with six sellers outvotes one with a single
+seller and "the median price of this product" drifts toward whoever lists it
+most. The engine's `getProductPriceSeries` already solved this — in-stock
+only, cheapest effective price per capture day — and the backend reproduces
+it exactly, states the rule in `meta.seriesDefinition`, and has a test that
+asserts the two definitions give *different* answers so the check cannot go
+blind.
+
+What a window may claim is decided by the COUNT inside it, never by its
+length: none / snapshot / directional (2–4) / distributional (5+), with
+every withheld statistic carrying its reason. The same ladder as Stage 20,
+now on the server.
+
+#### A window's length and its evidence are different facts
+
+Anchored on `max(observed_at)` — 2026-08-14 — because a wall clock would
+make every window empty and a constant would break on regeneration. Both
+ends inclusive, so `start = end − (days − 1)`.
+
+The consequence is visible in the tests: Dove is captured every two days, so
+the 3-day window holds exactly the same two capture days as the 2-day one.
+Both report their real range and their real count. An API that made those
+move together would be lying about one of them.
+
+#### Performance: measured, and no index added
+
+`EXPLAIN ANALYZE` over all 354,940 observations, on the heaviest product in
+the catalogue: **no sequential scans anywhere**, 0.2 ms to 52 ms. The Phase 2
+indexes already cover every access path this phase introduced.
+
+So nothing was added. "Do not add dozens of indexes without understanding
+their benefit" is easy to agree with and easy to ignore; the honest way to
+honour it was to measure and then write down that the answer was zero.
+
+#### What the tests assert
+
+**Backend 173/173** (109 + 64 new). Every expected number is read out of the
+seeded database and stated literally — 6 listings, 30 sellers, 30 offers,
+1,830 observations for the golden record, and the equivalents for a
+five-marketplace product, a commodity with no promotions at all, a 44-
+observation sparse one and a single-marketplace one.
+
+The window statistics are **re-derived inside the test** from the raw
+observations the API returns, then compared with the summary it computed —
+so a change to the aggregation has to agree with a change to the test before
+anything passes.
+
+A test fixture that loads the full entity graph for six products, rather
+than all 390,000 rows, keeps the suite at seconds: the observation file is
+134 MB, and the loader pulls the offer id out of the raw line and skips
+`JSON.parse` for the 99% that miss.
+
+#### Two failures that were not this phase's fault, and one that was
+
+Running the suite surfaced two red tests caused by the user configuring
+Gmail and registering a local account — exactly what they said they would
+do. Both were *my* tests being fragile rather than their doing anything
+wrong:
+
+- `SMTP-08` asserted a hardcoded `EMAIL_FROM`. It now compares against the
+  configured value, and `tests/helpers/env.ts` pins the variable so a
+  developer's own `.env` cannot change what the suite asserts.
+- A Phase 3 regression test asserted the `users` table was EMPTY. That was
+  only ever true while nobody had used the application. Replaced with the
+  invariant it was standing in for: `seed.ts` must not truncate `users`,
+  `sessions`, `otp_challenges` or `tracked_products`, because a data reload
+  must not sign anybody out.
+
+The genuine one was mine: a 4,000-row insert batch exceeded PostgreSQL's
+65,535 bound-parameter ceiling and failed inside the wire protocol rather
+than with a readable error. 1,000 rows × 13 columns is clear of it.
+
+#### Scope held
+
+No analysis migration, no recommendation migration, no scraping, and **zero
+changed files under the frontend's `src/`**. The baseline is unchanged:
+1,156 purchasable → 1,043 recommended, 0 violations, 37/37 integrity checks,
+every table count exact.
+
+#### Known limitation, stated rather than papered over
+
+The marketplace URLs are synthetic. They were generated at seed time with
+the right shape for each platform and they do not resolve. They are the
+correct field for a "View on Flipkart" link once real ingestion exists, and
+the API exposes them as they are — it does not pretend they are captured.
 
 ---
 
@@ -1425,7 +1560,7 @@ Each has a real representative in the dataset. Re-run these after any pricing ch
 Based on where the project actually stands, the next steps that follow directly from the established direction (not a new roadmap):
 
 1. **Present/defend the current state** to the professor if that hasn't happened yet — the `pricing-intelligence-walkthrough.md` document was built for exactly this.
-2. **Backend — decided and under way (Stages 21–24).** Node/TypeScript + Fastify + PostgreSQL + Drizzle, *not* Java: the reasoning is in `docs/BACKEND_ARCHITECTURE.md` and comes down to letting ~4,300 lines of verified pricing logic move server-side rather than be rewritten. Phases 1–3 (architecture, schema, migration, authentication, API foundation) are complete; Stage 23 replaced the credential with email + password and wired the frontend's auth layer to it for real, and Stage 24 added a Gmail SMTP transport behind the existing email port. **Phase 4 has not been started and is awaiting the user's review.** `src/api/*Service.js` remains the swap point for the catalogue and pricing data, and its return shapes are the API contract; `src/api/authService.js` is the one service in that folder that already calls the real backend.
+2. **Backend — decided and under way (Stages 21–25).** Node/TypeScript + Fastify + PostgreSQL + Drizzle, *not* Java: the reasoning is in `docs/BACKEND_ARCHITECTURE.md` and comes down to letting ~4,300 lines of verified pricing logic move server-side rather than be rewritten. Phases 1–3 (architecture, schema, migration, authentication, API foundation) are complete; Stage 23 replaced the credential with email + password and wired the frontend's auth layer to it for real, Stage 24 added a Gmail SMTP transport behind the existing email port, and Stage 25 (Phase 4) exposed the marketplace data — listings, sellers, offers, price history across seven windows, reviews, seller ratings and promotions — through twelve read-only APIs. **Phase 5 has not been started and is awaiting the user's review.** `src/api/*Service.js` remains the swap point for the catalogue and pricing data, and its return shapes are the API contract; `src/api/authService.js` is the one service in that folder that already calls the real backend.
 3. **Turn the conceptual database design (§5) into real DDL** and a real database (Postgres was the design docs' implicit assumption, given the JSONB-based Specifications design — but this was never explicitly finalized as a hard requirement).
 4. **Build (or at minimum design) the real entity-resolution/product-matching pipeline** described in the docs but never implemented — this is explicitly flagged in the original design review as "the single biggest gap."
 5. **Only after a real backend and real data exist:** revisit whether a real scraper/crawler is needed at all, versus using official marketplace APIs where available (a preference stated in the original design docs).
@@ -1503,6 +1638,13 @@ Based on where the project actually stands, the next steps that follow directly 
 12bc. **Build an operator-facing error from the error CODE, never the provider's message.** A mail server can quote the failed AUTH line back at you, credential included (Stage 24).
 12bd. **Prove a remote credential at boot.** A handshake that sends nothing turns a wrong app password into a refusal to start, instead of a user stranded mid-signup three days later. It does not belong in an unauthenticated /health (Stage 24).
 12be. **A test harness that can silently test the wrong server is worse than one that fails.** Kill the process tree, and refuse to start when the port is already answering (Stage 24).
+12bf. **Audit before building: the column may already exist.** `listings.listing_url` was fully populated, so the planned URL generator would have been a second, competing answer to a question the schema already answered (Stage 25).
+12bg. **A statistic is defined by the series it runs over.** A median across raw observations counts a marketplace once per offer it carries, so six sellers outvote one. The daily-series rule — in-stock, cheapest per capture day — is part of the definition, and the API states it (Stage 25).
+12bh. **Prove a translated calculation against its original, at the boundaries.** The SQL price ladder is checked against the JavaScript engine on 330 observations sampled at every promotion's validity edge; a deliberate off-by-one there broke 2 comparisons of 3,300, and nothing else would have caught it (Stage 25).
+12bi. **A window's length and its evidence are different facts.** A 3-day window on a product captured every two days holds the same two days as the 2-day window. Report both honestly; do not make them move together (Stage 25).
+12bj. **Measure before indexing, and write down a result of zero.** Every Phase 4 access path was already covered by the Phase 2 indexes — no sequential scans, 0.2–52 ms across 354,940 rows — so none was added (Stage 25).
+12bk. **A test that depends on a developer's .env is a test that will fail for the wrong reason.** Pin what the suite needs, and assert against the configured value rather than a literal (Stage 25).
+12bl. **An insert batch has a parameter ceiling.** PostgreSQL binds at most 65,535 per statement; exceeding it fails inside the wire protocol with no readable error. Size batches by columns × rows (Stage 25).
 13. **Prefer understanding existing code over adding new abstractions.** The codebase is intentionally not over-engineered for its current scope (a class-project wireframe) — resist adding speculative infrastructure (e.g. a state-management library, a component library, a testing framework) unless the user's request genuinely requires it.
 11. **Keep this file up to date.** If you make a decision significant enough that a future session would need to know about it, add it here — particularly to §3 (evolution), §6 (critical decisions), §14/§15 (status), and §20 (historical context) as appropriate. Don't let this file go stale while the code moves on.
 12. **When in doubt about project intent, ask** rather than assume — several past requests in this project have been extremely explicit and prescriptive (see the visual-correction request that produced Stage 9); treat that as the user's established working style, not a one-off.

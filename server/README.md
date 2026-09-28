@@ -220,10 +220,163 @@ identifiers.
 | `GET` | `/api/v1/categories/:id` | – | + ancestors, children, product types |
 | `GET` | `/api/v1/brands` | – | paginated, searchable |
 | `GET` | `/api/v1/marketplaces` | – | all six |
+| `GET` | `/api/v1/products/:id/marketplaces` | – | where a product is sold, and its state on each platform |
+| `GET` | `/api/v1/products/:id/listings` | – | page, pageSize, marketplace, status |
+| `GET` | `/api/v1/products/:id/sellers` | – | page, pageSize, marketplace |
+| `GET` | `/api/v1/products/:id/offers` | – | page, pageSize, marketplace, seller, inStock, fulfilment, condition, minPrice, maxPrice, hasPromotion, sort |
+| `GET` | `/api/v1/products/:id/price-history` | – | page, pageSize, window, from, to, marketplace, seller, offer |
+| `GET` | `/api/v1/products/:id/price-summary` | – | windows[], marketplace — current state beside several horizons |
+| `GET` | `/api/v1/products/:id/reviews` | – | page, pageSize, marketplace |
+| `GET` | `/api/v1/products/:id/rating-history` | – | window, from, to, marketplace |
+| `GET` | `/api/v1/products/:id/promotions` | – | page, pageSize, marketplace, offer, availabilityClass, status |
+| `GET` | `/api/v1/offers/:id/price-history` | – | page, pageSize, window, from, to |
+| `GET` | `/api/v1/sellers/:id/rating-history` | – | page, pageSize |
 
 Product **detail deliberately omits** prices, offers, reviews and competitors.
 Those are separate resources with their own pagination and their own cost;
 folding them in is how a detail endpoint becomes the slowest call in a system.
+
+### Marketplace data
+
+The endpoints above serve the **existing seeded dataset**. Nothing scrapes,
+nothing fetches a marketplace, and no row is created by any of them — every
+one is read-only. Live ingestion is a later phase; these are the tables it
+will populate.
+
+#### One effective price
+
+`universalEffective` is the basis every comparison uses, and it is computed
+once — in `src/lib/priceLadder.ts` as SQL, which is a translation of
+`src/utils/priceLayers.js` and nothing else:
+
+```
+landed             = sellingPrice + shipping
+universalEffective = landed − Σ(universal promotions active that day), floored at 0
+conditionalBest    = universalEffective − Σ(conditional promotions), floored at 0
+```
+
+A promotion is active when `valid_from <= date <= valid_to`, inclusive,
+treating a null bound as open. Cashback and no-cost-EMI benefits appear in
+the response but enter no rung — money returned later, or interest someone
+else absorbs, is not a price.
+
+Every response carrying a price also carries `priceBasis`, so no client has
+to infer which rung it received.
+
+`tests/price-history.test.ts` asserts the SQL and the JavaScript agree on 330
+real observations across ten rungs — 3,300 comparisons — with the fixture
+sampled at every promotion's validity boundary, because an off-by-one there
+changes the price on exactly two days in a hundred.
+
+#### Observation windows
+
+`?window=` accepts `1d` `2d` `3d` `7d` `15d` `1m` `3m`. A window is a date
+range, **inclusive of both ends**, measured back from the dataset's most
+recent capture — not from the wall clock, which would make every window
+empty, and not from a constant, which would break the moment the data is
+regenerated. The range actually used is always reported:
+
+```json
+"meta": { "referenceDate": "2026-08-14", "window": { "key": "7d", "days": 7 },
+          "range": { "from": "2026-08-08", "to": "2026-08-14" } }
+```
+
+`?from=` and `?to=` override the window for questions the seven horizons do
+not cover; the response then reports `window: null` rather than claiming one.
+
+**A window's length and its evidence are different facts.** This dataset
+captures on a tiered cadence, so a 3-day window on a product observed every
+two days holds exactly the same two capture days as the 2-day window. Both
+report their real range and their real count, and the two do not have to
+move together.
+
+#### What a window is allowed to claim
+
+Statistics are computed on the **daily series** — in-stock observations only,
+reduced to the cheapest effective price per capture day. That matches
+`getProductPriceSeries` in the frontend engine, and the match matters: a
+median over raw observations counts a marketplace once per offer it happens
+to have, so a platform with six sellers would outvote one with a single
+seller.
+
+What the series supports is decided by its COUNT, never by the window's
+length:
+
+| points | capability | reported |
+|---|---|---|
+| 0 | `none` | nothing at all — `statistics: null`, not zeroes |
+| 1 | `snapshot` | a level. No change, no spread |
+| 2–4 | `directional` | change, min, max, mean |
+| 5+ | `distributional` | + median, quartiles, volatility |
+
+Every withheld statistic says why, in `withheld`, so an interface can explain
+a gap rather than leave one. The median is the linear-interpolated percentile
+— the same definition the frontend engine uses.
+
+#### Source URLs
+
+`listings.listing_url` is populated for all 2,947 listings and is exposed
+directly as `sourceUrl` on the listing, marketplace-summary and offer
+responses. Nothing is generated: the value is the column, and a test asserts
+each one points at the domain its own marketplace row declares.
+
+> **These URLs do not resolve.** The dataset is synthetic — the URLs were
+> generated at seed time with the right shape for each marketplace, not
+> captured from a real page. They are the right field to build a "View on
+> Flipkart" link against once real ingestion exists, and they are not right
+> to click today. Nothing in the API pretends otherwise.
+
+Alongside the URL, every listing and offer carries `externalListingId` (the
+ASIN, FSN or equivalent), `marketplaceId` and capture timestamps — the
+identifiers a future URL-comparison feature needs to map a pasted link back
+onto a known listing.
+
+#### Pagination
+
+`page` / `pageSize`, the same contract as the Phase 3 endpoints, returning
+`{ data, pagination: { page, pageSize, total, totalPages, hasNext, hasPrevious } }`.
+`pageSize` is capped at 100; history endpoints default to 100 rather than 24
+because observations are dense.
+
+Offset pagination rather than cursor, deliberately. Cursors win on a feed
+that grows at the head while you read it; this is an append-only historical
+table read in bounded windows, where a page count is genuinely useful and
+nothing shifts underneath a reader. Every sort ends with an id tiebreaker, so
+two rows of equal price cannot swap between pages and hide a record.
+
+#### Filtering and sorting
+
+Filters are validated against the database before the query runs: a
+well-formed marketplace id that does not exist is a **400 that lists the
+valid ids**, not an empty page — the ids are `mp_amazon_in` rather than
+`amazon`, and a client that guessed deserves to be told which.
+
+Sorts are an enum mapped to SQL from a closed table; no client string ever
+reaches an `ORDER BY`. Price filters and price sorts both act on the
+effective price, so a filtered list is never mis-sorted against its own
+filter.
+
+#### Performance
+
+Measured, not assumed. `EXPLAIN ANALYZE` over the full 354,940-row
+observation table, on the heaviest product in the catalogue:
+
+| query | time | sequential scans |
+|---|---|---|
+| daily series, product + 1-month window | 32 ms | none |
+| daily series, product + marketplace + 3 months | 9 ms | none |
+| observation page, product + window | 5 ms | none |
+| latest observation per offer, product | 9 ms | none |
+| offer history | 0.2 ms | none |
+| widest case — 3-month series, heaviest product | 52 ms | none |
+
+**No index was added.** The Phase 2 indexes already cover every access path
+this phase introduced — `listings_product_idx`, `offers_listing_idx`,
+`offers_seller_idx`, `price_obs_offer_date_idx (offer_id, observed_at desc)`,
+`promotions_offer_idx`, `review_snapshots_listing_idx` and
+`seller_ratings_seller_idx`. Adding more without a query that needed them
+would be cost with no benefit. (These numbers are PGlite, which is
+WebAssembly; a native server is faster.)
 
 ### Validation
 
@@ -415,7 +568,7 @@ the ten-minute window the code itself is bounded by.
 ## Tests
 
 ```bash
-npm test              # 109 tests
+npm test              # 173 tests
 npx tsx --test tests/auth.test.ts      # one file
 ```
 
@@ -430,6 +583,8 @@ exercised with `app.inject()`, so nothing binds a port.
 | `tests/regression.test.ts` | REG-11, REG-12, Phase 2 baseline | 9 |
 | `tests/smtp.test.ts` | SMTP-01…SMTP-12 (stubbed transport) | 32 |
 | `tests/smtp-socket.test.ts` | SMTP-13 — a real SMTP conversation | 6 |
+| `tests/marketplace.test.ts` | MKT, LIST, SELL, OFFER, PROMO, REV + golden records | 40 |
+| `tests/price-history.test.ts` | HIST, PRICE + price-ladder parity | 24 |
 
 ### Isolation
 
@@ -523,6 +678,13 @@ balancer; without it every per-IP limit would be shared by the entire internet.
 | `npm run db:seed` | truncate the seeded tables and load from `seed-data/` |
 | `npm run db:verify` | 37 integrity checks; non-zero exit on failure |
 | `npm run email:check -- you@example.com` | verify the transport and send one real test message |
+
+One script lives on the frontend side, because it needs Vite to resolve the
+engine's extensionless imports:
+
+| Command | What it does |
+|---|---|
+| `node scripts/export-price-parity-fixture.mjs` | regenerate `server/tests/fixtures/price-ladder-parity.json` from `src/utils/priceLayers.js`. A diff in that file is a change to the pricing basis — regenerate deliberately. |
 
 ---
 

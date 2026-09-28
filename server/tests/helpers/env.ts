@@ -9,6 +9,10 @@
 process.env["NODE_ENV"] = "test";
 process.env["DB_DRIVER"] = "pglite";
 process.env["EMAIL_ADAPTER"] = "memory";
+// Pinned, because dotenv fills in anything the test does not set — and a
+// developer who points their own .env at a real mailbox should not thereby
+// change what the test suite asserts.
+process.env["EMAIL_FROM"] = "Mulya <no-reply@mulya.test>";
 process.env["LOG_LEVEL"] = "silent";
 
 // A throwaway pepper. Real deployments supply their own; the schema enforces

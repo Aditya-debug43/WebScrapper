@@ -2,6 +2,7 @@ import "./helpers/env.js";
 import { after, before, describe, it } from "node:test";
 import assert from "node:assert/strict";
 import { existsSync } from "node:fs";
+import { readFile } from "node:fs/promises";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import { join } from "node:path";
@@ -135,10 +136,30 @@ describe("REG — Phase 2 baseline is undisturbed", () => {
     assert.deepEqual(r.rows[0], { listings: 6, offers: 30, cheapest: 56900 });
   });
 
-  it("Phase 3 tables exist and are empty — authentication added structure, not data", async (t) => {
+  it("the authentication tables exist, and the seed does not own them", async (t) => {
     if (!available) return t.skip("development database not seeded");
+
+    // They must exist and be queryable.
     for (const table of ["users", "otp_challenges", "sessions"]) {
-      assert.equal(await count(table), 0, `${table} should be empty in the development database`);
+      assert.equal(typeof (await count(table)), "number", `${table} is not queryable`);
+    }
+
+    /**
+     * This used to assert the tables were EMPTY, which was true only while
+     * nobody had used the application locally. Registering an account is the
+     * intended behaviour, so that assertion started failing for a good
+     * reason and has been replaced by the invariant it was really standing
+     * in for: a data reload must not sign anybody out.
+     *
+     * `seed.ts` truncates every table it loads. These three are not among
+     * them, and asserting that directly is both stable and the thing that
+     * actually matters.
+     */
+    const seed = await readFile(join(SERVER_DIR, "src", "scripts", "seed.ts"), "utf8");
+    const loaders = [...seed.matchAll(/file:\s*"([a-z_]+)"/g)].map((m) => m[1]);
+    assert.ok(loaders.length > 10, "the loader list could not be read from seed.ts");
+    for (const table of ["users", "otp_challenges", "sessions", "tracked_products"]) {
+      assert.ok(!loaders.includes(table), `seed.ts truncates ${table} — a reload would destroy account data`);
     }
   });
 

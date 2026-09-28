@@ -3,7 +3,7 @@ import { after, before, describe, it } from "node:test";
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import { join, resolve } from "node:path";
-import { envSchema } from "../src/config/env.js";
+import { env, envSchema } from "../src/config/env.js";
 import { MemoryEmailAdapter, SmtpEmailAdapter, otpMessage, createEmailAdapter } from "../src/email/index.js";
 import { ConsoleEmailAdapter } from "../src/email/adapters/console.adapter.js";
 import { HttpEmailAdapter } from "../src/email/adapters/http.adapter.js";
@@ -285,9 +285,12 @@ describe("SMTP-07/08 — recipient and sender", () => {
       subject: "s",
       text: "t",
     });
-    // EMAIL_FROM under the test environment; the point is that the adapter
-    // supplies it rather than accepting one from the message.
-    assert.equal(stub.sent[0]!["from"], "Mulya <no-reply@mulya.local>");
+    // Compared against the CONFIGURED value rather than a literal: the point
+    // is that the adapter supplies the sender rather than accepting one from
+    // the message, and hardcoding the string made this test fail the moment
+    // a developer pointed their own .env at a real mailbox.
+    assert.equal(stub.sent[0]!["from"], env.EMAIL_FROM);
+    assert.ok(env.EMAIL_FROM.length > 0);
     assert.equal(stub.sent[0]!["html"], undefined, "an absent html part is omitted, not sent as undefined");
   });
 

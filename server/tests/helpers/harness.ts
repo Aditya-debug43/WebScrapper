@@ -25,9 +25,38 @@ const SEED_DIR = join(HERE, "..", "..", "seed-data");
  */
 export type Harness = BuiltApp & { email: MemoryEmailAdapter };
 
-export async function createTestApp(opts: { seedCatalogue?: boolean } = {}): Promise<Harness> {
+export type SeedOptions = {
+  /** Phase 3's read APIs: taxonomy, products, marketplaces, listings. */
+  seedCatalogue?: boolean;
+  /**
+   * Phase 4's read APIs: the FULL entity graph for these products — every
+   * seller, offer, price observation, review snapshot, seller rating and
+   * promotion attached to them.
+   */
+  marketplaceProducts?: string[];
+};
+
+export async function createTestApp(opts: SeedOptions = {}): Promise<Harness> {
   const email = new MemoryEmailAdapter();
   const built = await bootstrap(email, opts);
+  return { ...built, email };
+}
+
+/**
+ * An application holding the complete entity graph for a few products.
+ *
+ * Scoped to named products rather than loading everything, because the
+ * observation file alone is 134 MB and 354,940 rows. Every Phase 4 endpoint
+ * is product-scoped, so a product-scoped fixture exercises each of them
+ * while a test run stays in seconds.
+ *
+ * Nothing is filtered WITHIN the graph: for the products it covers this is
+ * the complete, unmodified dataset, which is what lets a test assert an
+ * exact count rather than merely a shape.
+ */
+export async function createMarketplaceTestApp(productIds: string[]): Promise<Harness> {
+  const email = new MemoryEmailAdapter();
+  const built = await bootstrap(email, { marketplaceProducts: productIds });
   return { ...built, email };
 }
 
@@ -38,14 +67,11 @@ export async function createTestApp(opts: { seedCatalogue?: boolean } = {}): Pro
  * before SMTP — memory and console always succeed — so the failure path had
  * no way to be exercised through the real HTTP surface until now.
  */
-export async function createTestAppWith(
-  email: EmailAdapter,
-  opts: { seedCatalogue?: boolean } = {}
-): Promise<BuiltApp> {
+export async function createTestAppWith(email: EmailAdapter, opts: SeedOptions = {}): Promise<BuiltApp> {
   return bootstrap(email, opts);
 }
 
-async function bootstrap(email: EmailAdapter, opts: { seedCatalogue?: boolean }): Promise<BuiltApp> {
+async function bootstrap(email: EmailAdapter, opts: SeedOptions): Promise<BuiltApp> {
   const client = new PGlite();
   await client.waitReady;
   const db = drizzle(client, { schema });
@@ -60,6 +86,7 @@ async function bootstrap(email: EmailAdapter, opts: { seedCatalogue?: boolean })
   }
 
   if (opts.seedCatalogue) await seedCatalogue(db);
+  if (opts.marketplaceProducts?.length) await seedMarketplaceGraph(db, opts.marketplaceProducts);
 
   return buildApp({ db, email, closeDb: async () => client.close() });
 }
@@ -72,68 +99,214 @@ async function bootstrap(email: EmailAdapter, opts: { seedCatalogue?: boolean })
  * seconds per test run for data nothing under test touches would make the
  * suite something people avoid running.
  */
-async function seedCatalogue(db: ReturnType<typeof drizzle>) {
+function requireDataset() {
   if (!existsSync(join(SEED_DIR, "manifest.json"))) {
     throw new Error(
       `No dataset at ${SEED_DIR}.\n` +
         `Run this once from the repository root:\n\n    node scripts/export-dataset.mjs\n`
     );
   }
+}
 
-  const load = async (file: string, table: unknown, map: (r: any) => any, batchSize = 2000) => {
-    const rl = createInterface({
-      input: createReadStream(join(SEED_DIR, `${file}.ndjson`), { encoding: "utf8" }),
-      crlfDelay: Infinity,
-    });
-    let batch: any[] = [];
-    const flush = async () => {
-      if (!batch.length) return;
-      await (db as any).insert(table).values(batch);
-      batch = [];
-    };
-    for await (const line of rl) {
-      if (!line.trim()) continue;
-      batch.push(map(JSON.parse(line)));
-      if (batch.length >= batchSize) await flush();
-    }
-    await flush();
-  };
-
-  await load("categories", t.categories, (r) => ({
-    id: r.id, parentId: r.parentId ?? null, level: r.level, name: r.name, path: r.path,
-  }));
-  await load("product_types", t.productTypes, (r) => ({
-    id: r.id, categoryId: r.categoryId, name: r.name, schemaVersion: r.schemaVersion,
-  }));
-  await load("brands", t.brands, (r) => ({
+/** Column maps, one per table, shared by both seeders. */
+const MAP = {
+  categories: (r: any) => ({ id: r.id, parentId: r.parentId ?? null, level: r.level, name: r.name, path: r.path }),
+  productTypes: (r: any) => ({ id: r.id, categoryId: r.categoryId, name: r.name, schemaVersion: r.schemaVersion }),
+  brands: (r: any) => ({
     id: r.id, name: r.name, tier: r.tier, parentCompany: r.parentCompany ?? null, aliasNames: r.aliasNames ?? [],
-  }));
-  await load("products", t.products, (r) => ({
+  }),
+  products: (r: any) => ({
     id: r.id, parentProductId: r.parentProductId ?? null, isPurchasable: r.isPurchasable ?? true,
     brandId: r.brandId, categoryId: r.categoryId, productTypeId: r.productTypeId,
     canonicalName: r.canonicalName, modelName: r.modelName, variantAxes: r.variantAxes ?? null,
     specSchemaVersion: r.specSchemaVersion ?? null, specifications: r.specifications ?? {},
     identifiers: r.identifiers ?? null, lifecycleStatus: r.lifecycleStatus ?? "active",
     firstSeenAt: r.firstSeenAt ?? null,
-  }));
-  await load("marketplaces", t.marketplaces, (r) => ({
+  }),
+  marketplaces: (r: any) => ({
     id: r.id, name: r.name, countryCode: r.countryCode, defaultCurrency: r.defaultCurrency,
     websiteDomain: r.websiteDomain, isActive: r.isActive ?? true, brandColor: r.brandColor ?? null,
     marketplaceType: r.marketplaceType, categoryAffinity: r.categoryAffinity ?? [],
-  }));
-  await load("marketplace_categories", t.marketplaceCategories, (r) => ({
+  }),
+  marketplaceCategories: (r: any) => ({
     id: r.id, marketplaceId: r.marketplaceId, externalNodeId: r.externalNodeId, rawPath: r.rawPath,
     mappedCategoryId: r.mappedCategoryId ?? null, mappingConfidence: r.mappingConfidence ?? null,
     mappedBy: r.mappedBy ?? null,
-  }));
-  await load("listings", t.listings, (r) => ({
+  }),
+  listings: (r: any) => ({
     id: r.id, productId: r.productId, marketplaceId: r.marketplaceId,
     externalListingId: r.externalListingId, listingUrl: r.listingUrl ?? null,
     marketplaceCategoryId: r.marketplaceCategoryId ?? null, rawTitle: r.rawTitle ?? null,
     marketplaceBrandText: r.marketplaceBrandText ?? null, matchStatus: r.matchStatus,
     matchConfidence: r.matchConfidence ?? null, listingStatus: r.listingStatus ?? "active",
     firstSeenAt: r.firstSeenAt ?? null, lastSeenAt: r.lastSeenAt ?? null,
-  }));
+  }),
+  sellers: (r: any) => ({
+    id: r.id, marketplaceId: r.marketplaceId, externalSellerId: r.externalSellerId, name: r.name,
+    sellerType: r.sellerType, defaultFulfilmentType: r.defaultFulfilmentType,
+    sellerGroupId: r.sellerGroupId ?? null, sellerTier: r.sellerTier ?? null,
+    maxOffers: r.maxOffers ?? null, onboardedAt: r.onboardedAt ?? null,
+  }),
+  sellerRatingSnapshots: (r: any) => ({
+    id: r.id, sellerId: r.sellerId, capturedAt: r.capturedAt, rating: r.rating ?? null,
+    ratingCount: r.ratingCount ?? null,
+  }),
+  offers: (r: any) => ({
+    id: r.id, listingId: r.listingId, sellerId: r.sellerId, itemCondition: r.itemCondition ?? "new",
+    offerStatus: r.offerStatus ?? "active", firstSeenAt: r.firstSeenAt ?? null,
+  }),
+  priceObservations: (r: any) => ({
+    id: r.id, offerId: r.offerId, observedAt: r.observedAt, recordedAt: new Date(r.recordedAt),
+    mrpMinor: r.mrpMinor ?? null, sellingPriceMinor: r.sellingPriceMinor,
+    shippingFeeMinor: r.shippingFeeMinor ?? 0, currencyCode: r.currencyCode ?? "INR",
+    isInStock: r.isInStock, isBuyboxWinner: r.isBuyboxWinner ?? false, saleLabel: r.saleLabel ?? null,
+    rawDocumentId: r.rawDocumentId ?? null, parserVersion: r.parserVersion ?? null,
+  }),
+  reviewSnapshots: (r: any) => ({
+    id: r.id, listingId: r.listingId, capturedAt: r.capturedAt, averageRating: r.averageRating ?? null,
+    ratingCount: r.ratingCount ?? null, reviewCount: r.reviewCount ?? null,
+    ratingDistribution: r.ratingDistribution ?? null,
+  }),
+  promotions: (r: any) => ({
+    id: r.id, offerId: r.offerId, promotionType: r.promotionType, availabilityClass: r.availabilityClass,
+    label: r.label, terms: r.terms ?? null, eligibility: r.eligibility ?? null,
+    discountValueMinor: r.discountValueMinor ?? 0, validFrom: r.validFrom ?? null, validTo: r.validTo ?? null,
+  }),
+};
+
+/**
+ * Stream one NDJSON file into a table.
+ *
+ * `keep` filters parsed rows. `prefilter` works on the RAW LINE and runs
+ * first — for the 134 MB observation file, JSON.parse on every line is most
+ * of the cost, and skipping it for the 99% that miss turns a minute into a
+ * couple of seconds.
+ */
+async function load(
+  db: ReturnType<typeof drizzle>,
+  file: string,
+  table: unknown,
+  map: (r: any) => any,
+  opts: { batchSize?: number; keep?: (r: any) => boolean; prefilter?: (line: string) => boolean } = {}
+) {
+  const batchSize = opts.batchSize ?? 2000;
+  const rl = createInterface({
+    input: createReadStream(join(SEED_DIR, `${file}.ndjson`), { encoding: "utf8" }),
+    crlfDelay: Infinity,
+  });
+  let batch: any[] = [];
+  const flush = async () => {
+    if (!batch.length) return;
+    await (db as any).insert(table).values(batch);
+    batch = [];
+  };
+  for await (const line of rl) {
+    if (!line.trim()) continue;
+    if (opts.prefilter && !opts.prefilter(line)) continue;
+    const row = JSON.parse(line);
+    if (opts.keep && !opts.keep(row)) continue;
+    batch.push(map(row));
+    if (batch.length >= batchSize) await flush();
+  }
+  await flush();
+}
+
+/** Read rows without inserting — used when a later table depends on them. */
+async function collect(file: string, keep: (r: any) => boolean): Promise<any[]> {
+  const rl = createInterface({
+    input: createReadStream(join(SEED_DIR, `${file}.ndjson`), { encoding: "utf8" }),
+    crlfDelay: Infinity,
+  });
+  const out: any[] = [];
+  for await (const line of rl) {
+    if (!line.trim()) continue;
+    const row = JSON.parse(line);
+    if (keep(row)) out.push(row);
+  }
+  return out;
+}
+
+/**
+ * Loads the catalogue tables the Phase 3 read APIs actually serve.
+ *
+ * Price observations, reviews and promotions are skipped on purpose: they are
+ * 370,000 of the 390,000 rows, no Phase 3 endpoint reads them, and paying 55
+ * seconds per test run for data nothing under test touches would make the
+ * suite something people avoid running.
+ */
+async function seedCatalogue(db: ReturnType<typeof drizzle>) {
+  requireDataset();
+  await load(db, "categories", t.categories, MAP.categories);
+  await load(db, "product_types", t.productTypes, MAP.productTypes);
+  await load(db, "brands", t.brands, MAP.brands);
+  await load(db, "products", t.products, MAP.products);
+  await load(db, "marketplaces", t.marketplaces, MAP.marketplaces);
+  await load(db, "marketplace_categories", t.marketplaceCategories, MAP.marketplaceCategories);
+  await load(db, "listings", t.listings, MAP.listings);
+}
+
+/** The complete entity graph for a set of products. See createMarketplaceTestApp. */
+async function seedMarketplaceGraph(db: ReturnType<typeof drizzle>, productIds: string[]) {
+  requireDataset();
+  const wanted = new Set(productIds);
+
+  // Reference data is small and whole; nothing is gained by filtering it.
+  await load(db, "categories", t.categories, MAP.categories);
+  await load(db, "product_types", t.productTypes, MAP.productTypes);
+  await load(db, "brands", t.brands, MAP.brands);
+  await load(db, "products", t.products, MAP.products);
+  await load(db, "marketplaces", t.marketplaces, MAP.marketplaces);
+  await load(db, "marketplace_categories", t.marketplaceCategories, MAP.marketplaceCategories);
+
+  const listingIds = new Set<string>();
+  await load(db, "listings", t.listings, MAP.listings, {
+    keep: (r) => {
+      if (!wanted.has(r.productId)) return false;
+      listingIds.add(r.id);
+      return true;
+    },
+  });
+  if (listingIds.size === 0) {
+    throw new Error(`No listings found for ${productIds.join(", ")} — check the product ids.`);
+  }
+
+  /**
+   * Offers are read before sellers so the seller set can be derived from
+   * them. An offer whose seller is absent violates the foreign key, and
+   * loading all 1,177 sellers to sidestep that would make an exact seller
+   * count impossible to assert.
+   */
+  const offerRows = await collect("offers", (r) => listingIds.has(r.listingId));
+  const sellerIds = new Set<string>(offerRows.map((r) => r.sellerId as string));
+  const offerIds = new Set<string>(offerRows.map((r) => r.id as string));
+
+  await load(db, "sellers", t.sellers, MAP.sellers, { keep: (r) => sellerIds.has(r.id) });
+  await load(db, "seller_rating_snapshots", t.sellerRatingSnapshots, MAP.sellerRatingSnapshots, {
+    keep: (r) => sellerIds.has(r.sellerId),
+  });
+  for (let i = 0; i < offerRows.length; i += 2000) {
+    await (db as any).insert(t.offers).values(offerRows.slice(i, i + 2000).map(MAP.offers));
+  }
+
+  await load(db, "price_observations", t.priceObservations, MAP.priceObservations, {
+    // 13 columns per row. PostgreSQL binds at most 65,535 parameters per
+    // statement, and a larger batch here failed inside the wire protocol
+    // rather than with a readable error — 1,000 rows is 13,000 parameters,
+    // comfortably clear of the ceiling and still one round trip per second.
+    batchSize: 1000,
+    prefilter: (line) => {
+      const start = line.indexOf('"offerId":"');
+      if (start === -1) return false;
+      const from = start + 11;
+      const end = line.indexOf('"', from);
+      return end !== -1 && offerIds.has(line.slice(from, end));
+    },
+  });
+
+  await load(db, "review_snapshots", t.reviewSnapshots, MAP.reviewSnapshots, {
+    keep: (r) => listingIds.has(r.listingId),
+  });
+  await load(db, "promotions", t.promotions, MAP.promotions, { keep: (r) => offerIds.has(r.offerId) });
 }
 
 /* ------------------------------------------------------------------ utils */

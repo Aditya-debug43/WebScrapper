@@ -12,6 +12,9 @@ import { registerAuthRoutes } from "./modules/auth/auth.routes.js";
 import { CatalogueRepository } from "./modules/catalogue/catalogue.repository.js";
 import { CatalogueService } from "./modules/catalogue/catalogue.service.js";
 import { registerCatalogueRoutes } from "./modules/catalogue/catalogue.routes.js";
+import { MarketplaceRepository } from "./modules/marketplace/marketplace.repository.js";
+import { MarketplaceService } from "./modules/marketplace/marketplace.service.js";
+import { registerMarketplaceRoutes } from "./modules/marketplace/marketplace.routes.js";
 
 export type BuiltApp = {
   app: FastifyInstance;
@@ -138,6 +141,7 @@ export async function buildApp(
   registerAuth(app, authService);
 
   const catalogueService = new CatalogueService(new CatalogueRepository(db));
+  const marketplaceService = new MarketplaceService(new MarketplaceRepository(db));
 
   /**
    * Liveness only. No version, no commit, no database host, no dependency
@@ -150,6 +154,7 @@ export async function buildApp(
     async (v1) => {
       registerAuthRoutes(v1, authService);
       registerCatalogueRoutes(v1, catalogueService);
+      registerMarketplaceRoutes(v1, marketplaceService);
     },
     { prefix: "/api/v1" }
   );
