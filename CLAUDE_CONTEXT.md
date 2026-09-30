@@ -886,7 +886,7 @@ provider's message made two tests fail before it was reverted.
 
 ---
 
-### Stage 25 — Backend phase 4: marketplace data and historical intelligence APIs (current)
+### Stage 25 — Backend phase 4: marketplace data and historical intelligence APIs
 
 Twelve read-only endpoints that make the database the source of truth for
 marketplace data. **Data access, not decision-making**: no recommendation,
@@ -1018,6 +1018,129 @@ The marketplace URLs are synthetic. They were generated at seed time with
 the right shape for each platform and they do not resolve. They are the
 correct field for a "View on Flipkart" link once real ingestion exists, and
 the API exposes them as they are — it does not pretend they are captured.
+
+---
+
+### Stage 26 — Backend phase 5: the competitor engine and cross-marketplace analysis (current)
+
+The validated frontend analysis engine moved to the backend, behind two
+authenticated endpoints, with parity asserted rather than assumed.
+
+```
+Frontend ──▶ /products/:id/analysis ──▶ AnalysisService ──┐
+             /products/:id/competitors ──▶ CompetitorService
+                                                          ▼
+                                        Phase 4 data · PostgreSQL
+```
+
+#### The audit found the migration was not cleanly bounded
+
+`buildCrossMarketplaceAnalysis` is built ON TOP of `buildRecommendation` and
+reads `rec.*` in 24 places. "Move the analysis but not the recommendation"
+is therefore not separable at the top of the call graph — but it is
+underneath, and the split point is natural:
+
+| moved | left for Phase 6 |
+|---|---|
+| competitive set, similarity, tiers, evidence weight | the three strategy prices |
+| strength index, own-market and competitive statistics | constraints, ceilings, floors |
+| history, distortion, the 90-day normal | the hedonic `wtp` model |
+| 11 of the 12 findings | `buildBridge` |
+
+Part 25 of the brief explicitly permits exposing "market anchors/statistics
+that Phase 6 will use" and forbids moving the recommendation calculation, so
+this split is what was asked for. The two omissions are reported in every
+response under `meta.notMigrated`, and the parity test requires the
+difference to be **exactly** those two — anything broader would let a
+genuine omission hide.
+
+#### Parity is the deliverable, and it found five real defects
+
+115 assertions across ten golden products, comparing structured values —
+never a rendered sentence. Building it exposed five things that were wrong
+in the port and would not have been found any other way:
+
+1. **`attribute_definitions` were never loaded into the test fixture.** Every
+   specification comparison found nothing to compare, so the spec term
+   dropped out of the similarity, its 0.45 weight was redistributed across
+   the remaining three, and the result was a plausible-looking number that
+   was wrong by up to 0.24. This is the single best argument for parity
+   testing in this whole project: nothing about the output looked broken.
+2. **Competitive statistics were unweighted.** The engine uses
+   `weightedDistribution` over evidence weight; a plain median let a padded
+   set move the anchor as far as a strong one.
+3. **Three finding dimensions were mislabelled** — "Shipping" for what the
+   engine calls "Offer", and two variants of "Competitor".
+4. **The historical direction was inverted.** A high percentile means little
+   headroom left, which argues `aggressive`; I had it arguing `premium`.
+   Thresholds were wrong too (75/25 against the engine's 70/30).
+5. **The trust direction ignored the review base.** A rating advantage only
+   argues for a premium when the review base behind it is also larger — 4.7
+   from 200 reviews is the weaker claim against 4.5 from 40,000.
+
+Plus one the mutation testing caught: the 90-day normal used `−89` where the
+engine uses `cutoff(90)` with `>=`, which spans 91 days. It matched on this
+dataset by luck.
+
+#### Mutation testing found two gaps in the tests themselves
+
+Five controlled mutations; three were caught immediately, two were not:
+
+- **the window boundary** — because nothing asserted `normalMinor` directly,
+  only finding directions downstream of it. Fixed by capturing the 90-day
+  normal and the distortion ratio in the fixture and asserting them.
+- **the promotion validity boundary** — because no golden product has a
+  promotion ending exactly on the reference date, so the mutation was a
+  no-op on this data. Fixed by cross-checking the analysis's promotion
+  counts against the Phase 4 promotions endpoint, which implements the same
+  rule in separate SQL.
+
+A test that cannot fail protects nothing, and "we wrote mutation tests" is
+worth nothing if the misses are not then closed.
+
+#### The honesty gate is structural
+
+Below three comparables the engine refuses outright — the analysis returns
+`findings: []`, not the subset of findings that happen not to need a
+competitor. My first port produced four findings for a product the frontend
+produced none for, which is exactly the fabrication this phase exists to
+prevent. It is now a single early return in `buildFindings`, with the
+observation layers still returned because they are real.
+
+Every other suppression is a guard on the block that produces the finding:
+fewer than three priced marketplaces suppresses cross-marketplace findings,
+no quantity-bearing attribute suppresses per-unit, fewer than four
+observations suppresses history.
+
+#### No prose on the backend
+
+The frontend builds sentences with `formatMinor` interpolated into template
+strings. The backend returns `metrics` and `evidence` as structured values
+and the interface phrases them. A sentence cannot be verified against the
+database; a number can — and this is what makes `DATA → CALCULATION →
+FINDING → EVIDENCE` real rather than a diagram.
+
+#### Performance: eight queries, no cache
+
+One analysis context per request, built in eight batched queries and shared
+by every finding. The frontend rebuilds pieces of it per finding because
+that is free in memory; here it would be a query storm.
+
+Nothing scales with the candidate pool: the per-candidate signals — current
+price, reviews, marketplace set, data quality — are four queries over the
+whole set, not four per member. The largest product type holds 29 products.
+
+**No cache was added.** `/competitors` is ~1.0 s and `/analysis` ~0.8 s on
+PGlite; a cache would need invalidating on every observation, which is
+machinery bought with nothing at that cost. Measured before deciding, as
+Part 17 asked.
+
+#### Scope held
+
+No pricing recommendation, no scraping, and no frontend migration — the
+analysis pages still read `src/data/`. Baseline unchanged: all 14 table
+counts exact, 1,156 purchasable → 1,043 recommended / 113 refused, 0
+violations, 37/37 integrity checks.
 
 ---
 
@@ -1560,7 +1683,7 @@ Each has a real representative in the dataset. Re-run these after any pricing ch
 Based on where the project actually stands, the next steps that follow directly from the established direction (not a new roadmap):
 
 1. **Present/defend the current state** to the professor if that hasn't happened yet — the `pricing-intelligence-walkthrough.md` document was built for exactly this.
-2. **Backend — decided and under way (Stages 21–25).** Node/TypeScript + Fastify + PostgreSQL + Drizzle, *not* Java: the reasoning is in `docs/BACKEND_ARCHITECTURE.md` and comes down to letting ~4,300 lines of verified pricing logic move server-side rather than be rewritten. Phases 1–3 (architecture, schema, migration, authentication, API foundation) are complete; Stage 23 replaced the credential with email + password and wired the frontend's auth layer to it for real, Stage 24 added a Gmail SMTP transport behind the existing email port, and Stage 25 (Phase 4) exposed the marketplace data — listings, sellers, offers, price history across seven windows, reviews, seller ratings and promotions — through twelve read-only APIs. **Phase 5 has not been started and is awaiting the user's review.** `src/api/*Service.js` remains the swap point for the catalogue and pricing data, and its return shapes are the API contract; `src/api/authService.js` is the one service in that folder that already calls the real backend.
+2. **Backend — decided and under way (Stages 21–26).** Node/TypeScript + Fastify + PostgreSQL + Drizzle, *not* Java: the reasoning is in `docs/BACKEND_ARCHITECTURE.md` and comes down to letting ~4,300 lines of verified pricing logic move server-side rather than be rewritten. Phases 1–3 (architecture, schema, migration, authentication, API foundation) are complete; Stage 23 replaced the credential with email + password and wired the frontend's auth layer to it for real, Stage 24 added a Gmail SMTP transport behind the existing email port, Stage 25 (Phase 4) exposed the marketplace data — listings, sellers, offers, price history across seven windows, reviews, seller ratings and promotions — through twelve read-only APIs, and Stage 26 (Phase 5) moved the competitor and cross-marketplace analysis engines server-side behind two authenticated endpoints, with parity against the frontend engine asserted across 115 comparisons. **Phase 6 (the pricing recommendation) has not been started and is awaiting the user's review.** `src/api/*Service.js` remains the swap point for the catalogue and pricing data, and its return shapes are the API contract; `src/api/authService.js` is the one service in that folder that already calls the real backend.
 3. **Turn the conceptual database design (§5) into real DDL** and a real database (Postgres was the design docs' implicit assumption, given the JSONB-based Specifications design — but this was never explicitly finalized as a hard requirement).
 4. **Build (or at minimum design) the real entity-resolution/product-matching pipeline** described in the docs but never implemented — this is explicitly flagged in the original design review as "the single biggest gap."
 5. **Only after a real backend and real data exist:** revisit whether a real scraper/crawler is needed at all, versus using official marketplace APIs where available (a preference stated in the original design docs).
@@ -1645,6 +1768,13 @@ Based on where the project actually stands, the next steps that follow directly 
 12bj. **Measure before indexing, and write down a result of zero.** Every Phase 4 access path was already covered by the Phase 2 indexes — no sequential scans, 0.2–52 ms across 354,940 rows — so none was added (Stage 25).
 12bk. **A test that depends on a developer's .env is a test that will fail for the wrong reason.** Pin what the suite needs, and assert against the configured value rather than a literal (Stage 25).
 12bl. **An insert batch has a parameter ceiling.** PostgreSQL binds at most 65,535 per statement; exceeding it fails inside the wire protocol with no readable error. Size batches by columns × rows (Stage 25).
+12bm. **Port against a fixture generated from the original, not from reading it.** Five defects in the analysis port were invisible to inspection and to smoke-testing; all five failed a structured comparison against the engine's own output (Stage 26).
+12bn. **A missing input can look like a working one.** Forgetting to load `attribute_definitions` did not throw: the specification term simply dropped out, its weight was redistributed, and similarity came back plausible and wrong. Assert the components, not just the total (Stage 26).
+12bo. **Close the mutations that are missed, not just report them.** Two of five planted mutations survived — one because nothing asserted the value directly, one because no golden product exercised the boundary. Both were real gaps in the tests (Stage 26).
+12bp. **Refusal is wholesale, not per-finding.** Below the comparable minimum the engine emits NO findings, not the subset that happen not to need a competitor. Producing four where the engine produced none is fabrication however individually defensible each one is (Stage 26).
+12bq. **The backend returns numbers; the interface makes sentences.** A rendered claim cannot be checked against the database and a metric can, which is what makes DATA → CALCULATION → FINDING → EVIDENCE more than a diagram (Stage 26).
+12br. **Build the analysis context once per request, not once per finding.** What is free in memory on the frontend is a query storm over a database. Eight batched queries, none scaling with the candidate pool (Stage 26).
+12bs. **Measure before caching.** Sub-second endpoints do not earn a cache that has to be invalidated on every observation (Stage 26).
 13. **Prefer understanding existing code over adding new abstractions.** The codebase is intentionally not over-engineered for its current scope (a class-project wireframe) — resist adding speculative infrastructure (e.g. a state-management library, a component library, a testing framework) unless the user's request genuinely requires it.
 11. **Keep this file up to date.** If you make a decision significant enough that a future session would need to know about it, add it here — particularly to §3 (evolution), §6 (critical decisions), §14/§15 (status), and §20 (historical context) as appropriate. Don't let this file go stale while the code moves on.
 12. **When in doubt about project intent, ask** rather than assume — several past requests in this project have been extremely explicit and prescriptive (see the visual-correction request that produced Stage 9); treat that as the user's established working style, not a one-off.

@@ -249,6 +249,12 @@ Being explicit, because the screens look more finished than the system is:
 
 - **No live scraping.** Nothing fetches a marketplace. The capture runs on
   `/sources` describe a pipeline that does not exist yet.
+- **The analysis screens still read the browser's copy too.** The competitor
+  engine and the cross-marketplace analysis now exist server-side as well, at
+  `/products/:id/competitors` and `/products/:id/analysis`, and the backend is
+  asserted to agree with the frontend engine across 115 comparisons on ten
+  products. The pages have not been repointed at them yet; that is the later
+  integration phase.
 - **The catalogue screens still read the browser's copy.** Products, listings,
   offers, prices and recommendations render from in-memory JavaScript. The
   same data also lives in a real PostgreSQL database in `server/`, and it is

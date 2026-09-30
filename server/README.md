@@ -2,7 +2,9 @@
 
 The backend for the marketplace pricing intelligence platform.
 
-**Phase 2** built the database. **Phase 3** added authentication and the API
+**Phase 5** moved the competitor and cross-marketplace analysis engines here
+from the frontend, behind two authenticated endpoints. **Phase 4** exposed the
+marketplace data graph. **Phase 2** built the database. **Phase 3** added authentication and the API
 foundation. A follow-up change replaced the credential with **email +
 password**, leaving one-time codes to verify an address and authorise a
 reset. Analysis, competitor and pricing-recommendation services still live in
@@ -231,6 +233,8 @@ identifiers.
 | `GET` | `/api/v1/products/:id/promotions` | – | page, pageSize, marketplace, offer, availabilityClass, status |
 | `GET` | `/api/v1/offers/:id/price-history` | – | page, pageSize, window, from, to |
 | `GET` | `/api/v1/sellers/:id/rating-history` | – | page, pageSize |
+| `GET` | `/api/v1/products/:id/competitors` | **bearer** | page, pageSize, tier, marketplace, minSimilarity |
+| `GET` | `/api/v1/products/:id/analysis` | **bearer** | window, from, to, marketplace |
 
 Product **detail deliberately omits** prices, offers, reviews and competitors.
 Those are separate resources with their own pagination and their own cost;
@@ -377,6 +381,181 @@ this phase introduced — `listings_product_idx`, `offers_listing_idx`,
 `seller_ratings_seller_idx`. Adding more without a query that needed them
 would be cost with no benefit. (These numbers are PGlite, which is
 WebAssembly; a native server is faster.)
+
+### Analysis and competitors
+
+Two endpoints, and unlike everything above them they require a **bearer
+token**. Catalogue and marketplace data describe public marketplaces; this
+is the derived intelligence built on top of them, which is the product
+rather than the raw material.
+
+| Method | Path | Auth | Notes |
+|---|---|---|---|
+| `GET` | `/api/v1/products/:id/competitors` | bearer | page, pageSize, tier, marketplace, minSimilarity |
+| `GET` | `/api/v1/products/:id/analysis` | bearer | window, from, to, marketplace |
+
+Both are served by **one** `CompetitorService`, so the two can never
+disagree about who competes with what. A test asserts it.
+
+#### What a competitor is
+
+Ported from `src/utils/competitiveSet.js` without alteration. The unit of
+competitive evidence is the **competitive identity** — `parentProductId ??
+productId` — not the product row:
+
+- ten sellers undercutting each other on one listing is **one** product competing
+- the same product on three marketplaces is still **one** product
+- two variants of one model are **one** pricing decision, so they hold one slot
+
+Seven stages: score every candidate of the same product type → hard
+exclusions → tier assignment → deduplicate by identity → outlier fence →
+rank and cap → evidence weight.
+
+| Tier | Meaning |
+|---|---|
+| `direct` | Contests the same purchase: similarity ≥ 0.55, inside a 0.6×–1.7× price band, not the same model family |
+| `comparable` | Informs what the market pays: similarity ≥ 0.40, inside 0.45×–2.2×. Real evidence, weighted at 0.6 |
+| `reference` | Same product type, outside that range. Describes the distribution; never anchors, never votes |
+
+Every non-direct member carries a `tierReason` saying which gate it missed.
+
+**Similarity** is a weighted mean of four terms — specifications 0.45, price
+segment 0.25, brand tier 0.15, marketplace overlap 0.15 — and a term that
+cannot be scored has its weight **redistributed** rather than filled with an
+invented value. Specification comparison runs over the full attribute
+schema, with pricing-relevant attributes weighted double.
+
+A missing attribute is `missing`, never `differ`. An absent specification is
+unknown, not different, and scoring it as a difference penalises a product
+for a gap in our capture rather than a gap in the product. It lowers
+`coverage` instead.
+
+**Evidence weight** is `similarity × dataQuality × tierFactor`. This is the
+number that stops a padded set buying confidence: `effectiveComparables` —
+the sum of weights, not the raw count — is what drives the coverage level.
+
+A competitor sharing **no** marketplace with the target is excluded outright:
+no buyer chooses between the two, so it is not evidence about this market.
+
+#### Coverage, and refusing
+
+| level | condition |
+|---|---|
+| `strong` | ≥ 5 direct competitors and ≥ 3.5 effective |
+| `adequate` | ≥ 5 members and ≥ 2.75 effective |
+| `thin` | ≥ 3 members |
+| `insufficient` | fewer than 3 |
+
+Below three the market cannot be described — a median is the midpoint of two
+numbers and a spread is meaningless — so **the analysis returns no findings
+at all**. The observation layers are still returned, because they are real;
+what disappears is the interpretation. Where the target is missed, the
+response carries counted `shortfallReasons` rather than a sentence, so a
+client learns that four candidates shared no marketplace without parsing
+prose.
+
+#### Findings
+
+A finding is a statement that needed at least two dimensions to reach.
+Eleven are produced, each carrying the figures behind it:
+
+`cheapest_is_best_trusted` · `price_tracks_trust` · `platform_spread` ·
+`shipping_reorders` · `per_unit_reversal` · `vs_comp_median` ·
+`trust_vs_comps` · `spec_position` · `historical_position` · `availability` ·
+`match_confidence`
+
+```json
+{
+  "id": "platform_spread",
+  "dimension": "Marketplace",
+  "direction": "neutral",
+  "headline": "The same product spans 17.3% across platforms",
+  "metrics": { "spreadPct": 17.3, "spreadMinor": 8800, "cheapestMarketplaceId": "mp_nykaa", … },
+  "evidence": [ { "marketplaceId": "mp_nykaa", "effectiveMinor": 50900 }, … ]
+}
+```
+
+**No prose is generated here.** The backend returns metrics and evidence; the
+interface phrases them. That is what keeps a finding checkable — a sentence
+cannot be verified against the database, a number can.
+
+Every block is guarded by the evidence it needs, so a finding cannot be
+produced without its support:
+
+| Missing | Suppressed |
+|---|---|
+| Fewer than 3 priced marketplaces | every cross-marketplace finding |
+| No quantity-bearing attribute | `per_unit_reversal` |
+| Fewer than 4 observations in the window | `historical_position` |
+| Fewer than 3 comparables | **all** findings |
+
+`direction` says which pricing posture a finding argues for. Note that a
+high historical percentile argues `aggressive` — little headroom left — and
+a low one argues `premium`. A distorted market argues neither.
+
+#### Windows
+
+The same seven horizons as Phase 4, and `from`/`to` overrides them — which
+is how a caller asks for the product's whole observed history. The response
+reports the range it used, and `window: null` when a range was given.
+
+Historical findings are computed over the selected window, so
+`?window=7d` and `?window=3m` genuinely answer different questions rather
+than relabelling one answer.
+
+#### The analysis context
+
+One context, built once per request in **eight batched queries**, shared by
+every finding. The frontend rebuilds pieces of it per finding because that
+is free in memory; here it would be a query storm. Nothing scales with the
+candidate count — the largest product type holds 29 products, and the
+per-candidate signals (current price, reviews, marketplace set, data
+quality) are four queries over the whole set, not four per member.
+
+#### Parity with the frontend engine
+
+The frontend engine is the source of truth. The backend is a translation of
+it, and `tests/analysis-parity.test.ts` asserts the two agree across ten
+golden products — **115 assertions** over competitive-set membership, tiers,
+similarity and its four components, evidence weight, data quality, spec
+match counts, coverage level, marketplace rows, price/trust correlation,
+historical statistics, the 90-day normal and its distortion, per-unit
+figures, competitor price gaps, trust deltas, and finding presence, absence,
+dimension and direction.
+
+The fixture is generated by `scripts/export-analysis-parity-fixture.mjs`,
+which runs on the frontend side because the engine's modules use Vite-style
+extensionless imports the backend runner cannot resolve.
+
+**Two things are deliberately not migrated**, and the parity test requires
+the difference to be exactly these:
+
+| Not migrated | Why |
+|---|---|
+| the `wtp` finding | it is the hedonic willingness-to-pay **model** |
+| `buildBridge` | it maps the three strategy prices into the analysis |
+
+Both are the pricing recommendation rather than inputs to it. They follow in
+the next phase. Every response states this in `meta.notMigrated` so an
+intentional omission is never mistaken for a bug.
+
+#### Performance
+
+Measured on the heaviest golden product, against the full 354,940-row
+observation table:
+
+| | queries | time |
+|---|---|---|
+| `/competitors` | 8 | ~1.0 s |
+| `/analysis` | 12 | ~0.8 s |
+
+No sequential scans. **No cache and no index were added**: the cost is
+dominated by the competitive set's per-candidate work, which is already
+batched, and a cache would need invalidating on every observation — for a
+sub-second endpoint that is machinery bought with nothing. If the candidate
+pool ever grows by an order of magnitude this is the first place to look.
+
+(These numbers are PGlite, which is WebAssembly; a native server is faster.)
 
 ### Validation
 
@@ -568,7 +747,7 @@ the ten-minute window the code itself is bounded by.
 ## Tests
 
 ```bash
-npm test              # 173 tests
+npm test              # 217 tests
 npx tsx --test tests/auth.test.ts      # one file
 ```
 
@@ -585,6 +764,8 @@ exercised with `app.inject()`, so nothing binds a port.
 | `tests/smtp-socket.test.ts` | SMTP-13 — a real SMTP conversation | 6 |
 | `tests/marketplace.test.ts` | MKT, LIST, SELL, OFFER, PROMO, REV + golden records | 40 |
 | `tests/price-history.test.ts` | HIST, PRICE + price-ladder parity | 24 |
+| `tests/analysis.test.ts` | COMP-01…12, ANALYSIS-01…12 + security | 29 |
+| `tests/analysis-parity.test.ts` | PARITY-01…10 against the frontend engine | 115 |
 
 ### Isolation
 
@@ -685,6 +866,7 @@ engine's extensionless imports:
 | Command | What it does |
 |---|---|
 | `node scripts/export-price-parity-fixture.mjs` | regenerate `server/tests/fixtures/price-ladder-parity.json` from `src/utils/priceLayers.js`. A diff in that file is a change to the pricing basis — regenerate deliberately. |
+| `node scripts/export-analysis-parity-fixture.mjs` | regenerate `server/tests/fixtures/analysis-parity.json` from the competitive-set and cross-marketplace engines. A diff is a change to the analytical engine. |
 
 ---
 

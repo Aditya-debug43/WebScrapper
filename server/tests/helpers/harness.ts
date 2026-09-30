@@ -34,6 +34,13 @@ export type SeedOptions = {
    * promotion attached to them.
    */
   marketplaceProducts?: string[];
+  /**
+   * Phase 5: also pull in every product sharing a product type with those,
+   * because the analysis engine's competitor candidates are exactly those
+   * peers. Without them a competitive set would be empty and every parity
+   * assertion would pass for the wrong reason.
+   */
+  includeProductTypePeers?: boolean;
 };
 
 export async function createTestApp(opts: SeedOptions = {}): Promise<Harness> {
@@ -57,6 +64,21 @@ export async function createTestApp(opts: SeedOptions = {}): Promise<Harness> {
 export async function createMarketplaceTestApp(productIds: string[]): Promise<Harness> {
   const email = new MemoryEmailAdapter();
   const built = await bootstrap(email, { marketplaceProducts: productIds });
+  return { ...built, email };
+}
+
+/**
+ * The same graph, expanded to every product sharing a product type with the
+ * ones named.
+ *
+ * The analysis engine's competitor candidates are exactly the other products
+ * of the same type, so a fixture holding only the target would find no
+ * competitors and every parity assertion would pass vacuously. The expansion
+ * is bounded — the largest product type in this dataset holds 29 products.
+ */
+export async function createAnalysisTestApp(productIds: string[]): Promise<Harness> {
+  const email = new MemoryEmailAdapter();
+  const built = await bootstrap(email, { marketplaceProducts: productIds, includeProductTypePeers: true });
   return { ...built, email };
 }
 
@@ -86,7 +108,9 @@ async function bootstrap(email: EmailAdapter, opts: SeedOptions): Promise<BuiltA
   }
 
   if (opts.seedCatalogue) await seedCatalogue(db);
-  if (opts.marketplaceProducts?.length) await seedMarketplaceGraph(db, opts.marketplaceProducts);
+  if (opts.marketplaceProducts?.length) {
+    await seedMarketplaceGraph(db, opts.marketplaceProducts, opts.includeProductTypePeers ?? false);
+  }
 
   return buildApp({ db, email, closeDb: async () => client.close() });
 }
@@ -132,6 +156,13 @@ const MAP = {
     id: r.id, marketplaceId: r.marketplaceId, externalNodeId: r.externalNodeId, rawPath: r.rawPath,
     mappedCategoryId: r.mappedCategoryId ?? null, mappingConfidence: r.mappingConfidence ?? null,
     mappedBy: r.mappedBy ?? null,
+  }),
+  attributeDefinitions: (r: any) => ({
+    id: r.id, productTypeId: r.productTypeId, schemaVersion: r.schemaVersion,
+    attributeKey: r.attributeKey, displayName: r.displayName, dataType: r.dataType, unit: r.unit ?? null,
+    isRequired: r.isRequired ?? false, isPricingRelevant: r.isPricingRelevant ?? false,
+    isFilterable: r.isFilterable ?? false, filterType: r.filterType ?? null,
+    buckets: r.buckets ?? null, higherIsBetter: r.higherIsBetter ?? null,
   }),
   listings: (r: any) => ({
     id: r.id, productId: r.productId, marketplaceId: r.marketplaceId,
@@ -246,9 +277,26 @@ async function seedCatalogue(db: ReturnType<typeof drizzle>) {
 }
 
 /** The complete entity graph for a set of products. See createMarketplaceTestApp. */
-async function seedMarketplaceGraph(db: ReturnType<typeof drizzle>, productIds: string[]) {
+async function seedMarketplaceGraph(
+  db: ReturnType<typeof drizzle>,
+  productIds: string[],
+  includeProductTypePeers = false
+) {
   requireDataset();
-  const wanted = new Set(productIds);
+  let wanted = new Set(productIds);
+
+  if (includeProductTypePeers) {
+    // One pass over products.ndjson: find the requested products' types, then
+    // take every purchasable product of those types.
+    const all = await collect("products", () => true);
+    const types = new Set(all.filter((p) => wanted.has(p.id)).map((p) => p.productTypeId));
+    const missing = productIds.filter((id) => !all.some((p) => p.id === id));
+    if (missing.length) throw new Error(`Unknown product ids: ${missing.join(", ")}`);
+    wanted = new Set(
+      all.filter((p) => types.has(p.productTypeId) && p.isPurchasable !== false).map((p) => p.id as string)
+    );
+    for (const id of productIds) wanted.add(id);
+  }
 
   // Reference data is small and whole; nothing is gained by filtering it.
   await load(db, "categories", t.categories, MAP.categories);
@@ -257,6 +305,13 @@ async function seedMarketplaceGraph(db: ReturnType<typeof drizzle>, productIds: 
   await load(db, "products", t.products, MAP.products);
   await load(db, "marketplaces", t.marketplaces, MAP.marketplaces);
   await load(db, "marketplace_categories", t.marketplaceCategories, MAP.marketplaceCategories);
+  /**
+   * Specification schema. Load-bearing for Phase 5: without it every
+   * specification comparison finds nothing to compare, the spec term drops
+   * out of the similarity, its weight is redistributed across the remaining
+   * terms — and the result is a plausible-looking number that is wrong.
+   */
+  await load(db, "attribute_definitions", t.attributeDefinitions, MAP.attributeDefinitions);
 
   const listingIds = new Set<string>();
   await load(db, "listings", t.listings, MAP.listings, {

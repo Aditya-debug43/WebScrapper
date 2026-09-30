@@ -15,6 +15,10 @@ import { registerCatalogueRoutes } from "./modules/catalogue/catalogue.routes.js
 import { MarketplaceRepository } from "./modules/marketplace/marketplace.repository.js";
 import { MarketplaceService } from "./modules/marketplace/marketplace.service.js";
 import { registerMarketplaceRoutes } from "./modules/marketplace/marketplace.routes.js";
+import { AnalysisRepository } from "./modules/analysis/analysis.repository.js";
+import { CompetitorService } from "./modules/analysis/competitor.service.js";
+import { AnalysisService } from "./modules/analysis/analysis.service.js";
+import { registerAnalysisRoutes } from "./modules/analysis/analysis.routes.js";
 
 export type BuiltApp = {
   app: FastifyInstance;
@@ -143,6 +147,12 @@ export async function buildApp(
   const catalogueService = new CatalogueService(new CatalogueRepository(db));
   const marketplaceService = new MarketplaceService(new MarketplaceRepository(db));
 
+  // One repository, one competitor service, shared by both analysis routes —
+  // /competitors and /analysis must never compute a different set.
+  const analysisRepository = new AnalysisRepository(db);
+  const competitorService = new CompetitorService(analysisRepository);
+  const analysisService = new AnalysisService(analysisRepository, competitorService);
+
   /**
    * Liveness only. No version, no commit, no database host, no dependency
    * detail — a health endpoint is unauthenticated by necessity and is the
@@ -155,6 +165,7 @@ export async function buildApp(
       registerAuthRoutes(v1, authService);
       registerCatalogueRoutes(v1, catalogueService);
       registerMarketplaceRoutes(v1, marketplaceService);
+      registerAnalysisRoutes(v1, analysisService);
     },
     { prefix: "/api/v1" }
   );

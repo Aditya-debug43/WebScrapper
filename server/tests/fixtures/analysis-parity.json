@@ -1,0 +1,5320 @@
+{
+  "generatedBy": "scripts/export-analysis-parity-fixture.mjs",
+  "note": "Expected values come from src/utils/competitiveSet.js and src/utils/crossMarketplaceAnalysis.js — the validated engine. Regenerate deliberately; a diff here is a change to the analytical engine.",
+  "notMigrated": [
+    "wtp",
+    "bridge"
+  ],
+  "caseCount": 10,
+  "cases": [
+    {
+      "productId": "prod_dove_hair_fall",
+      "shape": "strong coverage, 6 marketplaces, per-unit meaningful",
+      "canonicalName": "Dove Hair Fall Rescue Shampoo (650 ml)",
+      "productTypeId": "ptype_shampoo",
+      "competitiveSet": {
+        "memberIds": [
+          "prod_tresemme_hair_fall",
+          "prod_dove_shampoo",
+          "prod_pantene_shampoo",
+          "prod_head_shoulders_shampoo",
+          "prod_tresemme_shampoo",
+          "prod_loreal_shampoo",
+          "prod_mamaearth_shampoo",
+          "prod_indulekha_shampoo",
+          "prod_wow_shampoo"
+        ],
+        "directIds": [
+          "prod_tresemme_hair_fall",
+          "prod_dove_shampoo",
+          "prod_pantene_shampoo",
+          "prod_head_shoulders_shampoo",
+          "prod_tresemme_shampoo",
+          "prod_loreal_shampoo",
+          "prod_mamaearth_shampoo",
+          "prod_indulekha_shampoo"
+        ],
+        "comparableIds": [
+          "prod_wow_shampoo"
+        ],
+        "referenceIds": [
+          "prod_himalaya_shampoo"
+        ],
+        "excludedCount": 0,
+        "members": [
+          {
+            "productId": "prod_tresemme_hair_fall",
+            "tier": "direct",
+            "similarity": 0.8236398206763671,
+            "evidenceWeight": 0.784,
+            "currentPriceMinor": 49900,
+            "sharedMarketplaces": 5,
+            "marketplaceIds": [
+              "mp_amazon_in",
+              "mp_flipkart",
+              "mp_meesho",
+              "mp_myntra",
+              "mp_nykaa"
+            ],
+            "rating": 4.1,
+            "reviewCount": 69525,
+            "isSameFamily": false,
+            "qualityScore": 0.9517241379310345,
+            "specScore": 0.6835164835164835,
+            "specMatch": 2,
+            "specPartial": 1,
+            "specDiffer": 1,
+            "specMissing": 0,
+            "breakdown": {
+              "specScore": 0.6835164835164835,
+              "tierScore": 1,
+              "priceScore": 0.964229612375798,
+              "marketplaceScore": 0.8333333333333334
+            }
+          },
+          {
+            "productId": "prod_dove_shampoo",
+            "tier": "direct",
+            "similarity": 0.7443552343110188,
+            "evidenceWeight": 0.708,
+            "currentPriceMinor": 54900,
+            "sharedMarketplaces": 4,
+            "marketplaceIds": [
+              "mp_amazon_in",
+              "mp_flipkart",
+              "mp_meesho",
+              "mp_nykaa"
+            ],
+            "rating": 4.2,
+            "reviewCount": 85957,
+            "isSameFamily": false,
+            "qualityScore": 0.9517241379310345,
+            "specScore": 0.5714285714285714,
+            "specMatch": 2,
+            "specPartial": 0,
+            "specDiffer": 2,
+            "specMissing": 0,
+            "breakdown": {
+              "specScore": 0.5714285714285714,
+              "tierScore": 1,
+              "priceScore": 0.9488495086726466,
+              "marketplaceScore": 0.6666666666666666
+            }
+          },
+          {
+            "productId": "prod_pantene_shampoo",
+            "tier": "direct",
+            "similarity": 0.7286521046828149,
+            "evidenceWeight": 0.693,
+            "currentPriceMinor": 48000,
+            "sharedMarketplaces": 4,
+            "marketplaceIds": [
+              "mp_amazon_in",
+              "mp_flipkart",
+              "mp_meesho",
+              "mp_myntra"
+            ],
+            "rating": 4.1,
+            "reviewCount": 65873,
+            "isSameFamily": false,
+            "qualityScore": 0.9517241379310345,
+            "specScore": 0.7142857142857143,
+            "specMatch": 3,
+            "specPartial": 0,
+            "specDiffer": 1,
+            "specMissing": 0,
+            "breakdown": {
+              "specScore": 0.7142857142857143,
+              "tierScore": 0.5,
+              "priceScore": 0.9288941330169742,
+              "marketplaceScore": 0.6666666666666666
+            }
+          },
+          {
+            "productId": "prod_head_shoulders_shampoo",
+            "tier": "direct",
+            "similarity": 0.7275006832895689,
+            "evidenceWeight": 0.692,
+            "currentPriceMinor": 58200,
+            "sharedMarketplaces": 3,
+            "marketplaceIds": [
+              "mp_amazon_in",
+              "mp_flipkart",
+              "mp_nykaa"
+            ],
+            "rating": 4.2,
+            "reviewCount": 63145,
+            "isSameFamily": false,
+            "qualityScore": 0.9517241379310345,
+            "specScore": 0.6190476190476192,
+            "specMatch": 2,
+            "specPartial": 1,
+            "specDiffer": 1,
+            "specMissing": 0,
+            "breakdown": {
+              "specScore": 0.6190476190476192,
+              "tierScore": 1,
+              "priceScore": 0.8957170188725609,
+              "marketplaceScore": 0.5
+            }
+          },
+          {
+            "productId": "prod_tresemme_shampoo",
+            "tier": "direct",
+            "similarity": 0.7182967032967033,
+            "evidenceWeight": 0.684,
+            "currentPriceMinor": 51900,
+            "sharedMarketplaces": 3,
+            "marketplaceIds": [
+              "mp_amazon_in",
+              "mp_flipkart",
+              "mp_nykaa"
+            ],
+            "rating": 4.1,
+            "reviewCount": 69715,
+            "isSameFamily": false,
+            "qualityScore": 0.9517241379310345,
+            "specScore": 0.5406593406593406,
+            "specMatch": 1,
+            "specPartial": 1,
+            "specDiffer": 2,
+            "specMissing": 0,
+            "breakdown": {
+              "specScore": 0.5406593406593406,
+              "tierScore": 1,
+              "priceScore": 1,
+              "marketplaceScore": 0.5
+            }
+          },
+          {
+            "productId": "prod_loreal_shampoo",
+            "tier": "direct",
+            "similarity": 0.633903137050049,
+            "evidenceWeight": 0.603,
+            "currentPriceMinor": 63600,
+            "sharedMarketplaces": 4,
+            "marketplaceIds": [
+              "mp_ajio",
+              "mp_amazon_in",
+              "mp_flipkart",
+              "mp_nykaa"
+            ],
+            "rating": 4.2,
+            "reviewCount": 49807,
+            "isSameFamily": false,
+            "qualityScore": 0.9517241379310345,
+            "specScore": 0.567032967032967,
+            "specMatch": 2,
+            "specPartial": 0,
+            "specDiffer": 2,
+            "specMissing": 0,
+            "breakdown": {
+              "specScore": 0.567032967032967,
+              "tierScore": 0.5,
+              "priceScore": 0.8149532075408554,
+              "marketplaceScore": 0.6666666666666666
+            }
+          },
+          {
+            "productId": "prod_mamaearth_shampoo",
+            "tier": "direct",
+            "similarity": 0.608911955782979,
+            "evidenceWeight": 0.58,
+            "currentPriceMinor": 44600,
+            "sharedMarketplaces": 4,
+            "marketplaceIds": [
+              "mp_amazon_in",
+              "mp_meesho",
+              "mp_myntra",
+              "mp_nykaa"
+            ],
+            "rating": 4,
+            "reviewCount": 93187,
+            "isSameFamily": false,
+            "qualityScore": 0.9517241379310345,
+            "specScore": 0.3186813186813187,
+            "specMatch": 1,
+            "specPartial": 1,
+            "specDiffer": 2,
+            "specMissing": 0,
+            "breakdown": {
+              "specScore": 0.3186813186813187,
+              "tierScore": 1,
+              "priceScore": 0.8620214495055423,
+              "marketplaceScore": 0.6666666666666666
+            }
+          },
+          {
+            "productId": "prod_indulekha_shampoo",
+            "tier": "direct",
+            "similarity": 0.581537267142637,
+            "evidenceWeight": 0.553,
+            "currentPriceMinor": 46500,
+            "sharedMarketplaces": 3,
+            "marketplaceIds": [
+              "mp_amazon_in",
+              "mp_flipkart",
+              "mp_nykaa"
+            ],
+            "rating": 4,
+            "reviewCount": 35405,
+            "isSameFamily": false,
+            "qualityScore": 0.9517241379310345,
+            "specScore": 0.29230769230769227,
+            "specMatch": 1,
+            "specPartial": 1,
+            "specDiffer": 2,
+            "specMissing": 0,
+            "breakdown": {
+              "specScore": 0.29230769230769227,
+              "tierScore": 1,
+              "priceScore": 0.8999952224167019,
+              "marketplaceScore": 0.5
+            }
+          },
+          {
+            "productId": "prod_wow_shampoo",
+            "tier": "comparable",
+            "similarity": 0.477357903856473,
+            "evidenceWeight": 0.273,
+            "currentPriceMinor": 42300,
+            "sharedMarketplaces": 4,
+            "marketplaceIds": [
+              "mp_amazon_in",
+              "mp_flipkart",
+              "mp_meesho",
+              "mp_nykaa"
+            ],
+            "rating": 3.9,
+            "reviewCount": 56635,
+            "isSameFamily": false,
+            "qualityScore": 0.9517241379310345,
+            "specScore": 0.21978021978021975,
+            "specMatch": 0,
+            "specPartial": 1,
+            "specDiffer": 3,
+            "specMissing": 0,
+            "breakdown": {
+              "specScore": 0.21978021978021975,
+              "tierScore": 0.5,
+              "priceScore": 0.8138272198214964,
+              "marketplaceScore": 0.6666666666666666
+            }
+          }
+        ],
+        "coverage": {
+          "directCount": 8,
+          "comparableCount": 1,
+          "totalCount": 9,
+          "effectiveComparables": 5.57,
+          "meetsTarget": true,
+          "sufficient": true,
+          "level": "strong"
+        }
+      },
+      "marketplace": {
+        "marketplaceCount": 6,
+        "pricedCount": 6,
+        "cheapestMarketplaceId": "mp_amazon_in",
+        "dearestMarketplaceId": "mp_ajio",
+        "spreadMinor": 9000,
+        "spreadPct": 17.3,
+        "medianEffectiveMinor": 58250,
+        "priceTrustCorrelation": -0.94,
+        "cheapestIsAlsoBestTrusted": true,
+        "shippingReordersRanking": false,
+        "platformsWithPaidShipping": 2,
+        "platformsWithStockGap": 1,
+        "lowestMatchConfidence": 0.92
+      },
+      "marketplaceRows": [
+        {
+          "marketplaceId": "mp_amazon_in",
+          "offerCount": 5,
+          "inStockCount": 5,
+          "headlineMinor": 56900,
+          "landedMinor": 56900,
+          "effectiveMinor": 51900,
+          "shippingMinor": 0,
+          "rating": 4.3,
+          "reviewCount": 38200,
+          "trustRating": 4.3,
+          "matchConfidence": 0.97,
+          "promoCount": {
+            "universal": 3,
+            "conditional": 2,
+            "deferred": 0,
+            "financing": 0
+          },
+          "hasUniversalPromo": true
+        },
+        {
+          "marketplaceId": "mp_flipkart",
+          "offerCount": 5,
+          "inStockCount": 5,
+          "headlineMinor": 57400,
+          "landedMinor": 57400,
+          "effectiveMinor": 57400,
+          "shippingMinor": 0,
+          "rating": 4.2,
+          "reviewCount": 21010,
+          "trustRating": 4.2,
+          "matchConfidence": 0.92,
+          "promoCount": {
+            "universal": 0,
+            "conditional": 0,
+            "deferred": 0,
+            "financing": 0
+          },
+          "hasUniversalPromo": false
+        },
+        {
+          "marketplaceId": "mp_meesho",
+          "offerCount": 5,
+          "inStockCount": 5,
+          "headlineMinor": 57400,
+          "landedMinor": 57400,
+          "effectiveMinor": 57400,
+          "shippingMinor": 0,
+          "rating": 4,
+          "reviewCount": 7003,
+          "trustRating": 3.98,
+          "matchConfidence": 0.92,
+          "promoCount": {
+            "universal": 0,
+            "conditional": 1,
+            "deferred": 0,
+            "financing": 0
+          },
+          "hasUniversalPromo": false
+        },
+        {
+          "marketplaceId": "mp_nykaa",
+          "offerCount": 5,
+          "inStockCount": 5,
+          "headlineMinor": 59100,
+          "landedMinor": 59100,
+          "effectiveMinor": 59100,
+          "shippingMinor": 0,
+          "rating": 4.1,
+          "reviewCount": 10505,
+          "trustRating": 4.1,
+          "matchConfidence": 0.92,
+          "promoCount": {
+            "universal": 0,
+            "conditional": 1,
+            "deferred": 0,
+            "financing": 0
+          },
+          "hasUniversalPromo": false
+        },
+        {
+          "marketplaceId": "mp_myntra",
+          "offerCount": 5,
+          "inStockCount": 5,
+          "headlineMinor": 60700,
+          "landedMinor": 60700,
+          "effectiveMinor": 60700,
+          "shippingMinor": 0,
+          "rating": 3.9,
+          "reviewCount": 5253,
+          "trustRating": 3.87,
+          "matchConfidence": 0.92,
+          "promoCount": {
+            "universal": 0,
+            "conditional": 0,
+            "deferred": 0,
+            "financing": 0
+          },
+          "hasUniversalPromo": false
+        },
+        {
+          "marketplaceId": "mp_ajio",
+          "offerCount": 5,
+          "inStockCount": 4,
+          "headlineMinor": 60900,
+          "landedMinor": 60900,
+          "effectiveMinor": 60900,
+          "shippingMinor": 0,
+          "rating": 3.8,
+          "reviewCount": 4202,
+          "trustRating": 3.77,
+          "matchConfidence": 0.92,
+          "promoCount": {
+            "universal": 1,
+            "conditional": 2,
+            "deferred": 0,
+            "financing": 0
+          },
+          "hasUniversalPromo": true
+        }
+      ],
+      "unitBasis": {
+        "key": "volume_ml",
+        "unit": "ml",
+        "value": 650
+      },
+      "history": {
+        "observationCount": 61,
+        "firstDate": "2026-04-17",
+        "lastDate": "2026-08-14",
+        "minMinor": 51900,
+        "maxMinor": 58000,
+        "medianMinor": 57000,
+        "currentMinor": 51900,
+        "percentile": 0,
+        "volatility": 3.2,
+        "volatilityBand": "moderate",
+        "promoDays": 4,
+        "trendPct": -8.9
+      },
+      "normalMinor": 57000,
+      "distortionState": "normal",
+      "distortionRatio": 1.0736842105263158,
+      "strength": {
+        "targetRating": 4.2,
+        "targetReviews": 86173,
+        "medianRating": 4.1,
+        "medianReviews": 65873,
+        "specAdvantageCount": 1,
+        "specDisadvantageCount": 0
+      },
+      "competitors": {
+        "ownUnitPriceMinor": 94.15384615384616,
+        "targetTrustRating": 4.2,
+        "cheaperCount": 8,
+        "dearerCount": 1,
+        "reversalIds": [
+          "prod_mamaearth_shampoo",
+          "prod_indulekha_shampoo"
+        ],
+        "strongerTrustCount": 0,
+        "rows": [
+          {
+            "id": "prod_tresemme_hair_fall",
+            "tier": "direct",
+            "similarity": 0.8236398206763671,
+            "evidenceWeight": 0.784,
+            "priceMinor": 49900,
+            "priceGapPct": -18.5,
+            "unitValue": 580,
+            "unitPriceMinor": 86.03448275862068,
+            "unitGapPct": -8.6,
+            "cheaperButDearerPerUnit": false,
+            "trustRating": 4.1,
+            "trustDelta": -0.1
+          },
+          {
+            "id": "prod_dove_shampoo",
+            "tier": "direct",
+            "similarity": 0.7443552343110188,
+            "evidenceWeight": 0.708,
+            "priceMinor": 54900,
+            "priceGapPct": -10.3,
+            "unitValue": 650,
+            "unitPriceMinor": 84.46153846153847,
+            "unitGapPct": -10.3,
+            "cheaperButDearerPerUnit": false,
+            "trustRating": 4.2,
+            "trustDelta": 0
+          },
+          {
+            "id": "prod_pantene_shampoo",
+            "tier": "direct",
+            "similarity": 0.7286521046828149,
+            "evidenceWeight": 0.693,
+            "priceMinor": 48000,
+            "priceGapPct": -21.6,
+            "unitValue": 650,
+            "unitPriceMinor": 73.84615384615384,
+            "unitGapPct": -21.6,
+            "cheaperButDearerPerUnit": false,
+            "trustRating": 4.1,
+            "trustDelta": -0.1
+          },
+          {
+            "id": "prod_head_shoulders_shampoo",
+            "tier": "direct",
+            "similarity": 0.7275006832895689,
+            "evidenceWeight": 0.692,
+            "priceMinor": 58200,
+            "priceGapPct": -4.9,
+            "unitValue": 650,
+            "unitPriceMinor": 89.53846153846153,
+            "unitGapPct": -4.9,
+            "cheaperButDearerPerUnit": false,
+            "trustRating": 4.2,
+            "trustDelta": 0
+          },
+          {
+            "id": "prod_tresemme_shampoo",
+            "tier": "direct",
+            "similarity": 0.7182967032967033,
+            "evidenceWeight": 0.684,
+            "priceMinor": 51900,
+            "priceGapPct": -15.2,
+            "unitValue": 580,
+            "unitPriceMinor": 89.48275862068965,
+            "unitGapPct": -5,
+            "cheaperButDearerPerUnit": false,
+            "trustRating": 4.1,
+            "trustDelta": -0.1
+          },
+          {
+            "id": "prod_loreal_shampoo",
+            "tier": "direct",
+            "similarity": 0.633903137050049,
+            "evidenceWeight": 0.603,
+            "priceMinor": 63600,
+            "priceGapPct": 3.9,
+            "unitValue": 640,
+            "unitPriceMinor": 99.375,
+            "unitGapPct": 5.5,
+            "cheaperButDearerPerUnit": false,
+            "trustRating": 4.2,
+            "trustDelta": 0
+          },
+          {
+            "id": "prod_mamaearth_shampoo",
+            "tier": "direct",
+            "similarity": 0.608911955782979,
+            "evidenceWeight": 0.58,
+            "priceMinor": 44600,
+            "priceGapPct": -27.1,
+            "unitValue": 400,
+            "unitPriceMinor": 111.5,
+            "unitGapPct": 18.4,
+            "cheaperButDearerPerUnit": true,
+            "trustRating": 4,
+            "trustDelta": -0.2
+          },
+          {
+            "id": "prod_indulekha_shampoo",
+            "tier": "direct",
+            "similarity": 0.581537267142637,
+            "evidenceWeight": 0.553,
+            "priceMinor": 46500,
+            "priceGapPct": -24,
+            "unitValue": 340,
+            "unitPriceMinor": 136.76470588235293,
+            "unitGapPct": 45.3,
+            "cheaperButDearerPerUnit": true,
+            "trustRating": 4,
+            "trustDelta": -0.2
+          },
+          {
+            "id": "prod_wow_shampoo",
+            "tier": "comparable",
+            "similarity": 0.477357903856473,
+            "evidenceWeight": 0.273,
+            "priceMinor": 42300,
+            "priceGapPct": -30.9,
+            "unitValue": 500,
+            "unitPriceMinor": 84.6,
+            "unitGapPct": -10.1,
+            "cheaperButDearerPerUnit": false,
+            "trustRating": 3.9,
+            "trustDelta": -0.3
+          }
+        ]
+      },
+      "ownMarket": {
+        "n": 29,
+        "min": 51900,
+        "median": 61200,
+        "max": 66000
+      },
+      "competitiveStatistics": {
+        "n": 9,
+        "min": 42300,
+        "median": 49663,
+        "max": 63600
+      },
+      "findingIds": [
+        "availability",
+        "cheapest_is_best_trusted",
+        "historical_position",
+        "match_confidence",
+        "per_unit_reversal",
+        "platform_spread",
+        "spec_position",
+        "trust_vs_comps",
+        "vs_comp_median",
+        "wtp"
+      ],
+      "findings": [
+        {
+          "id": "cheapest_is_best_trusted",
+          "dimension": "Marketplace",
+          "direction": "aggressive"
+        },
+        {
+          "id": "platform_spread",
+          "dimension": "Marketplace",
+          "direction": "neutral"
+        },
+        {
+          "id": "per_unit_reversal",
+          "dimension": "Competitor",
+          "direction": "premium"
+        },
+        {
+          "id": "vs_comp_median",
+          "dimension": "Competitor",
+          "direction": "premium"
+        },
+        {
+          "id": "trust_vs_comps",
+          "dimension": "Trust",
+          "direction": "premium"
+        },
+        {
+          "id": "spec_position",
+          "dimension": "Specification",
+          "direction": "premium"
+        },
+        {
+          "id": "historical_position",
+          "dimension": "History",
+          "direction": "premium"
+        },
+        {
+          "id": "wtp",
+          "dimension": "Willingness to pay",
+          "direction": "premium"
+        },
+        {
+          "id": "availability",
+          "dimension": "Availability",
+          "direction": "neutral"
+        },
+        {
+          "id": "match_confidence",
+          "dimension": "Data quality",
+          "direction": "neutral"
+        }
+      ],
+      "analysisState": {
+        "available": true,
+        "limited": false,
+        "attributeCount": 4
+      }
+    },
+    {
+      "productId": "prod_lakme_gloss_lip",
+      "shape": "strong competition, 5 marketplaces",
+      "canonicalName": "Lakme Absolute Gloss Stylist Lipstick",
+      "productTypeId": "ptype_lipstick",
+      "competitiveSet": {
+        "memberIds": [
+          "prod_colorbar_lipstick",
+          "prod_faces_ultime",
+          "prod_maybelline_lipstick",
+          "prod_maybelline_sensational",
+          "prod_sugar_lipstick",
+          "prod_loreal_color_riche",
+          "prod_lakme_lipstick",
+          "prod_sugar_matte_bullet",
+          "prod_colorbar_kissproof",
+          "prod_faces_lipstick"
+        ],
+        "directIds": [
+          "prod_colorbar_lipstick",
+          "prod_faces_ultime",
+          "prod_maybelline_lipstick",
+          "prod_maybelline_sensational",
+          "prod_sugar_lipstick",
+          "prod_loreal_color_riche",
+          "prod_lakme_lipstick"
+        ],
+        "comparableIds": [
+          "prod_sugar_matte_bullet",
+          "prod_colorbar_kissproof",
+          "prod_faces_lipstick"
+        ],
+        "referenceIds": [
+          "prod_loreal_lipstick"
+        ],
+        "excludedCount": 0,
+        "members": [
+          {
+            "productId": "prod_colorbar_lipstick",
+            "tier": "direct",
+            "similarity": 0.6484288635701005,
+            "evidenceWeight": 0.617,
+            "currentPriceMinor": 43000,
+            "sharedMarketplaces": 2,
+            "marketplaceIds": [
+              "mp_amazon_in",
+              "mp_flipkart",
+              "mp_nykaa"
+            ],
+            "rating": 4,
+            "reviewCount": 33580,
+            "isSameFamily": false,
+            "qualityScore": 0.9517241379310345,
+            "specScore": 0.5523809523809524,
+            "specMatch": 1,
+            "specPartial": 1,
+            "specDiffer": 2,
+            "specMissing": 0,
+            "breakdown": {
+              "specScore": 0.5523809523809524,
+              "tierScore": 1,
+              "priceScore": 0.7994297399946877,
+              "marketplaceScore": 0.3333333333333333
+            }
+          },
+          {
+            "productId": "prod_faces_ultime",
+            "tier": "direct",
+            "similarity": 0.6426698781279829,
+            "evidenceWeight": 0.612,
+            "currentPriceMinor": 37800,
+            "sharedMarketplaces": 3,
+            "marketplaceIds": [
+              "mp_amazon_in",
+              "mp_meesho",
+              "mp_nykaa"
+            ],
+            "rating": 3.9,
+            "reviewCount": 33945,
+            "isSameFamily": false,
+            "qualityScore": 0.9517241379310345,
+            "specScore": 0.6825396825396826,
+            "specMatch": 2,
+            "specPartial": 1,
+            "specDiffer": 1,
+            "specMissing": 0,
+            "breakdown": {
+              "specScore": 0.6825396825396826,
+              "tierScore": 0.5,
+              "priceScore": 0.6821080839405034,
+              "marketplaceScore": 0.6
+            }
+          },
+          {
+            "productId": "prod_maybelline_lipstick",
+            "tier": "direct",
+            "similarity": 0.6411872179230476,
+            "evidenceWeight": 0.61,
+            "currentPriceMinor": 59700,
+            "sharedMarketplaces": 5,
+            "marketplaceIds": [
+              "mp_ajio",
+              "mp_amazon_in",
+              "mp_meesho",
+              "mp_myntra",
+              "mp_nykaa"
+            ],
+            "rating": 4.3,
+            "reviewCount": 99138,
+            "isSameFamily": false,
+            "qualityScore": 0.9517241379310345,
+            "specScore": 0.2571428571428572,
+            "specMatch": 0,
+            "specPartial": 1,
+            "specDiffer": 3,
+            "specMissing": 0,
+            "breakdown": {
+              "specScore": 0.2571428571428572,
+              "tierScore": 1,
+              "priceScore": 0.9018917288350473,
+              "marketplaceScore": 1
+            }
+          },
+          {
+            "productId": "prod_maybelline_sensational",
+            "tier": "direct",
+            "similarity": 0.6317775398383976,
+            "evidenceWeight": 0.601,
+            "currentPriceMinor": 41500,
+            "sharedMarketplaces": 2,
+            "marketplaceIds": [
+              "mp_amazon_in",
+              "mp_flipkart",
+              "mp_nykaa"
+            ],
+            "rating": 4.1,
+            "reviewCount": 70080,
+            "isSameFamily": false,
+            "qualityScore": 0.9517241379310345,
+            "specScore": 0.5333333333333333,
+            "specMatch": 1,
+            "specPartial": 1,
+            "specDiffer": 2,
+            "specMissing": 0,
+            "breakdown": {
+              "specScore": 0.5333333333333333,
+              "tierScore": 1,
+              "priceScore": 0.7671101593535902,
+              "marketplaceScore": 0.3333333333333333
+            }
+          },
+          {
+            "productId": "prod_sugar_lipstick",
+            "tier": "direct",
+            "similarity": 0.6288324072624101,
+            "evidenceWeight": 0.598,
+            "currentPriceMinor": 54900,
+            "sharedMarketplaces": 3,
+            "marketplaceIds": [
+              "mp_meesho",
+              "mp_myntra",
+              "mp_nykaa"
+            ],
+            "rating": 4.2,
+            "reviewCount": 52195,
+            "isSameFamily": false,
+            "qualityScore": 0.9517241379310345,
+            "specScore": 0.32063492063492066,
+            "specMatch": 1,
+            "specPartial": 1,
+            "specDiffer": 2,
+            "specMissing": 0,
+            "breakdown": {
+              "specScore": 0.32063492063492066,
+              "tierScore": 1,
+              "priceScore": 0.978186771906783,
+              "marketplaceScore": 0.6
+            }
+          },
+          {
+            "productId": "prod_loreal_color_riche",
+            "tier": "direct",
+            "similarity": 0.603143105583405,
+            "evidenceWeight": 0.574,
+            "currentPriceMinor": 74900,
+            "sharedMarketplaces": 4,
+            "marketplaceIds": [
+              "mp_amazon_in",
+              "mp_meesho",
+              "mp_myntra",
+              "mp_nykaa"
+            ],
+            "rating": 4.2,
+            "reviewCount": 40970,
+            "isSameFamily": false,
+            "qualityScore": 0.9517241379310345,
+            "specScore": 0.5206349206349207,
+            "specMatch": 1,
+            "specPartial": 1,
+            "specDiffer": 2,
+            "specMissing": 0,
+            "breakdown": {
+              "specScore": 0.5206349206349207,
+              "tierScore": 0.5,
+              "priceScore": 0.6954295651907627,
+              "marketplaceScore": 0.8
+            }
+          },
+          {
+            "productId": "prod_lakme_lipstick",
+            "tier": "direct",
+            "similarity": 0.5951687565385329,
+            "evidenceWeight": 0.566,
+            "currentPriceMinor": 61300,
+            "sharedMarketplaces": 4,
+            "marketplaceIds": [
+              "mp_ajio",
+              "mp_amazon_in",
+              "mp_myntra",
+              "mp_nykaa"
+            ],
+            "rating": 4.1,
+            "reviewCount": 65070,
+            "isSameFamily": false,
+            "qualityScore": 0.9517241379310345,
+            "specScore": 0.23492063492063495,
+            "specMatch": 0,
+            "specPartial": 1,
+            "specDiffer": 3,
+            "specMissing": 0,
+            "breakdown": {
+              "specScore": 0.23492063492063495,
+              "tierScore": 1,
+              "priceScore": 0.8778178832969886,
+              "marketplaceScore": 0.8
+            }
+          },
+          {
+            "productId": "prod_sugar_matte_bullet",
+            "tier": "comparable",
+            "similarity": 0.5497118619118644,
+            "evidenceWeight": 0.314,
+            "currentPriceMinor": 59900,
+            "sharedMarketplaces": 3,
+            "marketplaceIds": [
+              "mp_flipkart",
+              "mp_meesho",
+              "mp_myntra",
+              "mp_nykaa"
+            ],
+            "rating": 4.2,
+            "reviewCount": 45790,
+            "isSameFamily": false,
+            "qualityScore": 0.9517241379310345,
+            "specScore": 0.22222222222222224,
+            "specMatch": 0,
+            "specPartial": 1,
+            "specDiffer": 3,
+            "specMissing": 0,
+            "breakdown": {
+              "specScore": 0.22222222222222224,
+              "tierScore": 1,
+              "priceScore": 0.8988474476474576,
+              "marketplaceScore": 0.5
+            }
+          },
+          {
+            "productId": "prod_colorbar_kissproof",
+            "tier": "comparable",
+            "similarity": 0.5464681376663812,
+            "evidenceWeight": 0.312,
+            "currentPriceMinor": 64900,
+            "sharedMarketplaces": 3,
+            "marketplaceIds": [
+              "mp_amazon_in",
+              "mp_meesho",
+              "mp_nykaa"
+            ],
+            "rating": 4.1,
+            "reviewCount": 25915,
+            "isSameFamily": false,
+            "qualityScore": 0.9517241379310345,
+            "specScore": 0.22222222222222224,
+            "specMatch": 0,
+            "specPartial": 1,
+            "specDiffer": 3,
+            "specMissing": 0,
+            "breakdown": {
+              "specScore": 0.22222222222222224,
+              "tierScore": 1,
+              "priceScore": 0.8258725506655249,
+              "marketplaceScore": 0.6
+            }
+          },
+          {
+            "productId": "prod_faces_lipstick",
+            "tier": "comparable",
+            "similarity": 0.5202198227365606,
+            "evidenceWeight": 0.297,
+            "currentPriceMinor": 34900,
+            "sharedMarketplaces": 2,
+            "marketplaceIds": [
+              "mp_amazon_in",
+              "mp_flipkart",
+              "mp_nykaa"
+            ],
+            "rating": 3.9,
+            "reviewCount": 26645,
+            "isSameFamily": false,
+            "qualityScore": 0.9517241379310345,
+            "specScore": 0.5396825396825397,
+            "specMatch": 1,
+            "specPartial": 1,
+            "specDiffer": 2,
+            "specMissing": 0,
+            "breakdown": {
+              "specScore": 0.5396825396825397,
+              "tierScore": 0.5,
+              "priceScore": 0.609450719517671,
+              "marketplaceScore": 0.3333333333333333
+            }
+          }
+        ],
+        "coverage": {
+          "directCount": 7,
+          "comparableCount": 3,
+          "totalCount": 10,
+          "effectiveComparables": 5.1,
+          "meetsTarget": true,
+          "sufficient": true,
+          "level": "strong"
+        }
+      },
+      "marketplace": {
+        "marketplaceCount": 5,
+        "pricedCount": 5,
+        "cheapestMarketplaceId": "mp_nykaa",
+        "dearestMarketplaceId": "mp_ajio",
+        "spreadMinor": 4000,
+        "spreadPct": 7.5,
+        "medianEffectiveMinor": 55100,
+        "priceTrustCorrelation": -0.7,
+        "cheapestIsAlsoBestTrusted": true,
+        "shippingReordersRanking": true,
+        "platformsWithPaidShipping": 2,
+        "platformsWithStockGap": 1,
+        "lowestMatchConfidence": 0.92
+      },
+      "marketplaceRows": [
+        {
+          "marketplaceId": "mp_nykaa",
+          "offerCount": 4,
+          "inStockCount": 4,
+          "headlineMinor": 57600,
+          "landedMinor": 57600,
+          "effectiveMinor": 53600,
+          "shippingMinor": 0,
+          "rating": 4.1,
+          "reviewCount": 26400,
+          "trustRating": 4.1,
+          "matchConfidence": 0.97,
+          "promoCount": {
+            "universal": 2,
+            "conditional": 0,
+            "deferred": 0,
+            "financing": 0
+          },
+          "hasUniversalPromo": true
+        },
+        {
+          "marketplaceId": "mp_meesho",
+          "offerCount": 4,
+          "inStockCount": 4,
+          "headlineMinor": 54900,
+          "landedMinor": 54900,
+          "effectiveMinor": 54900,
+          "shippingMinor": 0,
+          "rating": 3.8,
+          "reviewCount": 4840,
+          "trustRating": 3.78,
+          "matchConfidence": 0.92,
+          "promoCount": {
+            "universal": 0,
+            "conditional": 1,
+            "deferred": 0,
+            "financing": 0
+          },
+          "hasUniversalPromo": false
+        },
+        {
+          "marketplaceId": "mp_amazon_in",
+          "offerCount": 4,
+          "inStockCount": 4,
+          "headlineMinor": 55100,
+          "landedMinor": 55100,
+          "effectiveMinor": 55100,
+          "shippingMinor": 0,
+          "rating": 4,
+          "reviewCount": 14520,
+          "trustRating": 4,
+          "matchConfidence": 0.92,
+          "promoCount": {
+            "universal": 0,
+            "conditional": 2,
+            "deferred": 0,
+            "financing": 0
+          },
+          "hasUniversalPromo": false
+        },
+        {
+          "marketplaceId": "mp_myntra",
+          "offerCount": 4,
+          "inStockCount": 3,
+          "headlineMinor": 56700,
+          "landedMinor": 56700,
+          "effectiveMinor": 56700,
+          "shippingMinor": 0,
+          "rating": 3.9,
+          "reviewCount": 7260,
+          "trustRating": 3.89,
+          "matchConfidence": 0.92,
+          "promoCount": {
+            "universal": 0,
+            "conditional": 2,
+            "deferred": 0,
+            "financing": 0
+          },
+          "hasUniversalPromo": false
+        },
+        {
+          "marketplaceId": "mp_ajio",
+          "offerCount": 4,
+          "inStockCount": 4,
+          "headlineMinor": 52700,
+          "landedMinor": 57600,
+          "effectiveMinor": 57600,
+          "shippingMinor": 4900,
+          "rating": 3.7,
+          "reviewCount": 3630,
+          "trustRating": 3.68,
+          "matchConfidence": 0.92,
+          "promoCount": {
+            "universal": 0,
+            "conditional": 2,
+            "deferred": 0,
+            "financing": 0
+          },
+          "hasUniversalPromo": false
+        }
+      ],
+      "unitBasis": null,
+      "history": {
+        "observationCount": 61,
+        "firstDate": "2026-04-17",
+        "lastDate": "2026-08-14",
+        "minMinor": 52000,
+        "maxMinor": 56000,
+        "medianMinor": 55000,
+        "currentMinor": 53600,
+        "percentile": 10,
+        "volatility": 1.7,
+        "volatilityBand": "stable",
+        "promoDays": 4,
+        "trendPct": -4.3
+      },
+      "normalMinor": 55000,
+      "distortionState": "normal",
+      "distortionRatio": 1.0454545454545454,
+      "strength": {
+        "targetRating": 4,
+        "targetReviews": 56650,
+        "medianRating": 4.1,
+        "medianReviews": 43380,
+        "specAdvantageCount": 1,
+        "specDisadvantageCount": 0
+      },
+      "competitors": {
+        "ownUnitPriceMinor": null,
+        "targetTrustRating": 4,
+        "cheaperCount": 5,
+        "dearerCount": 5,
+        "reversalIds": [],
+        "strongerTrustCount": 7,
+        "rows": [
+          {
+            "id": "prod_colorbar_lipstick",
+            "tier": "direct",
+            "similarity": 0.6484288635701005,
+            "evidenceWeight": 0.617,
+            "priceMinor": 43000,
+            "priceGapPct": -25.2,
+            "unitValue": null,
+            "unitPriceMinor": null,
+            "unitGapPct": null,
+            "cheaperButDearerPerUnit": false,
+            "trustRating": 4,
+            "trustDelta": 0
+          },
+          {
+            "id": "prod_faces_ultime",
+            "tier": "direct",
+            "similarity": 0.6426698781279829,
+            "evidenceWeight": 0.612,
+            "priceMinor": 37800,
+            "priceGapPct": -34.3,
+            "unitValue": null,
+            "unitPriceMinor": null,
+            "unitGapPct": null,
+            "cheaperButDearerPerUnit": false,
+            "trustRating": 3.9,
+            "trustDelta": -0.1
+          },
+          {
+            "id": "prod_maybelline_lipstick",
+            "tier": "direct",
+            "similarity": 0.6411872179230476,
+            "evidenceWeight": 0.61,
+            "priceMinor": 59700,
+            "priceGapPct": 3.8,
+            "unitValue": null,
+            "unitPriceMinor": null,
+            "unitGapPct": null,
+            "cheaperButDearerPerUnit": false,
+            "trustRating": 4.3,
+            "trustDelta": 0.3
+          },
+          {
+            "id": "prod_maybelline_sensational",
+            "tier": "direct",
+            "similarity": 0.6317775398383976,
+            "evidenceWeight": 0.601,
+            "priceMinor": 41500,
+            "priceGapPct": -27.8,
+            "unitValue": null,
+            "unitPriceMinor": null,
+            "unitGapPct": null,
+            "cheaperButDearerPerUnit": false,
+            "trustRating": 4.1,
+            "trustDelta": 0.1
+          },
+          {
+            "id": "prod_sugar_lipstick",
+            "tier": "direct",
+            "similarity": 0.6288324072624101,
+            "evidenceWeight": 0.598,
+            "priceMinor": 54900,
+            "priceGapPct": -4.5,
+            "unitValue": null,
+            "unitPriceMinor": null,
+            "unitGapPct": null,
+            "cheaperButDearerPerUnit": false,
+            "trustRating": 4.2,
+            "trustDelta": 0.2
+          },
+          {
+            "id": "prod_loreal_color_riche",
+            "tier": "direct",
+            "similarity": 0.603143105583405,
+            "evidenceWeight": 0.574,
+            "priceMinor": 74900,
+            "priceGapPct": 30.3,
+            "unitValue": null,
+            "unitPriceMinor": null,
+            "unitGapPct": null,
+            "cheaperButDearerPerUnit": false,
+            "trustRating": 4.2,
+            "trustDelta": 0.2
+          },
+          {
+            "id": "prod_lakme_lipstick",
+            "tier": "direct",
+            "similarity": 0.5951687565385329,
+            "evidenceWeight": 0.566,
+            "priceMinor": 61300,
+            "priceGapPct": 6.6,
+            "unitValue": null,
+            "unitPriceMinor": null,
+            "unitGapPct": null,
+            "cheaperButDearerPerUnit": false,
+            "trustRating": 4.1,
+            "trustDelta": 0.1
+          },
+          {
+            "id": "prod_sugar_matte_bullet",
+            "tier": "comparable",
+            "similarity": 0.5497118619118644,
+            "evidenceWeight": 0.314,
+            "priceMinor": 59900,
+            "priceGapPct": 4.2,
+            "unitValue": null,
+            "unitPriceMinor": null,
+            "unitGapPct": null,
+            "cheaperButDearerPerUnit": false,
+            "trustRating": 4.2,
+            "trustDelta": 0.2
+          },
+          {
+            "id": "prod_colorbar_kissproof",
+            "tier": "comparable",
+            "similarity": 0.5464681376663812,
+            "evidenceWeight": 0.312,
+            "priceMinor": 64900,
+            "priceGapPct": 12.9,
+            "unitValue": null,
+            "unitPriceMinor": null,
+            "unitGapPct": null,
+            "cheaperButDearerPerUnit": false,
+            "trustRating": 4.1,
+            "trustDelta": 0.1
+          },
+          {
+            "id": "prod_faces_lipstick",
+            "tier": "comparable",
+            "similarity": 0.5202198227365606,
+            "evidenceWeight": 0.297,
+            "priceMinor": 34900,
+            "priceGapPct": -39.3,
+            "unitValue": null,
+            "unitPriceMinor": null,
+            "unitGapPct": null,
+            "cheaperButDearerPerUnit": false,
+            "trustRating": 3.9,
+            "trustDelta": -0.1
+          }
+        ]
+      },
+      "ownMarket": {
+        "n": 19,
+        "min": 53600,
+        "median": 57500,
+        "max": 61400
+      },
+      "competitiveStatistics": {
+        "n": 10,
+        "min": 34900,
+        "median": 51428,
+        "max": 74900
+      },
+      "findingIds": [
+        "availability",
+        "cheapest_is_best_trusted",
+        "historical_position",
+        "match_confidence",
+        "platform_spread",
+        "shipping_reorders",
+        "spec_position",
+        "trust_vs_comps",
+        "vs_comp_median",
+        "wtp"
+      ],
+      "findings": [
+        {
+          "id": "cheapest_is_best_trusted",
+          "dimension": "Marketplace",
+          "direction": "aggressive"
+        },
+        {
+          "id": "platform_spread",
+          "dimension": "Marketplace",
+          "direction": "neutral"
+        },
+        {
+          "id": "shipping_reorders",
+          "dimension": "Offer",
+          "direction": "neutral"
+        },
+        {
+          "id": "vs_comp_median",
+          "dimension": "Competitor",
+          "direction": "premium"
+        },
+        {
+          "id": "trust_vs_comps",
+          "dimension": "Trust",
+          "direction": "aggressive"
+        },
+        {
+          "id": "spec_position",
+          "dimension": "Specification",
+          "direction": "premium"
+        },
+        {
+          "id": "historical_position",
+          "dimension": "History",
+          "direction": "premium"
+        },
+        {
+          "id": "wtp",
+          "dimension": "Willingness to pay",
+          "direction": "premium"
+        },
+        {
+          "id": "availability",
+          "dimension": "Availability",
+          "direction": "neutral"
+        },
+        {
+          "id": "match_confidence",
+          "dimension": "Data quality",
+          "direction": "neutral"
+        }
+      ],
+      "analysisState": {
+        "available": true,
+        "limited": false,
+        "attributeCount": 4
+      }
+    },
+    {
+      "productId": "prod_boat_wave_band",
+      "shape": "several marketplaces, meaningful history",
+      "canonicalName": "boAt Wave Fitness Band",
+      "productTypeId": "ptype_fitness_band",
+      "competitiveSet": {
+        "memberIds": [
+          "prod_noise_colorfit_band",
+          "prod_noise_band_pro",
+          "prod_fireboltt_band",
+          "prod_realme_band_2",
+          "prod_mi_smart_band_8"
+        ],
+        "directIds": [
+          "prod_noise_colorfit_band",
+          "prod_noise_band_pro",
+          "prod_fireboltt_band",
+          "prod_realme_band_2"
+        ],
+        "comparableIds": [
+          "prod_mi_smart_band_8"
+        ],
+        "referenceIds": [
+          "prod_amazfit_band_7"
+        ],
+        "excludedCount": 0,
+        "members": [
+          {
+            "productId": "prod_noise_colorfit_band",
+            "tier": "direct",
+            "similarity": 0.9514262840486218,
+            "evidenceWeight": 0.905,
+            "currentPriceMinor": 120900,
+            "sharedMarketplaces": 3,
+            "marketplaceIds": [
+              "mp_amazon_in",
+              "mp_flipkart",
+              "mp_meesho"
+            ],
+            "rating": 3.9,
+            "reviewCount": 84315,
+            "isSameFamily": false,
+            "qualityScore": 0.9517241379310345,
+            "specScore": 0.979591836734694,
+            "specMatch": 3,
+            "specPartial": 1,
+            "specDiffer": 0,
+            "specMissing": 0,
+            "breakdown": {
+              "specScore": 0.979591836734694,
+              "tierScore": 1,
+              "priceScore": 0.9924398300720377,
+              "marketplaceScore": 0.75
+            }
+          },
+          {
+            "productId": "prod_noise_band_pro",
+            "tier": "direct",
+            "similarity": 0.8872021579030982,
+            "evidenceWeight": 0.844,
+            "currentPriceMinor": 140900,
+            "sharedMarketplaces": 3,
+            "marketplaceIds": [
+              "mp_amazon_in",
+              "mp_flipkart",
+              "mp_meesho"
+            ],
+            "rating": 3.9,
+            "reviewCount": 48910,
+            "isSameFamily": false,
+            "qualityScore": 0.9517241379310345,
+            "specScore": 0.9142857142857144,
+            "specMatch": 2,
+            "specPartial": 2,
+            "specDiffer": 0,
+            "specMissing": 0,
+            "breakdown": {
+              "specScore": 0.9142857142857144,
+              "tierScore": 1,
+              "priceScore": 0.8530943458981073,
+              "marketplaceScore": 0.75
+            }
+          },
+          {
+            "productId": "prod_fireboltt_band",
+            "tier": "direct",
+            "similarity": 0.8516076285051783,
+            "evidenceWeight": 0.81,
+            "currentPriceMinor": 99300,
+            "sharedMarketplaces": 4,
+            "marketplaceIds": [
+              "mp_amazon_in",
+              "mp_flipkart",
+              "mp_meesho",
+              "mp_myntra"
+            ],
+            "rating": 3.7,
+            "reviewCount": 65472,
+            "isSameFamily": false,
+            "qualityScore": 0.9517241379310345,
+            "specScore": 0.7655677655677656,
+            "specMatch": 1,
+            "specPartial": 2,
+            "specDiffer": 1,
+            "specMissing": 0,
+            "breakdown": {
+              "specScore": 0.7655677655677656,
+              "tierScore": 1,
+              "priceScore": 0.8284085359987348,
+              "marketplaceScore": 1
+            }
+          },
+          {
+            "productId": "prod_realme_band_2",
+            "tier": "direct",
+            "similarity": 0.8110882748323546,
+            "evidenceWeight": 0.772,
+            "currentPriceMinor": 172900,
+            "sharedMarketplaces": 2,
+            "marketplaceIds": [
+              "mp_amazon_in",
+              "mp_flipkart"
+            ],
+            "rating": 4,
+            "reviewCount": 28520,
+            "isSameFamily": false,
+            "qualityScore": 0.9517241379310345,
+            "specScore": 0.9319727891156463,
+            "specMatch": 2,
+            "specPartial": 2,
+            "specDiffer": 0,
+            "specMissing": 0,
+            "breakdown": {
+              "specScore": 0.9319727891156463,
+              "tierScore": 1,
+              "priceScore": 0.666802078921255,
+              "marketplaceScore": 0.5
+            }
+          },
+          {
+            "productId": "prod_mi_smart_band_8",
+            "tier": "comparable",
+            "similarity": 0.6199826209322833,
+            "evidenceWeight": 0.354,
+            "currentPriceMinor": 249900,
+            "sharedMarketplaces": 2,
+            "marketplaceIds": [
+              "mp_amazon_in",
+              "mp_flipkart"
+            ],
+            "rating": 4.3,
+            "reviewCount": 59520,
+            "isSameFamily": false,
+            "qualityScore": 0.9517241379310345,
+            "specScore": 0.6935626102292769,
+            "specMatch": 1,
+            "specPartial": 2,
+            "specDiffer": 1,
+            "specMissing": 0,
+            "breakdown": {
+              "specScore": 0.6935626102292769,
+              "tierScore": 1,
+              "priceScore": 0.3315177853164347,
+              "marketplaceScore": 0.5
+            }
+          }
+        ],
+        "coverage": {
+          "directCount": 4,
+          "comparableCount": 1,
+          "totalCount": 5,
+          "effectiveComparables": 3.69,
+          "meetsTarget": false,
+          "sufficient": true,
+          "level": "adequate"
+        }
+      },
+      "marketplace": {
+        "marketplaceCount": 4,
+        "pricedCount": 4,
+        "cheapestMarketplaceId": "mp_meesho",
+        "dearestMarketplaceId": "mp_myntra",
+        "spreadMinor": 6900,
+        "spreadPct": 5.8,
+        "medianEffectiveMinor": 120700,
+        "priceTrustCorrelation": -0.4,
+        "cheapestIsAlsoBestTrusted": false,
+        "shippingReordersRanking": false,
+        "platformsWithPaidShipping": 1,
+        "platformsWithStockGap": 2,
+        "lowestMatchConfidence": 0.92
+      },
+      "marketplaceRows": [
+        {
+          "marketplaceId": "mp_meesho",
+          "offerCount": 5,
+          "inStockCount": 5,
+          "headlineMinor": 119900,
+          "landedMinor": 119900,
+          "effectiveMinor": 119900,
+          "shippingMinor": 0,
+          "rating": 3.7,
+          "reviewCount": 9405,
+          "trustRating": 3.7,
+          "matchConfidence": 0.92,
+          "promoCount": {
+            "universal": 0,
+            "conditional": 3,
+            "deferred": 0,
+            "financing": 0
+          },
+          "hasUniversalPromo": false
+        },
+        {
+          "marketplaceId": "mp_amazon_in",
+          "offerCount": 5,
+          "inStockCount": 5,
+          "headlineMinor": 120200,
+          "landedMinor": 120200,
+          "effectiveMinor": 120200,
+          "shippingMinor": 0,
+          "rating": 3.9,
+          "reviewCount": 34200,
+          "trustRating": 3.9,
+          "matchConfidence": 0.97,
+          "promoCount": {
+            "universal": 0,
+            "conditional": 2,
+            "deferred": 0,
+            "financing": 0
+          },
+          "hasUniversalPromo": false
+        },
+        {
+          "marketplaceId": "mp_flipkart",
+          "offerCount": 5,
+          "inStockCount": 4,
+          "headlineMinor": 121200,
+          "landedMinor": 121200,
+          "effectiveMinor": 121200,
+          "shippingMinor": 0,
+          "rating": 3.8,
+          "reviewCount": 18810,
+          "trustRating": 3.8,
+          "matchConfidence": 0.92,
+          "promoCount": {
+            "universal": 0,
+            "conditional": 0,
+            "deferred": 0,
+            "financing": 0
+          },
+          "hasUniversalPromo": false
+        },
+        {
+          "marketplaceId": "mp_myntra",
+          "offerCount": 5,
+          "inStockCount": 4,
+          "headlineMinor": 126800,
+          "landedMinor": 126800,
+          "effectiveMinor": 126800,
+          "shippingMinor": 0,
+          "rating": 3.6,
+          "reviewCount": 6270,
+          "trustRating": 3.59,
+          "matchConfidence": 0.92,
+          "promoCount": {
+            "universal": 0,
+            "conditional": 3,
+            "deferred": 0,
+            "financing": 0
+          },
+          "hasUniversalPromo": false
+        }
+      ],
+      "unitBasis": null,
+      "history": {
+        "observationCount": 61,
+        "firstDate": "2026-04-17",
+        "lastDate": "2026-08-14",
+        "minMinor": 115000,
+        "maxMinor": 136000,
+        "medianMinor": 125000,
+        "currentMinor": 119900,
+        "percentile": 7,
+        "volatility": 4.3,
+        "volatilityBand": "moderate",
+        "promoDays": 4,
+        "trendPct": -11.8
+      },
+      "normalMinor": 123000,
+      "distortionState": "normal",
+      "distortionRatio": 1.0296747967479676,
+      "strength": {
+        "targetRating": 3.8,
+        "targetReviews": 68685,
+        "medianRating": 3.9,
+        "medianReviews": 59520,
+        "specAdvantageCount": 0,
+        "specDisadvantageCount": 2
+      },
+      "competitors": {
+        "ownUnitPriceMinor": null,
+        "targetTrustRating": 3.8,
+        "cheaperCount": 2,
+        "dearerCount": 3,
+        "reversalIds": [],
+        "strongerTrustCount": 4,
+        "rows": [
+          {
+            "id": "prod_noise_colorfit_band",
+            "tier": "direct",
+            "similarity": 0.9514262840486218,
+            "evidenceWeight": 0.905,
+            "priceMinor": 120900,
+            "priceGapPct": -4.5,
+            "unitValue": null,
+            "unitPriceMinor": null,
+            "unitGapPct": null,
+            "cheaperButDearerPerUnit": false,
+            "trustRating": 3.9,
+            "trustDelta": 0.1
+          },
+          {
+            "id": "prod_noise_band_pro",
+            "tier": "direct",
+            "similarity": 0.8872021579030982,
+            "evidenceWeight": 0.844,
+            "priceMinor": 140900,
+            "priceGapPct": 11.3,
+            "unitValue": null,
+            "unitPriceMinor": null,
+            "unitGapPct": null,
+            "cheaperButDearerPerUnit": false,
+            "trustRating": 3.9,
+            "trustDelta": 0.1
+          },
+          {
+            "id": "prod_fireboltt_band",
+            "tier": "direct",
+            "similarity": 0.8516076285051783,
+            "evidenceWeight": 0.81,
+            "priceMinor": 99300,
+            "priceGapPct": -21.6,
+            "unitValue": null,
+            "unitPriceMinor": null,
+            "unitGapPct": null,
+            "cheaperButDearerPerUnit": false,
+            "trustRating": 3.7,
+            "trustDelta": -0.1
+          },
+          {
+            "id": "prod_realme_band_2",
+            "tier": "direct",
+            "similarity": 0.8110882748323546,
+            "evidenceWeight": 0.772,
+            "priceMinor": 172900,
+            "priceGapPct": 36.5,
+            "unitValue": null,
+            "unitPriceMinor": null,
+            "unitGapPct": null,
+            "cheaperButDearerPerUnit": false,
+            "trustRating": 4,
+            "trustDelta": 0.2
+          },
+          {
+            "id": "prod_mi_smart_band_8",
+            "tier": "comparable",
+            "similarity": 0.6199826209322833,
+            "evidenceWeight": 0.354,
+            "priceMinor": 249900,
+            "priceGapPct": 97.3,
+            "unitValue": null,
+            "unitPriceMinor": null,
+            "unitGapPct": null,
+            "cheaperButDearerPerUnit": false,
+            "trustRating": 4.3,
+            "trustDelta": 0.5
+          }
+        ]
+      },
+      "ownMarket": {
+        "n": 18,
+        "min": 119900,
+        "median": 126650,
+        "max": 138000
+      },
+      "competitiveStatistics": {
+        "n": 5,
+        "min": 99300,
+        "median": 123921,
+        "max": 249900
+      },
+      "findingIds": [
+        "availability",
+        "historical_position",
+        "match_confidence",
+        "platform_spread",
+        "spec_position",
+        "trust_vs_comps",
+        "vs_comp_median",
+        "wtp"
+      ],
+      "findings": [
+        {
+          "id": "platform_spread",
+          "dimension": "Marketplace",
+          "direction": "neutral"
+        },
+        {
+          "id": "vs_comp_median",
+          "dimension": "Competitor",
+          "direction": "premium"
+        },
+        {
+          "id": "trust_vs_comps",
+          "dimension": "Trust",
+          "direction": "aggressive"
+        },
+        {
+          "id": "spec_position",
+          "dimension": "Specification",
+          "direction": "aggressive"
+        },
+        {
+          "id": "historical_position",
+          "dimension": "History",
+          "direction": "premium"
+        },
+        {
+          "id": "wtp",
+          "dimension": "Willingness to pay",
+          "direction": "premium"
+        },
+        {
+          "id": "availability",
+          "dimension": "Availability",
+          "direction": "neutral"
+        },
+        {
+          "id": "match_confidence",
+          "dimension": "Data quality",
+          "direction": "neutral"
+        }
+      ],
+      "analysisState": {
+        "available": true,
+        "limited": false,
+        "attributeCount": 4
+      }
+    },
+    {
+      "productId": "prod_cello_gripper_10",
+      "shape": "commodity, no promotions at all",
+      "canonicalName": "Cello Gripper Ball Pen (Pack of 10)",
+      "productTypeId": "ptype_pen",
+      "competitiveSet": {
+        "memberIds": [
+          "prod_reynolds_jetter_10",
+          "prod_reynolds_pen_10",
+          "prod_cello_pen_10",
+          "prod_classmate_octane_10",
+          "prod_camlin_pen_10",
+          "prod_cello_maxriter_10",
+          "prod_camlin_exam_20",
+          "prod_camlin_gel_10",
+          "prod_pilot_bp_10",
+          "prod_reynolds_racer_10"
+        ],
+        "directIds": [
+          "prod_reynolds_jetter_10",
+          "prod_reynolds_pen_10",
+          "prod_cello_pen_10",
+          "prod_classmate_octane_10",
+          "prod_camlin_pen_10",
+          "prod_cello_maxriter_10",
+          "prod_camlin_exam_20",
+          "prod_camlin_gel_10",
+          "prod_pilot_bp_10",
+          "prod_reynolds_racer_10"
+        ],
+        "comparableIds": [],
+        "referenceIds": [
+          "prod_classmate_gel_10"
+        ],
+        "excludedCount": 4,
+        "members": [
+          {
+            "productId": "prod_reynolds_jetter_10",
+            "tier": "direct",
+            "similarity": 0.9974855014137924,
+            "evidenceWeight": 0.949,
+            "currentPriceMinor": 9100,
+            "sharedMarketplaces": 3,
+            "marketplaceIds": [
+              "mp_amazon_in",
+              "mp_flipkart",
+              "mp_meesho"
+            ],
+            "rating": 4.2,
+            "reviewCount": 70445,
+            "isSameFamily": false,
+            "qualityScore": 0.9517241379310345,
+            "specScore": 1,
+            "specMatch": 4,
+            "specPartial": 0,
+            "specDiffer": 0,
+            "specMissing": 0,
+            "breakdown": {
+              "specScore": 1,
+              "tierScore": 1,
+              "priceScore": 0.9899420056551697,
+              "marketplaceScore": 1
+            }
+          },
+          {
+            "productId": "prod_reynolds_pen_10",
+            "tier": "direct",
+            "similarity": 0.9876964735812706,
+            "evidenceWeight": 0.94,
+            "currentPriceMinor": 9500,
+            "sharedMarketplaces": 3,
+            "marketplaceIds": [
+              "mp_amazon_in",
+              "mp_flipkart",
+              "mp_meesho"
+            ],
+            "rating": 4.2,
+            "reviewCount": 124830,
+            "isSameFamily": false,
+            "qualityScore": 0.9517241379310345,
+            "specScore": 1,
+            "specMatch": 4,
+            "specPartial": 0,
+            "specDiffer": 0,
+            "specMissing": 0,
+            "breakdown": {
+              "specScore": 1,
+              "tierScore": 1,
+              "priceScore": 0.950785894325082,
+              "marketplaceScore": 1
+            }
+          },
+          {
+            "productId": "prod_cello_pen_10",
+            "tier": "direct",
+            "similarity": 0.9869930423977772,
+            "evidenceWeight": 0.939,
+            "currentPriceMinor": 8500,
+            "sharedMarketplaces": 3,
+            "marketplaceIds": [
+              "mp_amazon_in",
+              "mp_flipkart",
+              "mp_meesho"
+            ],
+            "rating": 4.1,
+            "reviewCount": 95995,
+            "isSameFamily": false,
+            "qualityScore": 0.9517241379310345,
+            "specScore": 1,
+            "specMatch": 4,
+            "specPartial": 0,
+            "specDiffer": 0,
+            "specMissing": 0,
+            "breakdown": {
+              "specScore": 1,
+              "tierScore": 1,
+              "priceScore": 0.9479721695911084,
+              "marketplaceScore": 1
+            }
+          },
+          {
+            "productId": "prod_classmate_octane_10",
+            "tier": "direct",
+            "similarity": 0.9806215055987707,
+            "evidenceWeight": 0.933,
+            "currentPriceMinor": 9800,
+            "sharedMarketplaces": 3,
+            "marketplaceIds": [
+              "mp_amazon_in",
+              "mp_flipkart",
+              "mp_meesho"
+            ],
+            "rating": 4.1,
+            "reviewCount": 63510,
+            "isSameFamily": false,
+            "qualityScore": 0.9517241379310345,
+            "specScore": 1,
+            "specMatch": 4,
+            "specPartial": 0,
+            "specDiffer": 0,
+            "specMissing": 0,
+            "breakdown": {
+              "specScore": 1,
+              "tierScore": 1,
+              "priceScore": 0.9224860223950827,
+              "marketplaceScore": 1
+            }
+          },
+          {
+            "productId": "prod_camlin_pen_10",
+            "tier": "direct",
+            "similarity": 0.9585109417866176,
+            "evidenceWeight": 0.912,
+            "currentPriceMinor": 7500,
+            "sharedMarketplaces": 3,
+            "marketplaceIds": [
+              "mp_amazon_in",
+              "mp_flipkart",
+              "mp_meesho"
+            ],
+            "rating": 3.9,
+            "reviewCount": 62415,
+            "isSameFamily": false,
+            "qualityScore": 0.9517241379310345,
+            "specScore": 1,
+            "specMatch": 4,
+            "specPartial": 0,
+            "specDiffer": 0,
+            "specMissing": 0,
+            "breakdown": {
+              "specScore": 1,
+              "tierScore": 1,
+              "priceScore": 0.8340437671464698,
+              "marketplaceScore": 1
+            }
+          },
+          {
+            "productId": "prod_cello_maxriter_10",
+            "tier": "direct",
+            "similarity": 0.8963163613255072,
+            "evidenceWeight": 0.853,
+            "currentPriceMinor": 8200,
+            "sharedMarketplaces": 3,
+            "marketplaceIds": [
+              "mp_amazon_in",
+              "mp_flipkart",
+              "mp_meesho"
+            ],
+            "rating": 3.9,
+            "reviewCount": 53655,
+            "isSameFamily": false,
+            "qualityScore": 0.9517241379310345,
+            "specScore": 0.8166666666666668,
+            "specMatch": 2,
+            "specPartial": 1,
+            "specDiffer": 1,
+            "specMissing": 0,
+            "breakdown": {
+              "specScore": 0.8166666666666668,
+              "tierScore": 1,
+              "priceScore": 0.9152654453020281,
+              "marketplaceScore": 1
+            }
+          },
+          {
+            "productId": "prod_camlin_exam_20",
+            "tier": "direct",
+            "similarity": 0.8395768582913852,
+            "evidenceWeight": 0.799,
+            "currentPriceMinor": 13100,
+            "sharedMarketplaces": 3,
+            "marketplaceIds": [
+              "mp_amazon_in",
+              "mp_flipkart",
+              "mp_meesho"
+            ],
+            "rating": 3.9,
+            "reviewCount": 36135,
+            "isSameFamily": false,
+            "qualityScore": 0.9517241379310345,
+            "specScore": 0.8333333333333334,
+            "specMatch": 3,
+            "specPartial": 1,
+            "specDiffer": 0,
+            "specMissing": 0,
+            "breakdown": {
+              "specScore": 0.8333333333333334,
+              "tierScore": 1,
+              "priceScore": 0.6583074331655405,
+              "marketplaceScore": 1
+            }
+          },
+          {
+            "productId": "prod_camlin_gel_10",
+            "tier": "direct",
+            "similarity": 0.8393354153389656,
+            "evidenceWeight": 0.799,
+            "currentPriceMinor": 11000,
+            "sharedMarketplaces": 3,
+            "marketplaceIds": [
+              "mp_amazon_in",
+              "mp_flipkart",
+              "mp_meesho"
+            ],
+            "rating": 4,
+            "reviewCount": 48180,
+            "isSameFamily": false,
+            "qualityScore": 0.9517241379310345,
+            "specScore": 0.7444444444444445,
+            "specMatch": 2,
+            "specPartial": 2,
+            "specDiffer": 0,
+            "specMissing": 0,
+            "breakdown": {
+              "specScore": 0.7444444444444445,
+              "tierScore": 1,
+              "priceScore": 0.817341661355862,
+              "marketplaceScore": 1
+            }
+          },
+          {
+            "productId": "prod_pilot_bp_10",
+            "tier": "direct",
+            "similarity": 0.8152964387041479,
+            "evidenceWeight": 0.776,
+            "currentPriceMinor": 11700,
+            "sharedMarketplaces": 2,
+            "marketplaceIds": [
+              "mp_amazon_in",
+              "mp_flipkart"
+            ],
+            "rating": 4.3,
+            "reviewCount": 28830,
+            "isSameFamily": false,
+            "qualityScore": 0.9517241379310345,
+            "specScore": 1,
+            "specMatch": 4,
+            "specPartial": 0,
+            "specDiffer": 0,
+            "specMissing": 0,
+            "breakdown": {
+              "specScore": 1,
+              "tierScore": 0.5,
+              "priceScore": 0.7611857548165919,
+              "marketplaceScore": 0.6666666666666666
+            }
+          },
+          {
+            "productId": "prod_reynolds_racer_10",
+            "tier": "direct",
+            "similarity": 0.8013206201318019,
+            "evidenceWeight": 0.763,
+            "currentPriceMinor": 13000,
+            "sharedMarketplaces": 3,
+            "marketplaceIds": [
+              "mp_amazon_in",
+              "mp_flipkart",
+              "mp_meesho"
+            ],
+            "rating": 4.1,
+            "reviewCount": 41610,
+            "isSameFamily": false,
+            "qualityScore": 0.9517241379310345,
+            "specScore": 0.7444444444444445,
+            "specMatch": 2,
+            "specPartial": 2,
+            "specDiffer": 0,
+            "specMissing": 0,
+            "breakdown": {
+              "specScore": 0.7444444444444445,
+              "tierScore": 1,
+              "priceScore": 0.6652824805272073,
+              "marketplaceScore": 1
+            }
+          }
+        ],
+        "coverage": {
+          "directCount": 10,
+          "comparableCount": 0,
+          "totalCount": 10,
+          "effectiveComparables": 8.66,
+          "meetsTarget": true,
+          "sufficient": true,
+          "level": "strong"
+        }
+      },
+      "marketplace": {
+        "marketplaceCount": 3,
+        "pricedCount": 3,
+        "cheapestMarketplaceId": "mp_amazon_in",
+        "dearestMarketplaceId": "mp_flipkart",
+        "spreadMinor": 300,
+        "spreadPct": 3.3,
+        "medianEffectiveMinor": 9000,
+        "priceTrustCorrelation": -0.5,
+        "cheapestIsAlsoBestTrusted": true,
+        "shippingReordersRanking": false,
+        "platformsWithPaidShipping": 0,
+        "platformsWithStockGap": 1,
+        "lowestMatchConfidence": 0.92
+      },
+      "marketplaceRows": [
+        {
+          "marketplaceId": "mp_amazon_in",
+          "offerCount": 5,
+          "inStockCount": 5,
+          "headlineMinor": 9000,
+          "landedMinor": 9000,
+          "effectiveMinor": 9000,
+          "shippingMinor": 0,
+          "rating": 4.2,
+          "reviewCount": 44200,
+          "trustRating": 4.2,
+          "matchConfidence": 0.97,
+          "promoCount": {
+            "universal": 0,
+            "conditional": 0,
+            "deferred": 0,
+            "financing": 0
+          },
+          "hasUniversalPromo": false
+        },
+        {
+          "marketplaceId": "mp_meesho",
+          "offerCount": 5,
+          "inStockCount": 5,
+          "headlineMinor": 9000,
+          "landedMinor": 9000,
+          "effectiveMinor": 9000,
+          "shippingMinor": 0,
+          "rating": 4,
+          "reviewCount": 12155,
+          "trustRating": 4,
+          "matchConfidence": 0.92,
+          "promoCount": {
+            "universal": 0,
+            "conditional": 0,
+            "deferred": 0,
+            "financing": 0
+          },
+          "hasUniversalPromo": false
+        },
+        {
+          "marketplaceId": "mp_flipkart",
+          "offerCount": 5,
+          "inStockCount": 4,
+          "headlineMinor": 9300,
+          "landedMinor": 9300,
+          "effectiveMinor": 9300,
+          "shippingMinor": 0,
+          "rating": 4.1,
+          "reviewCount": 24310,
+          "trustRating": 4.1,
+          "matchConfidence": 0.92,
+          "promoCount": {
+            "universal": 0,
+            "conditional": 0,
+            "deferred": 0,
+            "financing": 0
+          },
+          "hasUniversalPromo": false
+        }
+      ],
+      "unitBasis": {
+        "key": "pack_size",
+        "unit": null,
+        "value": 10
+      },
+      "history": {
+        "observationCount": 61,
+        "firstDate": "2026-04-17",
+        "lastDate": "2026-08-14",
+        "minMinor": 9000,
+        "maxMinor": 10000,
+        "medianMinor": 9000,
+        "currentMinor": 9000,
+        "percentile": 0,
+        "volatility": 5.2,
+        "volatilityBand": "moderate",
+        "promoDays": 0,
+        "trendPct": -10
+      },
+      "normalMinor": 9000,
+      "distortionState": "normal",
+      "distortionRatio": 1.05,
+      "strength": {
+        "targetRating": 4.1,
+        "targetReviews": 80665,
+        "medianRating": 4.1,
+        "medianReviews": 58035,
+        "specAdvantageCount": 0,
+        "specDisadvantageCount": 0
+      },
+      "competitors": {
+        "ownUnitPriceMinor": 945,
+        "targetTrustRating": 4.1,
+        "cheaperCount": 4,
+        "dearerCount": 6,
+        "reversalIds": [],
+        "strongerTrustCount": 3,
+        "rows": [
+          {
+            "id": "prod_reynolds_jetter_10",
+            "tier": "direct",
+            "similarity": 0.9974855014137924,
+            "evidenceWeight": 0.949,
+            "priceMinor": 9100,
+            "priceGapPct": -3.7,
+            "unitValue": 10,
+            "unitPriceMinor": 910,
+            "unitGapPct": -3.7,
+            "cheaperButDearerPerUnit": false,
+            "trustRating": 4.2,
+            "trustDelta": 0.1
+          },
+          {
+            "id": "prod_reynolds_pen_10",
+            "tier": "direct",
+            "similarity": 0.9876964735812706,
+            "evidenceWeight": 0.94,
+            "priceMinor": 9500,
+            "priceGapPct": 0.5,
+            "unitValue": 10,
+            "unitPriceMinor": 950,
+            "unitGapPct": 0.5,
+            "cheaperButDearerPerUnit": false,
+            "trustRating": 4.2,
+            "trustDelta": 0.1
+          },
+          {
+            "id": "prod_cello_pen_10",
+            "tier": "direct",
+            "similarity": 0.9869930423977772,
+            "evidenceWeight": 0.939,
+            "priceMinor": 8500,
+            "priceGapPct": -10.1,
+            "unitValue": 10,
+            "unitPriceMinor": 850,
+            "unitGapPct": -10.1,
+            "cheaperButDearerPerUnit": false,
+            "trustRating": 4.1,
+            "trustDelta": 0
+          },
+          {
+            "id": "prod_classmate_octane_10",
+            "tier": "direct",
+            "similarity": 0.9806215055987707,
+            "evidenceWeight": 0.933,
+            "priceMinor": 9800,
+            "priceGapPct": 3.7,
+            "unitValue": 10,
+            "unitPriceMinor": 980,
+            "unitGapPct": 3.7,
+            "cheaperButDearerPerUnit": false,
+            "trustRating": 4.1,
+            "trustDelta": 0
+          },
+          {
+            "id": "prod_camlin_pen_10",
+            "tier": "direct",
+            "similarity": 0.9585109417866176,
+            "evidenceWeight": 0.912,
+            "priceMinor": 7500,
+            "priceGapPct": -20.6,
+            "unitValue": 10,
+            "unitPriceMinor": 750,
+            "unitGapPct": -20.6,
+            "cheaperButDearerPerUnit": false,
+            "trustRating": 3.9,
+            "trustDelta": -0.2
+          },
+          {
+            "id": "prod_cello_maxriter_10",
+            "tier": "direct",
+            "similarity": 0.8963163613255072,
+            "evidenceWeight": 0.853,
+            "priceMinor": 8200,
+            "priceGapPct": -13.2,
+            "unitValue": 10,
+            "unitPriceMinor": 820,
+            "unitGapPct": -13.2,
+            "cheaperButDearerPerUnit": false,
+            "trustRating": 3.9,
+            "trustDelta": -0.2
+          },
+          {
+            "id": "prod_camlin_exam_20",
+            "tier": "direct",
+            "similarity": 0.8395768582913852,
+            "evidenceWeight": 0.799,
+            "priceMinor": 13100,
+            "priceGapPct": 38.6,
+            "unitValue": 20,
+            "unitPriceMinor": 655,
+            "unitGapPct": -30.7,
+            "cheaperButDearerPerUnit": false,
+            "trustRating": 3.9,
+            "trustDelta": -0.2
+          },
+          {
+            "id": "prod_camlin_gel_10",
+            "tier": "direct",
+            "similarity": 0.8393354153389656,
+            "evidenceWeight": 0.799,
+            "priceMinor": 11000,
+            "priceGapPct": 16.4,
+            "unitValue": 10,
+            "unitPriceMinor": 1100,
+            "unitGapPct": 16.4,
+            "cheaperButDearerPerUnit": false,
+            "trustRating": 4,
+            "trustDelta": -0.1
+          },
+          {
+            "id": "prod_pilot_bp_10",
+            "tier": "direct",
+            "similarity": 0.8152964387041479,
+            "evidenceWeight": 0.776,
+            "priceMinor": 11700,
+            "priceGapPct": 23.8,
+            "unitValue": 10,
+            "unitPriceMinor": 1170,
+            "unitGapPct": 23.8,
+            "cheaperButDearerPerUnit": false,
+            "trustRating": 4.3,
+            "trustDelta": 0.2
+          },
+          {
+            "id": "prod_reynolds_racer_10",
+            "tier": "direct",
+            "similarity": 0.8013206201318019,
+            "evidenceWeight": 0.763,
+            "priceMinor": 13000,
+            "priceGapPct": 37.6,
+            "unitValue": 10,
+            "unitPriceMinor": 1300,
+            "unitGapPct": 37.6,
+            "cheaperButDearerPerUnit": false,
+            "trustRating": 4.1,
+            "trustDelta": 0
+          }
+        ]
+      },
+      "ownMarket": {
+        "n": 14,
+        "min": 9000,
+        "median": 9450,
+        "max": 9900
+      },
+      "competitiveStatistics": {
+        "n": 10,
+        "min": 7500,
+        "median": 9389,
+        "max": 13100
+      },
+      "findingIds": [
+        "availability",
+        "cheapest_is_best_trusted",
+        "historical_position",
+        "match_confidence",
+        "trust_vs_comps",
+        "vs_comp_median",
+        "wtp"
+      ],
+      "findings": [
+        {
+          "id": "cheapest_is_best_trusted",
+          "dimension": "Marketplace",
+          "direction": "aggressive"
+        },
+        {
+          "id": "vs_comp_median",
+          "dimension": "Competitor",
+          "direction": "premium"
+        },
+        {
+          "id": "trust_vs_comps",
+          "dimension": "Trust",
+          "direction": "aggressive"
+        },
+        {
+          "id": "historical_position",
+          "dimension": "History",
+          "direction": "premium"
+        },
+        {
+          "id": "wtp",
+          "dimension": "Willingness to pay",
+          "direction": "aggressive"
+        },
+        {
+          "id": "availability",
+          "dimension": "Availability",
+          "direction": "neutral"
+        },
+        {
+          "id": "match_confidence",
+          "dimension": "Data quality",
+          "direction": "neutral"
+        }
+      ],
+      "analysisState": {
+        "available": true,
+        "limited": false,
+        "attributeCount": 4
+      }
+    },
+    {
+      "productId": "prod_green_soul_vienna",
+      "shape": "sparse history — 44 observations",
+      "canonicalName": "Green Soul Vienna Pro Office Chair — Black",
+      "productTypeId": "ptype_office_chair",
+      "competitiveSet": {
+        "memberIds": [
+          "prod_green_soul_high",
+          "prod_green_soul_beast",
+          "prod_green_soul_jupiter",
+          "prod_featherlite_chair",
+          "prod_wakefit_ergo",
+          "prod_nilkamal_exec",
+          "prod_featherlite_exec",
+          "prod_green_soul_mid",
+          "prod_da_urban_mesh",
+          "prod_da_urban_chair"
+        ],
+        "directIds": [
+          "prod_green_soul_high",
+          "prod_green_soul_beast",
+          "prod_green_soul_jupiter",
+          "prod_featherlite_chair",
+          "prod_wakefit_ergo",
+          "prod_nilkamal_exec",
+          "prod_featherlite_exec"
+        ],
+        "comparableIds": [
+          "prod_green_soul_mid",
+          "prod_da_urban_mesh",
+          "prod_da_urban_chair"
+        ],
+        "referenceIds": [
+          "prod_wakefit_mesh_mid",
+          "prod_nilkamal_chair",
+          "prod_cellbell_c104",
+          "prod_nilkamal_mid"
+        ],
+        "excludedCount": 0,
+        "members": [
+          {
+            "productId": "prod_green_soul_high",
+            "tier": "direct",
+            "similarity": 0.8932423976454711,
+            "evidenceWeight": 0.85,
+            "currentPriceMinor": 856400,
+            "sharedMarketplaces": 2,
+            "marketplaceIds": [
+              "mp_amazon_in",
+              "mp_flipkart",
+              "mp_meesho"
+            ],
+            "rating": 4.2,
+            "reviewCount": 17885,
+            "isSameFamily": false,
+            "qualityScore": 0.9517241379310345,
+            "specScore": 1,
+            "specMatch": 6,
+            "specPartial": 0,
+            "specDiffer": 0,
+            "specMissing": 0,
+            "breakdown": {
+              "specScore": 1,
+              "tierScore": 1,
+              "priceScore": 0.7729695905818845,
+              "marketplaceScore": 0.6666666666666666
+            }
+          },
+          {
+            "productId": "prod_green_soul_beast",
+            "tier": "direct",
+            "similarity": 0.9124495907845622,
+            "evidenceWeight": 0.775,
+            "currentPriceMinor": 1349000,
+            "sharedMarketplaces": 2,
+            "marketplaceIds": [
+              "mp_amazon_in",
+              "mp_flipkart"
+            ],
+            "rating": 4.2,
+            "reviewCount": 5580,
+            "isSameFamily": false,
+            "qualityScore": 0.8495019157088123,
+            "specScore": 0.9090909090909091,
+            "specMatch": 5,
+            "specPartial": 0,
+            "specDiffer": 1,
+            "specMissing": 0,
+            "breakdown": {
+              "specScore": 0.9090909090909091,
+              "tierScore": 1,
+              "priceScore": 0.8134347267746123,
+              "marketplaceScore": 1
+            }
+          },
+          {
+            "productId": "prod_green_soul_jupiter",
+            "tier": "direct",
+            "similarity": 0.7971138895275167,
+            "evidenceWeight": 0.759,
+            "currentPriceMinor": 749900,
+            "sharedMarketplaces": 2,
+            "marketplaceIds": [
+              "mp_amazon_in",
+              "mp_flipkart"
+            ],
+            "rating": 4.3,
+            "reviewCount": 28830,
+            "isSameFamily": false,
+            "qualityScore": 0.9517241379310345,
+            "specScore": 0.7424242424242423,
+            "specMatch": 3,
+            "specPartial": 3,
+            "specDiffer": 0,
+            "specMissing": 0,
+            "breakdown": {
+              "specScore": 0.7424242424242423,
+              "tierScore": 1,
+              "priceScore": 0.6520919217464306,
+              "marketplaceScore": 1
+            }
+          },
+          {
+            "productId": "prod_featherlite_chair",
+            "tier": "direct",
+            "similarity": 0.8586568120516694,
+            "evidenceWeight": 0.729,
+            "currentPriceMinor": 1471000,
+            "sharedMarketplaces": 2,
+            "marketplaceIds": [
+              "mp_amazon_in",
+              "mp_flipkart"
+            ],
+            "rating": 4.4,
+            "reviewCount": 4960,
+            "isSameFamily": false,
+            "qualityScore": 0.8495019157088123,
+            "specScore": 1,
+            "specMatch": 6,
+            "specPartial": 0,
+            "specDiffer": 0,
+            "specMissing": 0,
+            "breakdown": {
+              "specScore": 1,
+              "tierScore": 0.5,
+              "priceScore": 0.7346272482066776,
+              "marketplaceScore": 1
+            }
+          },
+          {
+            "productId": "prod_wakefit_ergo",
+            "tier": "direct",
+            "similarity": 0.8312047986184258,
+            "evidenceWeight": 0.706,
+            "currentPriceMinor": 749900,
+            "sharedMarketplaces": 2,
+            "marketplaceIds": [
+              "mp_amazon_in",
+              "mp_flipkart"
+            ],
+            "rating": 4.2,
+            "reviewCount": 9145,
+            "isSameFamily": false,
+            "qualityScore": 0.8495019157088123,
+            "specScore": 0.9848484848484849,
+            "specMatch": 5,
+            "specPartial": 1,
+            "specDiffer": 0,
+            "specMissing": 0,
+            "breakdown": {
+              "specScore": 0.9848484848484849,
+              "tierScore": 0.5,
+              "priceScore": 0.6520919217464306,
+              "marketplaceScore": 1
+            }
+          },
+          {
+            "productId": "prod_nilkamal_exec",
+            "tier": "direct",
+            "similarity": 0.7437715333345584,
+            "evidenceWeight": 0.547,
+            "currentPriceMinor": 1299000,
+            "sharedMarketplaces": 1,
+            "marketplaceIds": [
+              "mp_flipkart"
+            ],
+            "rating": 4,
+            "reviewCount": 2200,
+            "isSameFamily": false,
+            "qualityScore": 0.735095785440613,
+            "specScore": 0.8484848484848485,
+            "specMatch": 4,
+            "specPartial": 1,
+            "specDiffer": 1,
+            "specMissing": 0,
+            "breakdown": {
+              "specScore": 0.8484848484848485,
+              "tierScore": 0.5,
+              "priceScore": 0.8478134060655065,
+              "marketplaceScore": 0.5
+            }
+          },
+          {
+            "productId": "prod_featherlite_exec",
+            "tier": "direct",
+            "similarity": 0.7082072201055025,
+            "evidenceWeight": 0.503,
+            "currentPriceMinor": 1439000,
+            "sharedMarketplaces": 1,
+            "marketplaceIds": [
+              "mp_amazon_in"
+            ],
+            "rating": 4.4,
+            "reviewCount": 2100,
+            "isSameFamily": false,
+            "qualityScore": 0.7106513409961686,
+            "specScore": 0.8212121212121212,
+            "specMatch": 3,
+            "specPartial": 2,
+            "specDiffer": 1,
+            "specMissing": 0,
+            "breakdown": {
+              "specScore": 0.8212121212121212,
+              "tierScore": 0.5,
+              "priceScore": 0.7546470622401924,
+              "marketplaceScore": 0.5
+            }
+          },
+          {
+            "productId": "prod_green_soul_mid",
+            "tier": "comparable",
+            "similarity": 0.6531815842887688,
+            "evidenceWeight": 0.373,
+            "currentPriceMinor": 649900,
+            "sharedMarketplaces": 2,
+            "marketplaceIds": [
+              "mp_amazon_in",
+              "mp_flipkart",
+              "mp_meesho"
+            ],
+            "rating": 4,
+            "reviewCount": 12228,
+            "isSameFamily": false,
+            "qualityScore": 0.9517241379310345,
+            "specScore": 0.606060606060606,
+            "specMatch": 2,
+            "specPartial": 3,
+            "specDiffer": 1,
+            "specMissing": 0,
+            "breakdown": {
+              "specScore": 0.606060606060606,
+              "tierScore": 1,
+              "priceScore": 0.5218172462459844,
+              "marketplaceScore": 0.6666666666666666
+            }
+          },
+          {
+            "productId": "prod_da_urban_mesh",
+            "tier": "comparable",
+            "similarity": 0.5658206655812965,
+            "evidenceWeight": 0.323,
+            "currentPriceMinor": 529900,
+            "sharedMarketplaces": 2,
+            "marketplaceIds": [
+              "mp_amazon_in",
+              "mp_flipkart",
+              "mp_meesho"
+            ],
+            "rating": 3.9,
+            "reviewCount": 13505,
+            "isSameFamily": false,
+            "qualityScore": 0.9517241379310345,
+            "specScore": 0.6818181818181818,
+            "specMatch": 3,
+            "specPartial": 2,
+            "specDiffer": 1,
+            "specMissing": 0,
+            "breakdown": {
+              "specScore": 0.6818181818181818,
+              "tierScore": 0.5,
+              "priceScore": 0.3360099350524588,
+              "marketplaceScore": 0.6666666666666666
+            }
+          },
+          {
+            "productId": "prod_da_urban_chair",
+            "tier": "comparable",
+            "similarity": 0.5060830746194109,
+            "evidenceWeight": 0.289,
+            "currentPriceMinor": 533700,
+            "sharedMarketplaces": 2,
+            "marketplaceIds": [
+              "mp_amazon_in",
+              "mp_flipkart",
+              "mp_meesho"
+            ],
+            "rating": 3.9,
+            "reviewCount": 22995,
+            "isSameFamily": false,
+            "qualityScore": 0.9517241379310345,
+            "specScore": 0.5454545454545454,
+            "specMatch": 2,
+            "specPartial": 3,
+            "specDiffer": 1,
+            "specMissing": 0,
+            "breakdown": {
+              "specScore": 0.5454545454545454,
+              "tierScore": 0.5,
+              "priceScore": 0.34251411665946196,
+              "marketplaceScore": 0.6666666666666666
+            }
+          }
+        ],
+        "coverage": {
+          "directCount": 7,
+          "comparableCount": 3,
+          "totalCount": 10,
+          "effectiveComparables": 5.85,
+          "meetsTarget": true,
+          "sufficient": true,
+          "level": "strong"
+        }
+      },
+      "marketplace": {
+        "marketplaceCount": 2,
+        "pricedCount": 2,
+        "cheapestMarketplaceId": "mp_amazon_in",
+        "dearestMarketplaceId": "mp_flipkart",
+        "spreadMinor": 8800,
+        "spreadPct": 0.8,
+        "medianEffectiveMinor": 1103400,
+        "priceTrustCorrelation": null,
+        "cheapestIsAlsoBestTrusted": true,
+        "shippingReordersRanking": false,
+        "platformsWithPaidShipping": 1,
+        "platformsWithStockGap": 2,
+        "lowestMatchConfidence": 0.92
+      },
+      "marketplaceRows": [
+        {
+          "marketplaceId": "mp_amazon_in",
+          "offerCount": 2,
+          "inStockCount": 1,
+          "headlineMinor": 1099000,
+          "landedMinor": 1099000,
+          "effectiveMinor": 1099000,
+          "shippingMinor": 0,
+          "rating": 4.3,
+          "reviewCount": 4100,
+          "trustRating": 4.22,
+          "matchConfidence": 0.97,
+          "promoCount": {
+            "universal": 0,
+            "conditional": 2,
+            "deferred": 0,
+            "financing": 2
+          },
+          "hasUniversalPromo": false
+        },
+        {
+          "marketplaceId": "mp_flipkart",
+          "offerCount": 2,
+          "inStockCount": 1,
+          "headlineMinor": 1107800,
+          "landedMinor": 1107800,
+          "effectiveMinor": 1107800,
+          "shippingMinor": 0,
+          "rating": 4.2,
+          "reviewCount": 2255,
+          "trustRating": 4.09,
+          "matchConfidence": 0.92,
+          "promoCount": {
+            "universal": 0,
+            "conditional": 2,
+            "deferred": 0,
+            "financing": 2
+          },
+          "hasUniversalPromo": false
+        }
+      ],
+      "unitBasis": null,
+      "history": {
+        "observationCount": 11,
+        "firstDate": "2026-04-17",
+        "lastDate": "2026-08-14",
+        "minMinor": 1084000,
+        "maxMinor": 1241000,
+        "medianMinor": 1145000,
+        "currentMinor": 1099000,
+        "percentile": 9,
+        "volatility": 4.4,
+        "volatilityBand": "moderate",
+        "promoDays": 1,
+        "trendPct": -11.4
+      },
+      "normalMinor": 1120000,
+      "distortionState": "normal",
+      "distortionRatio": 0.9851785714285715,
+      "strength": {
+        "targetRating": 4.3,
+        "targetReviews": 6355,
+        "medianRating": 4.2,
+        "medianReviews": 10686.5,
+        "specAdvantageCount": 2,
+        "specDisadvantageCount": 0
+      },
+      "competitors": {
+        "ownUnitPriceMinor": null,
+        "targetTrustRating": 4.26,
+        "cheaperCount": 6,
+        "dearerCount": 4,
+        "reversalIds": [],
+        "strongerTrustCount": 2,
+        "rows": [
+          {
+            "id": "prod_green_soul_high",
+            "tier": "direct",
+            "similarity": 0.8932423976454711,
+            "evidenceWeight": 0.85,
+            "priceMinor": 856400,
+            "priceGapPct": -22.4,
+            "unitValue": null,
+            "unitPriceMinor": null,
+            "unitGapPct": null,
+            "cheaperButDearerPerUnit": false,
+            "trustRating": 4.2,
+            "trustDelta": -0.06
+          },
+          {
+            "id": "prod_green_soul_beast",
+            "tier": "direct",
+            "similarity": 0.9124495907845622,
+            "evidenceWeight": 0.775,
+            "priceMinor": 1349000,
+            "priceGapPct": 22.3,
+            "unitValue": null,
+            "unitPriceMinor": null,
+            "unitGapPct": null,
+            "cheaperButDearerPerUnit": false,
+            "trustRating": 4.16,
+            "trustDelta": -0.1
+          },
+          {
+            "id": "prod_green_soul_jupiter",
+            "tier": "direct",
+            "similarity": 0.7971138895275167,
+            "evidenceWeight": 0.759,
+            "priceMinor": 749900,
+            "priceGapPct": -32,
+            "unitValue": null,
+            "unitPriceMinor": null,
+            "unitGapPct": null,
+            "cheaperButDearerPerUnit": false,
+            "trustRating": 4.3,
+            "trustDelta": 0.04
+          },
+          {
+            "id": "prod_featherlite_chair",
+            "tier": "direct",
+            "similarity": 0.8586568120516694,
+            "evidenceWeight": 0.729,
+            "priceMinor": 1471000,
+            "priceGapPct": 33.3,
+            "unitValue": null,
+            "unitPriceMinor": null,
+            "unitGapPct": null,
+            "cheaperButDearerPerUnit": false,
+            "trustRating": 4.33,
+            "trustDelta": 0.07
+          },
+          {
+            "id": "prod_wakefit_ergo",
+            "tier": "direct",
+            "similarity": 0.8312047986184258,
+            "evidenceWeight": 0.706,
+            "priceMinor": 749900,
+            "priceGapPct": -32,
+            "unitValue": null,
+            "unitPriceMinor": null,
+            "unitGapPct": null,
+            "cheaperButDearerPerUnit": false,
+            "trustRating": 4.19,
+            "trustDelta": -0.07
+          },
+          {
+            "id": "prod_nilkamal_exec",
+            "tier": "direct",
+            "similarity": 0.7437715333345584,
+            "evidenceWeight": 0.547,
+            "priceMinor": 1299000,
+            "priceGapPct": 17.7,
+            "unitValue": null,
+            "unitPriceMinor": null,
+            "unitGapPct": null,
+            "cheaperButDearerPerUnit": false,
+            "trustRating": 3.92,
+            "trustDelta": -0.34
+          },
+          {
+            "id": "prod_featherlite_exec",
+            "tier": "direct",
+            "similarity": 0.7082072201055025,
+            "evidenceWeight": 0.503,
+            "priceMinor": 1439000,
+            "priceGapPct": 30.4,
+            "unitValue": null,
+            "unitPriceMinor": null,
+            "unitGapPct": null,
+            "cheaperButDearerPerUnit": false,
+            "trustRating": 4.25,
+            "trustDelta": -0.01
+          },
+          {
+            "id": "prod_green_soul_mid",
+            "tier": "comparable",
+            "similarity": 0.6531815842887688,
+            "evidenceWeight": 0.373,
+            "priceMinor": 649900,
+            "priceGapPct": -41.1,
+            "unitValue": null,
+            "unitPriceMinor": null,
+            "unitGapPct": null,
+            "cheaperButDearerPerUnit": false,
+            "trustRating": 4,
+            "trustDelta": -0.26
+          },
+          {
+            "id": "prod_da_urban_mesh",
+            "tier": "comparable",
+            "similarity": 0.5658206655812965,
+            "evidenceWeight": 0.323,
+            "priceMinor": 529900,
+            "priceGapPct": -52,
+            "unitValue": null,
+            "unitPriceMinor": null,
+            "unitGapPct": null,
+            "cheaperButDearerPerUnit": false,
+            "trustRating": 3.9,
+            "trustDelta": -0.36
+          },
+          {
+            "id": "prod_da_urban_chair",
+            "tier": "comparable",
+            "similarity": 0.5060830746194109,
+            "evidenceWeight": 0.289,
+            "priceMinor": 533700,
+            "priceGapPct": -51.6,
+            "unitValue": null,
+            "unitPriceMinor": null,
+            "unitGapPct": null,
+            "cheaperButDearerPerUnit": false,
+            "trustRating": 3.9,
+            "trustDelta": -0.36
+          }
+        ]
+      },
+      "ownMarket": {
+        "n": 2,
+        "min": 1099000,
+        "median": 1103400,
+        "max": 1107800
+      },
+      "competitiveStatistics": {
+        "n": 10,
+        "min": 529900,
+        "median": 809665,
+        "max": 1471000
+      },
+      "findingIds": [
+        "availability",
+        "historical_position",
+        "match_confidence",
+        "spec_position",
+        "trust_vs_comps",
+        "vs_comp_median",
+        "wtp"
+      ],
+      "findings": [
+        {
+          "id": "vs_comp_median",
+          "dimension": "Competitor",
+          "direction": "premium"
+        },
+        {
+          "id": "trust_vs_comps",
+          "dimension": "Trust",
+          "direction": "neutral"
+        },
+        {
+          "id": "spec_position",
+          "dimension": "Specification",
+          "direction": "premium"
+        },
+        {
+          "id": "historical_position",
+          "dimension": "History",
+          "direction": "premium"
+        },
+        {
+          "id": "wtp",
+          "dimension": "Willingness to pay",
+          "direction": "premium"
+        },
+        {
+          "id": "availability",
+          "dimension": "Availability",
+          "direction": "neutral"
+        },
+        {
+          "id": "match_confidence",
+          "dimension": "Data quality",
+          "direction": "neutral"
+        }
+      ],
+      "analysisState": {
+        "available": true,
+        "limited": false,
+        "attributeCount": 6
+      }
+    },
+    {
+      "productId": "prod_airpods_pro2",
+      "shape": "single marketplace",
+      "canonicalName": "Apple AirPods Pro (2nd Generation)",
+      "productTypeId": "ptype_earbuds",
+      "competitiveSet": {
+        "memberIds": [
+          "prod_sony_wf1000xm4"
+        ],
+        "directIds": [
+          "prod_sony_wf1000xm4"
+        ],
+        "comparableIds": [],
+        "referenceIds": [
+          "prod_jbl_go4_speaker_promo",
+          "prod_oneplus_buds3",
+          "prod_galaxy_buds_fe",
+          "prod_oneplus_nord_buds3",
+          "prod_jbl_tune230",
+          "prod_noise_buds_n1"
+        ],
+        "excludedCount": 4,
+        "members": [
+          {
+            "productId": "prod_sony_wf1000xm4",
+            "tier": "direct",
+            "similarity": 0.7178475898450131,
+            "evidenceWeight": 0.683,
+            "currentPriceMinor": 1456100,
+            "sharedMarketplaces": 1,
+            "marketplaceIds": [
+              "mp_amazon_in",
+              "mp_flipkart"
+            ],
+            "rating": 4.5,
+            "reviewCount": 9455,
+            "isSameFamily": false,
+            "qualityScore": 0.9517241379310345,
+            "specScore": 0.6978787878787878,
+            "specMatch": 2,
+            "specPartial": 4,
+            "specDiffer": 1,
+            "specMissing": 0,
+            "breakdown": {
+              "specScore": 0.6978787878787878,
+              "tierScore": 1,
+              "priceScore": 0.7152085411982343,
+              "marketplaceScore": 0.5
+            }
+          }
+        ],
+        "coverage": {
+          "directCount": 1,
+          "comparableCount": 0,
+          "totalCount": 1,
+          "effectiveComparables": 0.68,
+          "meetsTarget": false,
+          "sufficient": false,
+          "level": "insufficient"
+        }
+      },
+      "marketplace": {
+        "marketplaceCount": 1,
+        "pricedCount": 1,
+        "cheapestMarketplaceId": "mp_amazon_in",
+        "dearestMarketplaceId": "mp_amazon_in",
+        "spreadMinor": 0,
+        "spreadPct": 0,
+        "medianEffectiveMinor": 1991000,
+        "priceTrustCorrelation": null,
+        "cheapestIsAlsoBestTrusted": true,
+        "shippingReordersRanking": false,
+        "platformsWithPaidShipping": 0,
+        "platformsWithStockGap": 0,
+        "lowestMatchConfidence": 0.99
+      },
+      "marketplaceRows": [
+        {
+          "marketplaceId": "mp_amazon_in",
+          "offerCount": 2,
+          "inStockCount": 2,
+          "headlineMinor": 1991000,
+          "landedMinor": 1991000,
+          "effectiveMinor": 1991000,
+          "shippingMinor": 0,
+          "rating": 4.8,
+          "reviewCount": 19500,
+          "trustRating": 4.8,
+          "matchConfidence": 0.99,
+          "promoCount": {
+            "universal": 0,
+            "conditional": 1,
+            "deferred": 0,
+            "financing": 0
+          },
+          "hasUniversalPromo": false
+        }
+      ],
+      "unitBasis": null,
+      "history": {
+        "observationCount": 50,
+        "firstDate": "2026-06-25",
+        "lastDate": "2026-08-13",
+        "minMinor": 1986000,
+        "maxMinor": 2190000,
+        "medianMinor": 2044000,
+        "currentMinor": 1991000,
+        "percentile": 4,
+        "volatility": 2.5,
+        "volatilityBand": "stable",
+        "promoDays": 0,
+        "trendPct": -9.1
+      },
+      "normalMinor": null,
+      "distortionState": null,
+      "distortionRatio": null,
+      "strength": null,
+      "competitors": null,
+      "ownMarket": null,
+      "competitiveStatistics": {
+        "n": 1,
+        "min": 1456100,
+        "median": 1456100,
+        "max": 1456100
+      },
+      "findingIds": [],
+      "findings": [],
+      "analysisState": {
+        "available": true,
+        "limited": true,
+        "attributeCount": 7
+      }
+    },
+    {
+      "productId": "prod_galaxy_m14_5g_6_128_blue",
+      "shape": "per-unit must be suppressed; variant family",
+      "canonicalName": "Samsung Galaxy M14 5G (6GB RAM, 128GB) — Berry Blue",
+      "productTypeId": "ptype_smartphone",
+      "competitiveSet": {
+        "memberIds": [
+          "prod_oneplus_nord_ce4_lite_6_128",
+          "prod_redmi_13c_5g",
+          "prod_poco_m6_5g",
+          "prod_iqoo_z9_5g",
+          "prod_moto_g84",
+          "prod_redmi_note13_5g_6_128",
+          "prod_infinix_note40",
+          "prod_narzo_70",
+          "prod_infinix_smart8",
+          "prod_realme_12x_6_128"
+        ],
+        "directIds": [
+          "prod_oneplus_nord_ce4_lite_6_128",
+          "prod_redmi_13c_5g",
+          "prod_poco_m6_5g",
+          "prod_iqoo_z9_5g",
+          "prod_moto_g84",
+          "prod_redmi_note13_5g_6_128",
+          "prod_infinix_note40",
+          "prod_narzo_70",
+          "prod_infinix_smart8",
+          "prod_realme_12x_6_128"
+        ],
+        "comparableIds": [],
+        "referenceIds": [
+          "prod_galaxy_m14_5g_8_256_silver",
+          "prod_vivo_t3x_6_128",
+          "prod_redmi_a3_4_64"
+        ],
+        "excludedCount": 6,
+        "members": [
+          {
+            "productId": "prod_oneplus_nord_ce4_lite_6_128",
+            "tier": "direct",
+            "similarity": 0.8848781962217236,
+            "evidenceWeight": 0.867,
+            "currentPriceMinor": 1449000,
+            "sharedMarketplaces": 2,
+            "marketplaceIds": [
+              "mp_amazon_in",
+              "mp_flipkart"
+            ],
+            "rating": 4.4,
+            "reviewCount": 9300,
+            "isSameFamily": false,
+            "qualityScore": 0.9793103448275862,
+            "specScore": 0.862365210429611,
+            "specMatch": 5,
+            "specPartial": 3,
+            "specDiffer": 1,
+            "specMissing": 0,
+            "breakdown": {
+              "specScore": 0.862365210429611,
+              "tierScore": 1,
+              "priceScore": 0.7872554061135943,
+              "marketplaceScore": 1
+            }
+          },
+          {
+            "productId": "prod_redmi_13c_5g",
+            "tier": "direct",
+            "similarity": 0.8352249254775531,
+            "evidenceWeight": 0.795,
+            "currentPriceMinor": 1049900,
+            "sharedMarketplaces": 2,
+            "marketplaceIds": [
+              "mp_amazon_in",
+              "mp_flipkart"
+            ],
+            "rating": 4,
+            "reviewCount": 63550,
+            "isSameFamily": false,
+            "qualityScore": 0.9517241379310345,
+            "specScore": 0.8452304648862512,
+            "specMatch": 4,
+            "specPartial": 4,
+            "specDiffer": 1,
+            "specMissing": 0,
+            "breakdown": {
+              "specScore": 0.8452304648862512,
+              "tierScore": 0.5,
+              "priceScore": 0.9194848651149602,
+              "marketplaceScore": 1
+            }
+          },
+          {
+            "productId": "prod_poco_m6_5g",
+            "tier": "direct",
+            "similarity": 0.821956249983936,
+            "evidenceWeight": 0.782,
+            "currentPriceMinor": 907100,
+            "sharedMarketplaces": 2,
+            "marketplaceIds": [
+              "mp_amazon_in",
+              "mp_flipkart"
+            ],
+            "rating": 4.1,
+            "reviewCount": 52700,
+            "isSameFamily": false,
+            "qualityScore": 0.9517241379310345,
+            "specScore": 0.8896749093306957,
+            "specMatch": 5,
+            "specPartial": 3,
+            "specDiffer": 1,
+            "specMissing": 0,
+            "breakdown": {
+              "specScore": 0.8896749093306957,
+              "tierScore": 0.5,
+              "priceScore": 0.7864101631404921,
+              "marketplaceScore": 1
+            }
+          },
+          {
+            "productId": "prod_iqoo_z9_5g",
+            "tier": "direct",
+            "similarity": 0.8084793044841415,
+            "evidenceWeight": 0.769,
+            "currentPriceMinor": 1904900,
+            "sharedMarketplaces": 2,
+            "marketplaceIds": [
+              "mp_amazon_in",
+              "mp_flipkart"
+            ],
+            "rating": 4.3,
+            "reviewCount": 19685,
+            "isSameFamily": false,
+            "qualityScore": 0.9517241379310345,
+            "specScore": 0.8309239319734072,
+            "specMatch": 4,
+            "specPartial": 4,
+            "specDiffer": 1,
+            "specMissing": 0,
+            "breakdown": {
+              "specScore": 0.8309239319734072,
+              "tierScore": 1,
+              "priceScore": 0.538254140384433,
+              "marketplaceScore": 1
+            }
+          },
+          {
+            "productId": "prod_moto_g84",
+            "tier": "direct",
+            "similarity": 0.7388291762539863,
+            "evidenceWeight": 0.703,
+            "currentPriceMinor": 1566600,
+            "sharedMarketplaces": 2,
+            "marketplaceIds": [
+              "mp_amazon_in",
+              "mp_flipkart"
+            ],
+            "rating": 4.2,
+            "reviewCount": 19220,
+            "isSameFamily": false,
+            "qualityScore": 0.9517241379310345,
+            "specScore": 0.743939393939394,
+            "specMatch": 3,
+            "specPartial": 5,
+            "specDiffer": 1,
+            "specMissing": 0,
+            "breakdown": {
+              "specScore": 0.743939393939394,
+              "tierScore": 0.5,
+              "priceScore": 0.7162257959250359,
+              "marketplaceScore": 1
+            }
+          },
+          {
+            "productId": "prod_redmi_note13_5g_6_128",
+            "tier": "direct",
+            "similarity": 0.7336367284439349,
+            "evidenceWeight": 0.683,
+            "currentPriceMinor": 1166000,
+            "sharedMarketplaces": 1,
+            "marketplaceIds": [
+              "mp_flipkart",
+              "mp_meesho"
+            ],
+            "rating": 4.2,
+            "reviewCount": 14400,
+            "isSameFamily": false,
+            "qualityScore": 0.9310344827586207,
+            "specScore": 0.8052785896613983,
+            "specMatch": 4,
+            "specPartial": 4,
+            "specDiffer": 1,
+            "specMissing": 0,
+            "breakdown": {
+              "specScore": 0.8052785896613983,
+              "tierScore": 0.5,
+              "priceScore": 0.9850454523852225,
+              "marketplaceScore": 0.3333333333333333
+            }
+          },
+          {
+            "productId": "prod_infinix_note40",
+            "tier": "direct",
+            "similarity": 0.6958250387886477,
+            "evidenceWeight": 0.662,
+            "currentPriceMinor": 1699900,
+            "sharedMarketplaces": 2,
+            "marketplaceIds": [
+              "mp_amazon_in",
+              "mp_flipkart"
+            ],
+            "rating": 4.1,
+            "reviewCount": 13795,
+            "isSameFamily": false,
+            "qualityScore": 0.9517241379310345,
+            "specScore": 0.6896700535343603,
+            "specMatch": 1,
+            "specPartial": 7,
+            "specDiffer": 1,
+            "specMissing": 0,
+            "breakdown": {
+              "specScore": 0.6896700535343603,
+              "tierScore": 0.5,
+              "priceScore": 0.641894058792742,
+              "marketplaceScore": 1
+            }
+          },
+          {
+            "productId": "prod_narzo_70",
+            "tier": "direct",
+            "similarity": 0.7557773149721001,
+            "evidenceWeight": 0.645,
+            "currentPriceMinor": 1324600,
+            "sharedMarketplaces": 1,
+            "marketplaceIds": [
+              "mp_flipkart"
+            ],
+            "rating": 4.1,
+            "reviewCount": 9800,
+            "isSameFamily": false,
+            "qualityScore": 0.8528735632183908,
+            "specScore": 0.8634155144649897,
+            "specMatch": 5,
+            "specPartial": 3,
+            "specDiffer": 1,
+            "specMissing": 0,
+            "breakdown": {
+              "specScore": 0.8634155144649897,
+              "tierScore": 0.5,
+              "priceScore": 0.8689613338514195,
+              "marketplaceScore": 0.5
+            }
+          },
+          {
+            "productId": "prod_infinix_smart8",
+            "tier": "direct",
+            "similarity": 0.6445928172001578,
+            "evidenceWeight": 0.613,
+            "currentPriceMinor": 699900,
+            "sharedMarketplaces": 2,
+            "marketplaceIds": [
+              "mp_amazon_in",
+              "mp_flipkart"
+            ],
+            "rating": 4,
+            "reviewCount": 34100,
+            "isSameFamily": false,
+            "qualityScore": 0.9517241379310345,
+            "specScore": 0.6266666666666667,
+            "specMatch": 3,
+            "specPartial": 4,
+            "specDiffer": 2,
+            "specMissing": 0,
+            "breakdown": {
+              "specScore": 0.6266666666666667,
+              "tierScore": 0.5,
+              "priceScore": 0.5503712688006313,
+              "marketplaceScore": 1
+            }
+          },
+          {
+            "productId": "prod_realme_12x_6_128",
+            "tier": "direct",
+            "similarity": 0.7792860813722806,
+            "evidenceWeight": 0.597,
+            "currentPriceMinor": 1097000,
+            "sharedMarketplaces": 1,
+            "marketplaceIds": [
+              "mp_flipkart"
+            ],
+            "rating": 4.1,
+            "reviewCount": 9800,
+            "isSameFamily": false,
+            "qualityScore": 0.7655172413793103,
+            "specScore": 0.8653968253968254,
+            "specMatch": 5,
+            "specPartial": 3,
+            "specDiffer": 1,
+            "specMissing": 0,
+            "breakdown": {
+              "specScore": 0.8653968253968254,
+              "tierScore": 0.5,
+              "priceScore": 0.959430039774837,
+              "marketplaceScore": 0.5
+            }
+          }
+        ],
+        "coverage": {
+          "directCount": 10,
+          "comparableCount": 0,
+          "totalCount": 10,
+          "effectiveComparables": 7.12,
+          "meetsTarget": true,
+          "sufficient": true,
+          "level": "strong"
+        }
+      },
+      "marketplace": {
+        "marketplaceCount": 2,
+        "pricedCount": 2,
+        "cheapestMarketplaceId": "mp_flipkart",
+        "dearestMarketplaceId": "mp_amazon_in",
+        "spreadMinor": 23000,
+        "spreadPct": 2,
+        "medianEffectiveMinor": 1158500,
+        "priceTrustCorrelation": null,
+        "cheapestIsAlsoBestTrusted": false,
+        "shippingReordersRanking": false,
+        "platformsWithPaidShipping": 1,
+        "platformsWithStockGap": 0,
+        "lowestMatchConfidence": 0.95
+      },
+      "marketplaceRows": [
+        {
+          "marketplaceId": "mp_flipkart",
+          "offerCount": 3,
+          "inStockCount": 3,
+          "headlineMinor": 1172000,
+          "landedMinor": 1172000,
+          "effectiveMinor": 1147000,
+          "shippingMinor": 0,
+          "rating": 4.3,
+          "reviewCount": 9840,
+          "trustRating": 4.3,
+          "matchConfidence": 0.98,
+          "promoCount": {
+            "universal": 1,
+            "conditional": 2,
+            "deferred": 0,
+            "financing": 1
+          },
+          "hasUniversalPromo": true
+        },
+        {
+          "marketplaceId": "mp_amazon_in",
+          "offerCount": 3,
+          "inStockCount": 3,
+          "headlineMinor": 1170000,
+          "landedMinor": 1170000,
+          "effectiveMinor": 1170000,
+          "shippingMinor": 0,
+          "rating": 4.5,
+          "reviewCount": 6420,
+          "trustRating": 4.45,
+          "matchConfidence": 0.95,
+          "promoCount": {
+            "universal": 0,
+            "conditional": 2,
+            "deferred": 1,
+            "financing": 0
+          },
+          "hasUniversalPromo": false
+        }
+      ],
+      "unitBasis": null,
+      "history": {
+        "observationCount": 150,
+        "firstDate": "2026-03-17",
+        "lastDate": "2026-08-13",
+        "minMinor": 1142000,
+        "maxMinor": 1389000,
+        "medianMinor": 1330500,
+        "currentMinor": 1147000,
+        "percentile": 1,
+        "volatility": 4.1,
+        "volatilityBand": "moderate",
+        "promoDays": 21,
+        "trendPct": -17.4
+      },
+      "normalMinor": 1316500,
+      "distortionState": "normal",
+      "distortionRatio": 0.9430307633877706,
+      "strength": {
+        "targetRating": 4.4,
+        "targetReviews": 16260,
+        "medianRating": 4.1,
+        "medianReviews": 16810,
+        "specAdvantageCount": 1,
+        "specDisadvantageCount": 1
+      },
+      "competitors": {
+        "ownUnitPriceMinor": null,
+        "targetTrustRating": 4.4,
+        "cheaperCount": 5,
+        "dearerCount": 5,
+        "reversalIds": [],
+        "strongerTrustCount": 0,
+        "rows": [
+          {
+            "id": "prod_oneplus_nord_ce4_lite_6_128",
+            "tier": "direct",
+            "similarity": 0.8848781962217236,
+            "evidenceWeight": 0.867,
+            "priceMinor": 1449000,
+            "priceGapPct": 16.7,
+            "unitValue": null,
+            "unitPriceMinor": null,
+            "unitGapPct": null,
+            "cheaperButDearerPerUnit": false,
+            "trustRating": 4.39,
+            "trustDelta": -0.01
+          },
+          {
+            "id": "prod_redmi_13c_5g",
+            "tier": "direct",
+            "similarity": 0.8352249254775531,
+            "evidenceWeight": 0.795,
+            "priceMinor": 1049900,
+            "priceGapPct": -15.4,
+            "unitValue": null,
+            "unitPriceMinor": null,
+            "unitGapPct": null,
+            "cheaperButDearerPerUnit": false,
+            "trustRating": 4,
+            "trustDelta": -0.4
+          },
+          {
+            "id": "prod_poco_m6_5g",
+            "tier": "direct",
+            "similarity": 0.821956249983936,
+            "evidenceWeight": 0.782,
+            "priceMinor": 907100,
+            "priceGapPct": -26.9,
+            "unitValue": null,
+            "unitPriceMinor": null,
+            "unitGapPct": null,
+            "cheaperButDearerPerUnit": false,
+            "trustRating": 4.1,
+            "trustDelta": -0.3
+          },
+          {
+            "id": "prod_iqoo_z9_5g",
+            "tier": "direct",
+            "similarity": 0.8084793044841415,
+            "evidenceWeight": 0.769,
+            "priceMinor": 1904900,
+            "priceGapPct": 53.4,
+            "unitValue": null,
+            "unitPriceMinor": null,
+            "unitGapPct": null,
+            "cheaperButDearerPerUnit": false,
+            "trustRating": 4.3,
+            "trustDelta": -0.1
+          },
+          {
+            "id": "prod_moto_g84",
+            "tier": "direct",
+            "similarity": 0.7388291762539863,
+            "evidenceWeight": 0.703,
+            "priceMinor": 1566600,
+            "priceGapPct": 26.2,
+            "unitValue": null,
+            "unitPriceMinor": null,
+            "unitGapPct": null,
+            "cheaperButDearerPerUnit": false,
+            "trustRating": 4.2,
+            "trustDelta": -0.2
+          },
+          {
+            "id": "prod_redmi_note13_5g_6_128",
+            "tier": "direct",
+            "similarity": 0.7336367284439349,
+            "evidenceWeight": 0.683,
+            "priceMinor": 1166000,
+            "priceGapPct": -6.1,
+            "unitValue": null,
+            "unitPriceMinor": null,
+            "unitGapPct": null,
+            "cheaperButDearerPerUnit": false,
+            "trustRating": 4.2,
+            "trustDelta": -0.2
+          },
+          {
+            "id": "prod_infinix_note40",
+            "tier": "direct",
+            "similarity": 0.6958250387886477,
+            "evidenceWeight": 0.662,
+            "priceMinor": 1699900,
+            "priceGapPct": 36.9,
+            "unitValue": null,
+            "unitPriceMinor": null,
+            "unitGapPct": null,
+            "cheaperButDearerPerUnit": false,
+            "trustRating": 4.1,
+            "trustDelta": -0.3
+          },
+          {
+            "id": "prod_narzo_70",
+            "tier": "direct",
+            "similarity": 0.7557773149721001,
+            "evidenceWeight": 0.645,
+            "priceMinor": 1324600,
+            "priceGapPct": 6.7,
+            "unitValue": null,
+            "unitPriceMinor": null,
+            "unitGapPct": null,
+            "cheaperButDearerPerUnit": false,
+            "trustRating": 4.1,
+            "trustDelta": -0.3
+          },
+          {
+            "id": "prod_infinix_smart8",
+            "tier": "direct",
+            "similarity": 0.6445928172001578,
+            "evidenceWeight": 0.613,
+            "priceMinor": 699900,
+            "priceGapPct": -43.6,
+            "unitValue": null,
+            "unitPriceMinor": null,
+            "unitGapPct": null,
+            "cheaperButDearerPerUnit": false,
+            "trustRating": 4,
+            "trustDelta": -0.4
+          },
+          {
+            "id": "prod_realme_12x_6_128",
+            "tier": "direct",
+            "similarity": 0.7792860813722806,
+            "evidenceWeight": 0.597,
+            "priceMinor": 1097000,
+            "priceGapPct": -11.6,
+            "unitValue": null,
+            "unitPriceMinor": null,
+            "unitGapPct": null,
+            "cheaperButDearerPerUnit": false,
+            "trustRating": 4.1,
+            "trustDelta": -0.3
+          }
+        ]
+      },
+      "ownMarket": {
+        "n": 6,
+        "min": 1147000,
+        "median": 1241500,
+        "max": 1341900
+      },
+      "competitiveStatistics": {
+        "n": 10,
+        "min": 699900,
+        "median": 1187638,
+        "max": 1904900
+      },
+      "findingIds": [
+        "historical_position",
+        "spec_position",
+        "trust_vs_comps",
+        "vs_comp_median",
+        "wtp"
+      ],
+      "findings": [
+        {
+          "id": "vs_comp_median",
+          "dimension": "Competitor",
+          "direction": "premium"
+        },
+        {
+          "id": "trust_vs_comps",
+          "dimension": "Trust",
+          "direction": "neutral"
+        },
+        {
+          "id": "spec_position",
+          "dimension": "Specification",
+          "direction": "neutral"
+        },
+        {
+          "id": "historical_position",
+          "dimension": "History",
+          "direction": "premium"
+        },
+        {
+          "id": "wtp",
+          "dimension": "Willingness to pay",
+          "direction": "premium"
+        }
+      ],
+      "analysisState": {
+        "available": true,
+        "limited": false,
+        "attributeCount": 9
+      }
+    },
+    {
+      "productId": "prod_galaxy_m14_5g_8_256_silver",
+      "shape": "same family as the above — identity dedup",
+      "canonicalName": "Samsung Galaxy M14 5G (8GB RAM, 256GB) — Icy Silver",
+      "productTypeId": "ptype_smartphone",
+      "competitiveSet": {
+        "memberIds": [
+          "prod_oneplus_nord_ce4_lite_6_128",
+          "prod_iqoo_z9_5g",
+          "prod_moto_g84",
+          "prod_infinix_note40",
+          "prod_nothing_2a",
+          "prod_redmi_note13pro",
+          "prod_redmi_13c_5g",
+          "prod_narzo_70",
+          "prod_redmi_note13_5g_6_128",
+          "prod_vivo_t3x_6_128"
+        ],
+        "directIds": [
+          "prod_oneplus_nord_ce4_lite_6_128",
+          "prod_iqoo_z9_5g",
+          "prod_moto_g84",
+          "prod_infinix_note40",
+          "prod_nothing_2a",
+          "prod_redmi_note13pro",
+          "prod_redmi_13c_5g",
+          "prod_narzo_70",
+          "prod_redmi_note13_5g_6_128",
+          "prod_vivo_t3x_6_128"
+        ],
+        "comparableIds": [],
+        "referenceIds": [
+          "prod_galaxy_m14_5g_6_128_blue",
+          "prod_poco_m6_5g",
+          "prod_realme_12x_6_128",
+          "prod_infinix_smart8",
+          "prod_redmi_a3_4_64"
+        ],
+        "excludedCount": 4,
+        "members": [
+          {
+            "productId": "prod_oneplus_nord_ce4_lite_6_128",
+            "tier": "direct",
+            "similarity": 0.8758304695396507,
+            "evidenceWeight": 0.858,
+            "currentPriceMinor": 1449000,
+            "sharedMarketplaces": 2,
+            "marketplaceIds": [
+              "mp_amazon_in",
+              "mp_flipkart"
+            ],
+            "rating": 4.4,
+            "reviewCount": 9300,
+            "isSameFamily": false,
+            "qualityScore": 0.9793103448275862,
+            "specScore": 0.762365210429611,
+            "specMatch": 3,
+            "specPartial": 5,
+            "specDiffer": 1,
+            "specMissing": 0,
+            "breakdown": {
+              "specScore": 0.762365210429611,
+              "tierScore": 1,
+              "priceScore": 0.9310644993853029,
+              "marketplaceScore": 1
+            }
+          },
+          {
+            "productId": "prod_iqoo_z9_5g",
+            "tier": "direct",
+            "similarity": 0.8638993281094173,
+            "evidenceWeight": 0.822,
+            "currentPriceMinor": 1904900,
+            "sharedMarketplaces": 2,
+            "marketplaceIds": [
+              "mp_amazon_in",
+              "mp_flipkart"
+            ],
+            "rating": 4.3,
+            "reviewCount": 19685,
+            "isSameFamily": false,
+            "qualityScore": 0.9517241379310345,
+            "specScore": 0.7975905986400739,
+            "specMatch": 4,
+            "specPartial": 4,
+            "specDiffer": 1,
+            "specMissing": 0,
+            "breakdown": {
+              "specScore": 0.7975905986400739,
+              "tierScore": 1,
+              "priceScore": 0.8199342348855357,
+              "marketplaceScore": 1
+            }
+          },
+          {
+            "productId": "prod_moto_g84",
+            "tier": "direct",
+            "similarity": 0.849249199879262,
+            "evidenceWeight": 0.808,
+            "currentPriceMinor": 1566600,
+            "sharedMarketplaces": 2,
+            "marketplaceIds": [
+              "mp_amazon_in",
+              "mp_flipkart"
+            ],
+            "rating": 4.2,
+            "reviewCount": 19220,
+            "isSameFamily": false,
+            "qualityScore": 0.9517241379310345,
+            "specScore": 0.8328282828282828,
+            "specMatch": 4,
+            "specPartial": 4,
+            "specDiffer": 1,
+            "specMissing": 0,
+            "breakdown": {
+              "specScore": 0.8328282828282828,
+              "tierScore": 0.5,
+              "priceScore": 0.9979058904261388,
+              "marketplaceScore": 1
+            }
+          },
+          {
+            "productId": "prod_infinix_note40",
+            "tier": "direct",
+            "similarity": 0.8112450624139232,
+            "evidenceWeight": 0.772,
+            "currentPriceMinor": 1699900,
+            "sharedMarketplaces": 2,
+            "marketplaceIds": [
+              "mp_amazon_in",
+              "mp_flipkart"
+            ],
+            "rating": 4.1,
+            "reviewCount": 13795,
+            "isSameFamily": false,
+            "qualityScore": 0.9517241379310345,
+            "specScore": 0.7896700535343603,
+            "specMatch": 3,
+            "specPartial": 5,
+            "specDiffer": 1,
+            "specMissing": 0,
+            "breakdown": {
+              "specScore": 0.7896700535343603,
+              "tierScore": 0.5,
+              "priceScore": 0.9235741532938446,
+              "marketplaceScore": 1
+            }
+          },
+          {
+            "productId": "prod_nothing_2a",
+            "tier": "direct",
+            "similarity": 0.81068894380557,
+            "evidenceWeight": 0.772,
+            "currentPriceMinor": 2399900,
+            "sharedMarketplaces": 2,
+            "marketplaceIds": [
+              "mp_amazon_in",
+              "mp_flipkart"
+            ],
+            "rating": 4.4,
+            "reviewCount": 13795,
+            "isSameFamily": false,
+            "qualityScore": 0.9517241379310345,
+            "specScore": 0.7961580983969044,
+            "specMatch": 4,
+            "specPartial": 4,
+            "specDiffer": 1,
+            "specMissing": 0,
+            "breakdown": {
+              "specScore": 0.7961580983969044,
+              "tierScore": 1,
+              "priceScore": 0.6096711981078519,
+              "marketplaceScore": 1
+            }
+          },
+          {
+            "productId": "prod_redmi_note13pro",
+            "tier": "direct",
+            "similarity": 0.7426504166034925,
+            "evidenceWeight": 0.707,
+            "currentPriceMinor": 2139200,
+            "sharedMarketplaces": 2,
+            "marketplaceIds": [
+              "mp_amazon_in",
+              "mp_flipkart"
+            ],
+            "rating": 4.3,
+            "reviewCount": 24180,
+            "isSameFamily": false,
+            "qualityScore": 0.9517241379310345,
+            "specScore": 0.7534763215407222,
+            "specMatch": 4,
+            "specPartial": 4,
+            "specDiffer": 1,
+            "specMissing": 0,
+            "breakdown": {
+              "specScore": 0.7534763215407222,
+              "tierScore": 0.5,
+              "priceScore": 0.7143442876406705,
+              "marketplaceScore": 1
+            }
+          },
+          {
+            "productId": "prod_redmi_13c_5g",
+            "tier": "direct",
+            "similarity": 0.7248049018522774,
+            "evidenceWeight": 0.69,
+            "currentPriceMinor": 1049900,
+            "sharedMarketplaces": 2,
+            "marketplaceIds": [
+              "mp_amazon_in",
+              "mp_flipkart"
+            ],
+            "rating": 4,
+            "reviewCount": 63550,
+            "isSameFamily": false,
+            "qualityScore": 0.9517241379310345,
+            "specScore": 0.7563415759973624,
+            "specMatch": 3,
+            "specPartial": 5,
+            "specDiffer": 1,
+            "specMissing": 0,
+            "breakdown": {
+              "specScore": 0.7563415759973624,
+              "tierScore": 0.5,
+              "priceScore": 0.6378047706138574,
+              "marketplaceScore": 1
+            }
+          },
+          {
+            "productId": "prod_narzo_70",
+            "tier": "direct",
+            "similarity": 0.7058766244211148,
+            "evidenceWeight": 0.602,
+            "currentPriceMinor": 1324600,
+            "sharedMarketplaces": 1,
+            "marketplaceIds": [
+              "mp_flipkart"
+            ],
+            "rating": 4.1,
+            "reviewCount": 9800,
+            "isSameFamily": false,
+            "qualityScore": 0.8528735632183908,
+            "specScore": 0.7634155144649897,
+            "specMatch": 3,
+            "specPartial": 5,
+            "specDiffer": 1,
+            "specMissing": 0,
+            "breakdown": {
+              "specScore": 0.7634155144649897,
+              "tierScore": 0.5,
+              "priceScore": 0.8493585716474779,
+              "marketplaceScore": 0.5
+            }
+          },
+          {
+            "productId": "prod_redmi_note13_5g_6_128",
+            "tier": "direct",
+            "similarity": 0.625693978626048,
+            "evidenceWeight": 0.583,
+            "currentPriceMinor": 1166000,
+            "sharedMarketplaces": 1,
+            "marketplaceIds": [
+              "mp_flipkart",
+              "mp_meesho"
+            ],
+            "rating": 4.2,
+            "reviewCount": 14400,
+            "isSameFamily": false,
+            "qualityScore": 0.9310344827586207,
+            "specScore": 0.7052785896613983,
+            "specMatch": 2,
+            "specPartial": 6,
+            "specDiffer": 1,
+            "specMissing": 0,
+            "breakdown": {
+              "specScore": 0.7052785896613983,
+              "tierScore": 0.5,
+              "priceScore": 0.7332744531136748,
+              "marketplaceScore": 0.3333333333333333
+            }
+          },
+          {
+            "productId": "prod_vivo_t3x_6_128",
+            "tier": "direct",
+            "similarity": 0.6879606134503171,
+            "evidenceWeight": 0.512,
+            "currentPriceMinor": 1172000,
+            "sharedMarketplaces": 1,
+            "marketplaceIds": [
+              "mp_amazon_in"
+            ],
+            "rating": 4.2,
+            "reviewCount": 7100,
+            "isSameFamily": false,
+            "qualityScore": 0.7448275862068966,
+            "specScore": 0.7854978354978356,
+            "specMatch": 4,
+            "specPartial": 4,
+            "specDiffer": 1,
+            "specMissing": 0,
+            "breakdown": {
+              "specScore": 0.7854978354978356,
+              "tierScore": 0.5,
+              "priceScore": 0.737946349905165,
+              "marketplaceScore": 0.5
+            }
+          }
+        ],
+        "coverage": {
+          "directCount": 10,
+          "comparableCount": 0,
+          "totalCount": 10,
+          "effectiveComparables": 7.13,
+          "meetsTarget": true,
+          "sufficient": true,
+          "level": "strong"
+        }
+      },
+      "marketplace": {
+        "marketplaceCount": 2,
+        "pricedCount": 2,
+        "cheapestMarketplaceId": "mp_flipkart",
+        "dearestMarketplaceId": "mp_amazon_in",
+        "spreadMinor": 13000,
+        "spreadPct": 0.8,
+        "medianEffectiveMinor": 1569500,
+        "priceTrustCorrelation": null,
+        "cheapestIsAlsoBestTrusted": false,
+        "shippingReordersRanking": false,
+        "platformsWithPaidShipping": 0,
+        "platformsWithStockGap": 0,
+        "lowestMatchConfidence": 0.93
+      },
+      "marketplaceRows": [
+        {
+          "marketplaceId": "mp_flipkart",
+          "offerCount": 2,
+          "inStockCount": 2,
+          "headlineMinor": 1563000,
+          "landedMinor": 1563000,
+          "effectiveMinor": 1563000,
+          "shippingMinor": 0,
+          "rating": 4.3,
+          "reviewCount": 1450,
+          "trustRating": 4.13,
+          "matchConfidence": 0.98,
+          "promoCount": {
+            "universal": 0,
+            "conditional": 0,
+            "deferred": 0,
+            "financing": 0
+          },
+          "hasUniversalPromo": false
+        },
+        {
+          "marketplaceId": "mp_amazon_in",
+          "offerCount": 2,
+          "inStockCount": 2,
+          "headlineMinor": 1576000,
+          "landedMinor": 1576000,
+          "effectiveMinor": 1576000,
+          "shippingMinor": 0,
+          "rating": 4.4,
+          "reviewCount": 1120,
+          "trustRating": 4.19,
+          "matchConfidence": 0.93,
+          "promoCount": {
+            "universal": 0,
+            "conditional": 0,
+            "deferred": 0,
+            "financing": 0
+          },
+          "hasUniversalPromo": false
+        }
+      ],
+      "unitBasis": null,
+      "history": {
+        "observationCount": 60,
+        "firstDate": "2026-06-15",
+        "lastDate": "2026-08-13",
+        "minMinor": 1562000,
+        "maxMinor": 1748000,
+        "medianMinor": 1716500,
+        "currentMinor": 1563000,
+        "percentile": 2,
+        "volatility": 3,
+        "volatilityBand": "stable",
+        "promoDays": 7,
+        "trendPct": -10.6
+      },
+      "normalMinor": 1716500,
+      "distortionState": "normal",
+      "distortionRatio": 0.9370812700262161,
+      "strength": {
+        "targetRating": 4.3,
+        "targetReviews": 2570,
+        "medianRating": 4.2,
+        "medianReviews": 14097.5,
+        "specAdvantageCount": 3,
+        "specDisadvantageCount": 1
+      },
+      "competitors": {
+        "ownUnitPriceMinor": null,
+        "targetTrustRating": 4.18,
+        "cheaperCount": 6,
+        "dearerCount": 4,
+        "reversalIds": [],
+        "strongerTrustCount": 6,
+        "rows": [
+          {
+            "id": "prod_oneplus_nord_ce4_lite_6_128",
+            "tier": "direct",
+            "similarity": 0.8758304695396507,
+            "evidenceWeight": 0.858,
+            "priceMinor": 1449000,
+            "priceGapPct": -9.9,
+            "unitValue": null,
+            "unitPriceMinor": null,
+            "unitGapPct": null,
+            "cheaperButDearerPerUnit": false,
+            "trustRating": 4.39,
+            "trustDelta": 0.21
+          },
+          {
+            "id": "prod_iqoo_z9_5g",
+            "tier": "direct",
+            "similarity": 0.8638993281094173,
+            "evidenceWeight": 0.822,
+            "priceMinor": 1904900,
+            "priceGapPct": 18.4,
+            "unitValue": null,
+            "unitPriceMinor": null,
+            "unitGapPct": null,
+            "cheaperButDearerPerUnit": false,
+            "trustRating": 4.3,
+            "trustDelta": 0.12
+          },
+          {
+            "id": "prod_moto_g84",
+            "tier": "direct",
+            "similarity": 0.849249199879262,
+            "evidenceWeight": 0.808,
+            "priceMinor": 1566600,
+            "priceGapPct": -2.6,
+            "unitValue": null,
+            "unitPriceMinor": null,
+            "unitGapPct": null,
+            "cheaperButDearerPerUnit": false,
+            "trustRating": 4.2,
+            "trustDelta": 0.02
+          },
+          {
+            "id": "prod_infinix_note40",
+            "tier": "direct",
+            "similarity": 0.8112450624139232,
+            "evidenceWeight": 0.772,
+            "priceMinor": 1699900,
+            "priceGapPct": 5.7,
+            "unitValue": null,
+            "unitPriceMinor": null,
+            "unitGapPct": null,
+            "cheaperButDearerPerUnit": false,
+            "trustRating": 4.1,
+            "trustDelta": -0.08
+          },
+          {
+            "id": "prod_nothing_2a",
+            "tier": "direct",
+            "similarity": 0.81068894380557,
+            "evidenceWeight": 0.772,
+            "priceMinor": 2399900,
+            "priceGapPct": 49.2,
+            "unitValue": null,
+            "unitPriceMinor": null,
+            "unitGapPct": null,
+            "cheaperButDearerPerUnit": false,
+            "trustRating": 4.4,
+            "trustDelta": 0.22
+          },
+          {
+            "id": "prod_redmi_note13pro",
+            "tier": "direct",
+            "similarity": 0.7426504166034925,
+            "evidenceWeight": 0.707,
+            "priceMinor": 2139200,
+            "priceGapPct": 33,
+            "unitValue": null,
+            "unitPriceMinor": null,
+            "unitGapPct": null,
+            "cheaperButDearerPerUnit": false,
+            "trustRating": 4.3,
+            "trustDelta": 0.12
+          },
+          {
+            "id": "prod_redmi_13c_5g",
+            "tier": "direct",
+            "similarity": 0.7248049018522774,
+            "evidenceWeight": 0.69,
+            "priceMinor": 1049900,
+            "priceGapPct": -34.7,
+            "unitValue": null,
+            "unitPriceMinor": null,
+            "unitGapPct": null,
+            "cheaperButDearerPerUnit": false,
+            "trustRating": 4,
+            "trustDelta": -0.18
+          },
+          {
+            "id": "prod_narzo_70",
+            "tier": "direct",
+            "similarity": 0.7058766244211148,
+            "evidenceWeight": 0.602,
+            "priceMinor": 1324600,
+            "priceGapPct": -17.6,
+            "unitValue": null,
+            "unitPriceMinor": null,
+            "unitGapPct": null,
+            "cheaperButDearerPerUnit": false,
+            "trustRating": 4.1,
+            "trustDelta": -0.08
+          },
+          {
+            "id": "prod_redmi_note13_5g_6_128",
+            "tier": "direct",
+            "similarity": 0.625693978626048,
+            "evidenceWeight": 0.583,
+            "priceMinor": 1166000,
+            "priceGapPct": -27.5,
+            "unitValue": null,
+            "unitPriceMinor": null,
+            "unitGapPct": null,
+            "cheaperButDearerPerUnit": false,
+            "trustRating": 4.2,
+            "trustDelta": 0.02
+          },
+          {
+            "id": "prod_vivo_t3x_6_128",
+            "tier": "direct",
+            "similarity": 0.6879606134503171,
+            "evidenceWeight": 0.512,
+            "priceMinor": 1172000,
+            "priceGapPct": -27.1,
+            "unitValue": null,
+            "unitPriceMinor": null,
+            "unitGapPct": null,
+            "cheaperButDearerPerUnit": false,
+            "trustRating": 4.17,
+            "trustDelta": -0.01
+          }
+        ]
+      },
+      "ownMarket": {
+        "n": 4,
+        "min": 1563000,
+        "median": 1608500,
+        "max": 1649000
+      },
+      "competitiveStatistics": {
+        "n": 10,
+        "min": 1049900,
+        "median": 1495283,
+        "max": 2399900
+      },
+      "findingIds": [
+        "historical_position",
+        "match_confidence",
+        "spec_position",
+        "trust_vs_comps",
+        "vs_comp_median",
+        "wtp"
+      ],
+      "findings": [
+        {
+          "id": "vs_comp_median",
+          "dimension": "Competitor",
+          "direction": "premium"
+        },
+        {
+          "id": "trust_vs_comps",
+          "dimension": "Trust",
+          "direction": "neutral"
+        },
+        {
+          "id": "spec_position",
+          "dimension": "Specification",
+          "direction": "premium"
+        },
+        {
+          "id": "historical_position",
+          "dimension": "History",
+          "direction": "premium"
+        },
+        {
+          "id": "wtp",
+          "dimension": "Willingness to pay",
+          "direction": "premium"
+        },
+        {
+          "id": "match_confidence",
+          "dimension": "Data quality",
+          "direction": "neutral"
+        }
+      ],
+      "analysisState": {
+        "available": true,
+        "limited": false,
+        "attributeCount": 9
+      }
+    },
+    {
+      "productId": "prod_green_soul_mid",
+      "shape": "thin competitor pool",
+      "canonicalName": "Green Soul Vienna Mid Back Mesh Office Chair",
+      "productTypeId": "ptype_office_chair",
+      "competitiveSet": {
+        "memberIds": [
+          "prod_da_urban_chair",
+          "prod_green_soul_jupiter",
+          "prod_da_urban_mesh",
+          "prod_green_soul_high",
+          "prod_wakefit_mesh_mid",
+          "prod_wakefit_ergo",
+          "prod_nilkamal_chair",
+          "prod_green_soul_vienna",
+          "prod_nilkamal_mid",
+          "prod_cellbell_c104"
+        ],
+        "directIds": [
+          "prod_da_urban_chair",
+          "prod_green_soul_jupiter",
+          "prod_da_urban_mesh",
+          "prod_green_soul_high",
+          "prod_wakefit_mesh_mid",
+          "prod_wakefit_ergo",
+          "prod_nilkamal_chair",
+          "prod_green_soul_vienna",
+          "prod_nilkamal_mid"
+        ],
+        "comparableIds": [
+          "prod_cellbell_c104"
+        ],
+        "referenceIds": [
+          "prod_green_soul_beast",
+          "prod_featherlite_chair",
+          "prod_nilkamal_exec",
+          "prod_featherlite_exec"
+        ],
+        "excludedCount": 0,
+        "members": [
+          {
+            "productId": "prod_da_urban_chair",
+            "tier": "direct",
+            "similarity": 0.8392651266942784,
+            "evidenceWeight": 0.799,
+            "currentPriceMinor": 533700,
+            "sharedMarketplaces": 3,
+            "marketplaceIds": [
+              "mp_amazon_in",
+              "mp_flipkart",
+              "mp_meesho"
+            ],
+            "rating": 3.9,
+            "reviewCount": 22995,
+            "isSameFamily": false,
+            "qualityScore": 0.9517241379310345,
+            "specScore": 0.9090909090909091,
+            "specMatch": 5,
+            "specPartial": 1,
+            "specDiffer": 0,
+            "specMissing": 0,
+            "breakdown": {
+              "specScore": 0.9090909090909091,
+              "tierScore": 0.5,
+              "priceScore": 0.8206968704134776,
+              "marketplaceScore": 1
+            }
+          },
+          {
+            "productId": "prod_green_soul_jupiter",
+            "tier": "direct",
+            "similarity": 0.7872660418686901,
+            "evidenceWeight": 0.749,
+            "currentPriceMinor": 749900,
+            "sharedMarketplaces": 2,
+            "marketplaceIds": [
+              "mp_amazon_in",
+              "mp_flipkart"
+            ],
+            "rating": 4.3,
+            "reviewCount": 28830,
+            "isSameFamily": false,
+            "qualityScore": 0.9517241379310345,
+            "specScore": 0.7107438016528925,
+            "specMatch": 3,
+            "specPartial": 2,
+            "specDiffer": 1,
+            "specMissing": 0,
+            "breakdown": {
+              "specScore": 0.7107438016528925,
+              "tierScore": 1,
+              "priceScore": 0.8697253244995538,
+              "marketplaceScore": 0.6666666666666666
+            }
+          },
+          {
+            "productId": "prod_da_urban_mesh",
+            "tier": "direct",
+            "similarity": 0.7756556102181474,
+            "evidenceWeight": 0.738,
+            "currentPriceMinor": 529900,
+            "sharedMarketplaces": 3,
+            "marketplaceIds": [
+              "mp_amazon_in",
+              "mp_flipkart",
+              "mp_meesho"
+            ],
+            "rating": 3.9,
+            "reviewCount": 13505,
+            "isSameFamily": false,
+            "qualityScore": 0.9517241379310345,
+            "specScore": 0.7713498622589531,
+            "specMatch": 3,
+            "specPartial": 3,
+            "specDiffer": 0,
+            "specMissing": 0,
+            "breakdown": {
+              "specScore": 0.7713498622589531,
+              "tierScore": 0.5,
+              "priceScore": 0.8141926888064744,
+              "marketplaceScore": 1
+            }
+          },
+          {
+            "productId": "prod_green_soul_high",
+            "tier": "direct",
+            "similarity": 0.7599391866432976,
+            "evidenceWeight": 0.723,
+            "currentPriceMinor": 856400,
+            "sharedMarketplaces": 3,
+            "marketplaceIds": [
+              "mp_amazon_in",
+              "mp_flipkart",
+              "mp_meesho"
+            ],
+            "rating": 4.2,
+            "reviewCount": 17885,
+            "isSameFamily": false,
+            "qualityScore": 0.9517241379310345,
+            "specScore": 0.606060606060606,
+            "specMatch": 2,
+            "specPartial": 3,
+            "specDiffer": 1,
+            "specMissing": 0,
+            "breakdown": {
+              "specScore": 0.606060606060606,
+              "tierScore": 1,
+              "priceScore": 0.7488476556640997,
+              "marketplaceScore": 1
+            }
+          },
+          {
+            "productId": "prod_wakefit_mesh_mid",
+            "tier": "direct",
+            "similarity": 0.7371377914675817,
+            "evidenceWeight": 0.702,
+            "currentPriceMinor": 433000,
+            "sharedMarketplaces": 3,
+            "marketplaceIds": [
+              "mp_amazon_in",
+              "mp_flipkart",
+              "mp_meesho"
+            ],
+            "rating": 3.9,
+            "reviewCount": 15695,
+            "isSameFamily": false,
+            "qualityScore": 0.9517241379310345,
+            "specScore": 0.7878787878787878,
+            "specMatch": 4,
+            "specPartial": 2,
+            "specDiffer": 0,
+            "specMissing": 0,
+            "breakdown": {
+              "specScore": 0.7878787878787878,
+              "tierScore": 0.5,
+              "priceScore": 0.630369347688509,
+              "marketplaceScore": 1
+            }
+          },
+          {
+            "productId": "prod_wakefit_ergo",
+            "tier": "direct",
+            "similarity": 0.6713569509595991,
+            "evidenceWeight": 0.57,
+            "currentPriceMinor": 749900,
+            "sharedMarketplaces": 2,
+            "marketplaceIds": [
+              "mp_amazon_in",
+              "mp_flipkart"
+            ],
+            "rating": 4.2,
+            "reviewCount": 9145,
+            "isSameFamily": false,
+            "qualityScore": 0.8495019157088123,
+            "specScore": 0.6198347107438017,
+            "specMatch": 2,
+            "specPartial": 3,
+            "specDiffer": 1,
+            "specMissing": 0,
+            "breakdown": {
+              "specScore": 0.6198347107438017,
+              "tierScore": 0.5,
+              "priceScore": 0.8697253244995538,
+              "marketplaceScore": 0.6666666666666666
+            }
+          },
+          {
+            "productId": "prod_nilkamal_chair",
+            "tier": "direct",
+            "similarity": 0.587668693924237,
+            "evidenceWeight": 0.559,
+            "currentPriceMinor": 449900,
+            "sharedMarketplaces": 3,
+            "marketplaceIds": [
+              "mp_amazon_in",
+              "mp_flipkart",
+              "mp_meesho"
+            ],
+            "rating": 3.7,
+            "reviewCount": 15330,
+            "isSameFamily": false,
+            "qualityScore": 0.9517241379310345,
+            "specScore": 0.43636363636363634,
+            "specMatch": 1,
+            "specPartial": 2,
+            "specDiffer": 3,
+            "specMissing": 0,
+            "breakdown": {
+              "specScore": 0.43636363636363634,
+              "tierScore": 0.5,
+              "priceScore": 0.6652202302424028,
+              "marketplaceScore": 1
+            }
+          },
+          {
+            "productId": "prod_green_soul_vienna",
+            "tier": "direct",
+            "similarity": 0.6531815842887688,
+            "evidenceWeight": 0.555,
+            "currentPriceMinor": 1099000,
+            "sharedMarketplaces": 2,
+            "marketplaceIds": [
+              "mp_amazon_in",
+              "mp_flipkart"
+            ],
+            "rating": 4.3,
+            "reviewCount": 6355,
+            "isSameFamily": false,
+            "qualityScore": 0.8495019157088123,
+            "specScore": 0.606060606060606,
+            "specMatch": 2,
+            "specPartial": 3,
+            "specDiffer": 1,
+            "specMissing": 0,
+            "breakdown": {
+              "specScore": 0.606060606060606,
+              "tierScore": 1,
+              "priceScore": 0.5218172462459845,
+              "marketplaceScore": 0.6666666666666666
+            }
+          },
+          {
+            "productId": "prod_nilkamal_mid",
+            "tier": "direct",
+            "similarity": 0.6064769428215719,
+            "evidenceWeight": 0.515,
+            "currentPriceMinor": 424900,
+            "sharedMarketplaces": 2,
+            "marketplaceIds": [
+              "mp_flipkart",
+              "mp_meesho"
+            ],
+            "rating": 3.8,
+            "reviewCount": 5270,
+            "isSameFamily": false,
+            "qualityScore": 0.8495019157088123,
+            "specScore": 0.6181818181818182,
+            "specMatch": 2,
+            "specPartial": 2,
+            "specDiffer": 2,
+            "specMissing": 0,
+            "breakdown": {
+              "specScore": 0.6181818181818182,
+              "tierScore": 0.5,
+              "priceScore": 0.6131804985590152,
+              "marketplaceScore": 0.6666666666666666
+            }
+          },
+          {
+            "productId": "prod_cellbell_c104",
+            "tier": "comparable",
+            "similarity": 0.5568288156662048,
+            "evidenceWeight": 0.318,
+            "currentPriceMinor": 349900,
+            "sharedMarketplaces": 2,
+            "marketplaceIds": [
+              "mp_amazon_in",
+              "mp_flipkart"
+            ],
+            "rating": 3.9,
+            "reviewCount": 19840,
+            "isSameFamily": false,
+            "qualityScore": 0.9517241379310345,
+            "specScore": 0.606060606060606,
+            "specMatch": 3,
+            "specPartial": 2,
+            "specDiffer": 1,
+            "specMissing": 0,
+            "breakdown": {
+              "specScore": 0.606060606060606,
+              "tierScore": 0.5,
+              "priceScore": 0.43640617175572816,
+              "marketplaceScore": 0.6666666666666666
+            }
+          }
+        ],
+        "coverage": {
+          "directCount": 9,
+          "comparableCount": 1,
+          "totalCount": 10,
+          "effectiveComparables": 6.23,
+          "meetsTarget": true,
+          "sufficient": true,
+          "level": "strong"
+        }
+      },
+      "marketplace": {
+        "marketplaceCount": 3,
+        "pricedCount": 3,
+        "cheapestMarketplaceId": "mp_flipkart",
+        "dearestMarketplaceId": "mp_amazon_in",
+        "spreadMinor": 10400,
+        "spreadPct": 1.6,
+        "medianEffectiveMinor": 650900,
+        "priceTrustCorrelation": -0.5,
+        "cheapestIsAlsoBestTrusted": true,
+        "shippingReordersRanking": false,
+        "platformsWithPaidShipping": 0,
+        "platformsWithStockGap": 1,
+        "lowestMatchConfidence": 0.92
+      },
+      "marketplaceRows": [
+        {
+          "marketplaceId": "mp_flipkart",
+          "offerCount": 3,
+          "inStockCount": 2,
+          "headlineMinor": 649900,
+          "landedMinor": 649900,
+          "effectiveMinor": 649900,
+          "shippingMinor": 0,
+          "rating": 4.1,
+          "reviewCount": 6700,
+          "trustRating": 4.07,
+          "matchConfidence": 0.97,
+          "promoCount": {
+            "universal": 0,
+            "conditional": 4,
+            "deferred": 1,
+            "financing": 0
+          },
+          "hasUniversalPromo": false
+        },
+        {
+          "marketplaceId": "mp_meesho",
+          "offerCount": 3,
+          "inStockCount": 3,
+          "headlineMinor": 650900,
+          "landedMinor": 650900,
+          "effectiveMinor": 650900,
+          "shippingMinor": 0,
+          "rating": 3.9,
+          "reviewCount": 1843,
+          "trustRating": 3.83,
+          "matchConfidence": 0.92,
+          "promoCount": {
+            "universal": 0,
+            "conditional": 3,
+            "deferred": 1,
+            "financing": 0
+          },
+          "hasUniversalPromo": false
+        },
+        {
+          "marketplaceId": "mp_amazon_in",
+          "offerCount": 3,
+          "inStockCount": 3,
+          "headlineMinor": 660300,
+          "landedMinor": 660300,
+          "effectiveMinor": 660300,
+          "shippingMinor": 0,
+          "rating": 4,
+          "reviewCount": 3685,
+          "trustRating": 3.95,
+          "matchConfidence": 0.92,
+          "promoCount": {
+            "universal": 0,
+            "conditional": 0,
+            "deferred": 0,
+            "financing": 0
+          },
+          "hasUniversalPromo": false
+        }
+      ],
+      "unitBasis": null,
+      "history": {
+        "observationCount": 25,
+        "firstDate": "2026-04-17",
+        "lastDate": "2026-08-14",
+        "minMinor": 633000,
+        "maxMinor": 736000,
+        "medianMinor": 679000,
+        "currentMinor": 649900,
+        "percentile": 12,
+        "volatility": 4.3,
+        "volatilityBand": "moderate",
+        "promoDays": 2,
+        "trendPct": -11.7
+      },
+      "normalMinor": 668000,
+      "distortionState": "normal",
+      "distortionRatio": 0.995059880239521,
+      "strength": {
+        "targetRating": 4,
+        "targetReviews": 12228,
+        "medianRating": 3.9,
+        "medianReviews": 15512.5,
+        "specAdvantageCount": 1,
+        "specDisadvantageCount": 1
+      },
+      "competitors": {
+        "ownUnitPriceMinor": null,
+        "targetTrustRating": 4,
+        "cheaperCount": 6,
+        "dearerCount": 4,
+        "reversalIds": [],
+        "strongerTrustCount": 4,
+        "rows": [
+          {
+            "id": "prod_da_urban_chair",
+            "tier": "direct",
+            "similarity": 0.8392651266942784,
+            "evidenceWeight": 0.799,
+            "priceMinor": 533700,
+            "priceGapPct": -19.7,
+            "unitValue": null,
+            "unitPriceMinor": null,
+            "unitGapPct": null,
+            "cheaperButDearerPerUnit": false,
+            "trustRating": 3.9,
+            "trustDelta": -0.1
+          },
+          {
+            "id": "prod_green_soul_jupiter",
+            "tier": "direct",
+            "similarity": 0.7872660418686901,
+            "evidenceWeight": 0.749,
+            "priceMinor": 749900,
+            "priceGapPct": 12.8,
+            "unitValue": null,
+            "unitPriceMinor": null,
+            "unitGapPct": null,
+            "cheaperButDearerPerUnit": false,
+            "trustRating": 4.3,
+            "trustDelta": 0.3
+          },
+          {
+            "id": "prod_da_urban_mesh",
+            "tier": "direct",
+            "similarity": 0.7756556102181474,
+            "evidenceWeight": 0.738,
+            "priceMinor": 529900,
+            "priceGapPct": -20.3,
+            "unitValue": null,
+            "unitPriceMinor": null,
+            "unitGapPct": null,
+            "cheaperButDearerPerUnit": false,
+            "trustRating": 3.9,
+            "trustDelta": -0.1
+          },
+          {
+            "id": "prod_green_soul_high",
+            "tier": "direct",
+            "similarity": 0.7599391866432976,
+            "evidenceWeight": 0.723,
+            "priceMinor": 856400,
+            "priceGapPct": 28.8,
+            "unitValue": null,
+            "unitPriceMinor": null,
+            "unitGapPct": null,
+            "cheaperButDearerPerUnit": false,
+            "trustRating": 4.2,
+            "trustDelta": 0.2
+          },
+          {
+            "id": "prod_wakefit_mesh_mid",
+            "tier": "direct",
+            "similarity": 0.7371377914675817,
+            "evidenceWeight": 0.702,
+            "priceMinor": 433000,
+            "priceGapPct": -34.9,
+            "unitValue": null,
+            "unitPriceMinor": null,
+            "unitGapPct": null,
+            "cheaperButDearerPerUnit": false,
+            "trustRating": 3.9,
+            "trustDelta": -0.1
+          },
+          {
+            "id": "prod_wakefit_ergo",
+            "tier": "direct",
+            "similarity": 0.6713569509595991,
+            "evidenceWeight": 0.57,
+            "priceMinor": 749900,
+            "priceGapPct": 12.8,
+            "unitValue": null,
+            "unitPriceMinor": null,
+            "unitGapPct": null,
+            "cheaperButDearerPerUnit": false,
+            "trustRating": 4.19,
+            "trustDelta": 0.19
+          },
+          {
+            "id": "prod_nilkamal_chair",
+            "tier": "direct",
+            "similarity": 0.587668693924237,
+            "evidenceWeight": 0.559,
+            "priceMinor": 449900,
+            "priceGapPct": -32.3,
+            "unitValue": null,
+            "unitPriceMinor": null,
+            "unitGapPct": null,
+            "cheaperButDearerPerUnit": false,
+            "trustRating": 3.7,
+            "trustDelta": -0.3
+          },
+          {
+            "id": "prod_green_soul_vienna",
+            "tier": "direct",
+            "similarity": 0.6531815842887688,
+            "evidenceWeight": 0.555,
+            "priceMinor": 1099000,
+            "priceGapPct": 65.3,
+            "unitValue": null,
+            "unitPriceMinor": null,
+            "unitGapPct": null,
+            "cheaperButDearerPerUnit": false,
+            "trustRating": 4.26,
+            "trustDelta": 0.26
+          },
+          {
+            "id": "prod_nilkamal_mid",
+            "tier": "direct",
+            "similarity": 0.6064769428215719,
+            "evidenceWeight": 0.515,
+            "priceMinor": 424900,
+            "priceGapPct": -36.1,
+            "unitValue": null,
+            "unitPriceMinor": null,
+            "unitGapPct": null,
+            "cheaperButDearerPerUnit": false,
+            "trustRating": 3.78,
+            "trustDelta": -0.22
+          },
+          {
+            "id": "prod_cellbell_c104",
+            "tier": "comparable",
+            "similarity": 0.5568288156662048,
+            "evidenceWeight": 0.318,
+            "priceMinor": 349900,
+            "priceGapPct": -47.4,
+            "unitValue": null,
+            "unitPriceMinor": null,
+            "unitGapPct": null,
+            "cheaperButDearerPerUnit": false,
+            "trustRating": 3.9,
+            "trustDelta": -0.1
+          }
+        ]
+      },
+      "ownMarket": {
+        "n": 8,
+        "min": 649900,
+        "median": 664700,
+        "max": 689400
+      },
+      "competitiveStatistics": {
+        "n": 10,
+        "min": 349900,
+        "median": 531241,
+        "max": 1099000
+      },
+      "findingIds": [
+        "availability",
+        "cheapest_is_best_trusted",
+        "historical_position",
+        "match_confidence",
+        "spec_position",
+        "trust_vs_comps",
+        "vs_comp_median",
+        "wtp"
+      ],
+      "findings": [
+        {
+          "id": "cheapest_is_best_trusted",
+          "dimension": "Marketplace",
+          "direction": "aggressive"
+        },
+        {
+          "id": "vs_comp_median",
+          "dimension": "Competitor",
+          "direction": "premium"
+        },
+        {
+          "id": "trust_vs_comps",
+          "dimension": "Trust",
+          "direction": "neutral"
+        },
+        {
+          "id": "spec_position",
+          "dimension": "Specification",
+          "direction": "neutral"
+        },
+        {
+          "id": "historical_position",
+          "dimension": "History",
+          "direction": "premium"
+        },
+        {
+          "id": "wtp",
+          "dimension": "Willingness to pay",
+          "direction": "premium"
+        },
+        {
+          "id": "availability",
+          "dimension": "Availability",
+          "direction": "neutral"
+        },
+        {
+          "id": "match_confidence",
+          "dimension": "Data quality",
+          "direction": "neutral"
+        }
+      ],
+      "analysisState": {
+        "available": true,
+        "limited": false,
+        "attributeCount": 6
+      }
+    },
+    {
+      "productId": "prod_funskool_uno",
+      "shape": "refusal / low-evidence behaviour",
+      "canonicalName": "Mattel UNO Card Game",
+      "productTypeId": "ptype_board_game",
+      "competitiveSet": {
+        "memberIds": [
+          "prod_funskool_ludo",
+          "prod_skillmatics_guess"
+        ],
+        "directIds": [
+          "prod_funskool_ludo"
+        ],
+        "comparableIds": [
+          "prod_skillmatics_guess"
+        ],
+        "referenceIds": [],
+        "excludedCount": 6,
+        "members": [
+          {
+            "productId": "prod_funskool_ludo",
+            "tier": "direct",
+            "similarity": 0.6795649184182535,
+            "evidenceWeight": 0.647,
+            "currentPriceMinor": 27700,
+            "sharedMarketplaces": 3,
+            "marketplaceIds": [
+              "mp_amazon_in",
+              "mp_flipkart",
+              "mp_meesho"
+            ],
+            "rating": 4,
+            "reviewCount": 59130,
+            "isSameFamily": false,
+            "qualityScore": 0.9517241379310345,
+            "specScore": 0.5166666666666666,
+            "specMatch": 2,
+            "specPartial": 2,
+            "specDiffer": 1,
+            "specMissing": 0,
+            "breakdown": {
+              "specScore": 0.5166666666666666,
+              "tierScore": 0.5,
+              "priceScore": 0.8882596736730141,
+              "marketplaceScore": 1
+            }
+          },
+          {
+            "productId": "prod_skillmatics_guess",
+            "tier": "comparable",
+            "similarity": 0.695213696039553,
+            "evidenceWeight": 0.397,
+            "currentPriceMinor": 44300,
+            "sharedMarketplaces": 2,
+            "marketplaceIds": [
+              "mp_amazon_in",
+              "mp_flipkart"
+            ],
+            "rating": 4.4,
+            "reviewCount": 53630,
+            "isSameFamily": false,
+            "qualityScore": 0.9517241379310345,
+            "specScore": 0.7333333333333334,
+            "specMatch": 2,
+            "specPartial": 3,
+            "specDiffer": 0,
+            "specMissing": 0,
+            "breakdown": {
+              "specScore": 0.7333333333333334,
+              "tierScore": 1,
+              "priceScore": 0.4608547841582119,
+              "marketplaceScore": 0.6666666666666666
+            }
+          }
+        ],
+        "coverage": {
+          "directCount": 1,
+          "comparableCount": 1,
+          "totalCount": 2,
+          "effectiveComparables": 1.04,
+          "meetsTarget": false,
+          "sufficient": false,
+          "level": "insufficient"
+        }
+      },
+      "marketplace": {
+        "marketplaceCount": 3,
+        "pricedCount": 3,
+        "cheapestMarketplaceId": "mp_amazon_in",
+        "dearestMarketplaceId": "mp_flipkart",
+        "spreadMinor": 700,
+        "spreadPct": 2.9,
+        "medianEffectiveMinor": 24900,
+        "priceTrustCorrelation": -0.5,
+        "cheapestIsAlsoBestTrusted": true,
+        "shippingReordersRanking": false,
+        "platformsWithPaidShipping": 0,
+        "platformsWithStockGap": 0,
+        "lowestMatchConfidence": 0.92
+      },
+      "marketplaceRows": [
+        {
+          "marketplaceId": "mp_amazon_in",
+          "offerCount": 5,
+          "inStockCount": 5,
+          "headlineMinor": 27200,
+          "landedMinor": 27200,
+          "effectiveMinor": 24500,
+          "shippingMinor": 0,
+          "rating": 4.5,
+          "reviewCount": 62400,
+          "trustRating": 4.5,
+          "matchConfidence": 0.97,
+          "promoCount": {
+            "universal": 1,
+            "conditional": 0,
+            "deferred": 0,
+            "financing": 0
+          },
+          "hasUniversalPromo": true
+        },
+        {
+          "marketplaceId": "mp_meesho",
+          "offerCount": 5,
+          "inStockCount": 5,
+          "headlineMinor": 24900,
+          "landedMinor": 24900,
+          "effectiveMinor": 24900,
+          "shippingMinor": 0,
+          "rating": 4.3,
+          "reviewCount": 17160,
+          "trustRating": 4.3,
+          "matchConfidence": 0.92,
+          "promoCount": {
+            "universal": 0,
+            "conditional": 0,
+            "deferred": 0,
+            "financing": 0
+          },
+          "hasUniversalPromo": false
+        },
+        {
+          "marketplaceId": "mp_flipkart",
+          "offerCount": 5,
+          "inStockCount": 5,
+          "headlineMinor": 25200,
+          "landedMinor": 25200,
+          "effectiveMinor": 25200,
+          "shippingMinor": 0,
+          "rating": 4.4,
+          "reviewCount": 34320,
+          "trustRating": 4.4,
+          "matchConfidence": 0.92,
+          "promoCount": {
+            "universal": 0,
+            "conditional": 0,
+            "deferred": 0,
+            "financing": 0
+          },
+          "hasUniversalPromo": false
+        }
+      ],
+      "unitBasis": null,
+      "history": {
+        "observationCount": 61,
+        "firstDate": "2026-04-17",
+        "lastDate": "2026-08-14",
+        "minMinor": 24000,
+        "maxMinor": 28000,
+        "medianMinor": 26000,
+        "currentMinor": 24500,
+        "percentile": 13,
+        "volatility": 4.7,
+        "volatilityBand": "moderate",
+        "promoDays": 4,
+        "trendPct": -12.5
+      },
+      "normalMinor": null,
+      "distortionState": null,
+      "distortionRatio": null,
+      "strength": null,
+      "competitors": null,
+      "ownMarket": null,
+      "competitiveStatistics": {
+        "n": 2,
+        "min": 27700,
+        "median": 27700,
+        "max": 44300
+      },
+      "findingIds": [],
+      "findings": [],
+      "analysisState": {
+        "available": true,
+        "limited": true,
+        "attributeCount": 5
+      }
+    }
+  ]
+}
