@@ -1144,6 +1144,175 @@ violations, 37/37 integrity checks.
 
 ---
 
+### Stage 27 — Backend phase 6: the pricing recommendation (current)
+
+The last piece of the engine moved server-side: the anchor, the constraint
+layer, the three strategies, the evidence gate, the willingness-to-pay model
+and the refusals. One authenticated endpoint, built entirely on top of
+Phase 5 — there is no second competitor computation anywhere in the service.
+
+```
+Frontend ──▶ /products/:id/recommendation ──▶ PricingService ──▶ AnalysisService
+                                                              └▶ CompetitorService
+                                                                     ▼
+                                                    Phase 4 data · PostgreSQL
+```
+
+#### Parity found four defects in my port, and each was a real bug
+
+77 assertions across twelve golden products — structured values only, never a
+rendered sentence. The first run was **30 of 77**. All four causes were in the
+port, not the tests:
+
+1. **`normalMinor` was computed over a window.** I had given the endpoint a
+   `window` parameter, which scoped the price series, which meant the "90-day
+   normal" was computed from a 30-day slice — and since the anchor blends the
+   own market with that normal 65/35, every anchor was wrong. The engine never
+   windows a recommendation. The parameter is gone: a window is a question
+   about history, and a recommendation is not one.
+2. **The evidence checks counted marketplaces where the engine counts
+   offers.** `prod_dove_hair_fall` has 6 marketplaces and 29 in-stock offers,
+   so the competition check and the promotion-visibility share were both
+   computed against a denominator five times too small. This shifted the
+   evidence score by exactly one weight-1 check on *every* product, which then
+   moved the confidence level, the travel damping, the premium headroom and
+   all three strategy prices. One wrong denominator, ten wrong products.
+3. **MRP inflation was measured against the wrong baseline.** The engine
+   compares the printed MRP to the product's own current cheapest price; I
+   compared it to the comparable median. A ₹19,999 chair selling at ₹11,599 is
+   marked down, not mispriced, but judged against a comparable set containing
+   cheaper chairs it looked inflated — and the product lost an evidence point
+   it had earned.
+4. **The 90-day normal had no fallback chain.** The engine falls back 90-day →
+   60-day → own market → comparable median; I had only the first.
+
+And one **latent defect in the baseline engine itself**, found by porting it
+faithfully. `candidateFeatures` filters candidates on `Number.isFinite(d.targetValue)`
+while `__rating`'s target is still `NaN` — the caller substitutes the real
+rating *afterwards*. So customer rating is declared a candidate feature and
+**can never actually be fitted**. My port "fixed" this by accident and
+produced different feature sets and different prices.
+
+It is reproduced deliberately, with the reasoning in a comment at the point of
+the quirk. Phase 6's job was to move the validated engine without changing
+what it computes; correcting this silently would change the recommended price
+across the catalogue with no evidence that the change is an improvement. It is
+recorded as a candidate for a future model version instead.
+
+#### Invariants, separately from parity
+
+Parity proves agreement, not safety — both engines could agree on a price
+above the legal MRP. So `server/tests/pricing.test.ts` asserts the properties
+that must hold whatever the arithmetic produces: CON-01…07 (never above MRP,
+never below the floor, never above the ceiling, an impossible floor refuses,
+snapping stays inside the bounds, no negative price, and impossible discount
+data cannot produce an impossible price), STRAT-01…05 and SPARSE-01…06.
+
+Two of those needed data that does not occur naturally and is constructed:
+a seller cost far above the MRP, so the break-even floor rises above the
+ceiling and the service must refuse rather than emit a loss-making price; and
+a universal discount ten times the highest observed MRP, which the price
+ladder clamps to zero rather than going negative.
+
+Writing them surfaced two gaps in the response itself, both now fixed:
+`evidence` was reported on refusals but not on recommendations — the
+assessment that decided a price was worth emitting was invisible on the
+prices it authorised — and a refusal did not distinguish "not enough
+comparables" from "no valid price exists", which are different problems for a
+seller. A refusal now carries `constraintConflict` and the competitor context
+it *did* have, with `statistics: null`, because a median over two comparables
+is arithmetic rather than a market and publishing it under that heading would
+hand back as evidence the very thing the refusal says is missing.
+
+#### The statistical component, measured for the first time
+
+The research and the numbers are in `docs/PRICING_MODEL_RESEARCH.md` and
+summarised in §3a above. The short version: no demand model is possible
+because the dataset contains no quantity; gradient boosting is rejected on a
+median within-type sample of 8 products; and scoring the shipped hedonic model
+against the naive competitive median showed its trust gate passes 226 fits
+that fail cross-validation and predict worse than the naive baseline.
+
+`hedonic-cv-v2` is the response — the same features and target, ridge with a
+leave-one-out-selected penalty, trusted on out-of-sample R². `baseline-v1`
+remains the default so parity holds, and the version is stated in every
+response.
+
+#### Mutation testing: 10 of 12, then 12 of 12
+
+Twelve planted mutations — anchor weight, market floor, ceiling headroom, MRP
+inflation ratio, evidence travel, both trust thresholds, the evidenced-premium
+cap, the historical window, the λ-selection rule, the snapping floor guard and
+the promotion-visibility share. Ten failed a test immediately. The two that
+survived were both worth the exercise:
+
+- **The λ-selection rule.** Swapping `loocvR2` for `inSampleR2` when choosing
+  the ridge penalty passed every ML test, because none of them asserted *how*
+  the penalty is chosen — only that the value came from the grid. Selecting on
+  fit would always return the smallest penalty, quietly turning v2 back into
+  the unregularised model it exists to replace. The selection is now split into
+  an exported `selectLambda` and tested on a fixture where the two criteria
+  genuinely disagree, plus an end-to-end check that some product selects a
+  penalty other than the smallest.
+- **The snapping floor guard**, `while (snapped < floorMinor)` → `if`. Not a
+  test gap: every caller clamps into `[floor, ceiling]` before snapping, and
+  snapping moves a price down by strictly less than one step, so from a clamped
+  input one step always suffices and the loop can never iterate twice. The loop
+  is what keeps the function correct for an *unclamped* input, so it stays and
+  a test now feeds it one — a price hundreds of steps below its floor.
+
+Both are now caught. The reasoning is recorded at the point of each, because
+"the mutation survived and we deleted the code" and "the mutation survived and
+the code is defensive" are different conclusions.
+
+#### The baseline difference was the denominator, not the engine
+
+The recorded expectation was "1,156 purchasable → 1,043 recommended / 113
+refused". The run came back 1,043 recommended and **129** refused over all
+1,172 products, which looks like +16 until the arithmetic is done: 113 + 16 =
+129, so the total never moved. The denominator was wrong — there are **1,154**
+products with a purchasable offer, not 1,156, and 18 with none at all.
+
+Settled by asking the frontend engine the same question over the same 1,172
+products (`scripts/engine-recommendation-baseline.mjs`): 1,043 recommended, 129
+refused, splitting 111 `insufficient_comparables` / 18 `no_current_price`, zero
+constraint conflicts. **Identical to the backend.** So the expectation was
+corrected to the engine's own measured output rather than adjusted to fit, and
+the script now asserts the refusal reasons too — a total that happens to match
+while the reasons have shifted is exactly the kind of agreement that should not
+be allowed to pass.
+
+Running the same baseline under `hedonic-cv-v2` gives **the same 1,043 / 129,
+the same 111 / 18 split and the same zero violations**. That is the design
+working rather than a coincidence: the attribute model sizes an evidenced
+premium and never decides whether a product can be priced, so switching models
+cannot strand one.
+
+#### Performance: 36 queries, flat
+
+| | value |
+|---|---|
+| p50 / p90 / p99 / max | 511 ms / 1,084 ms / 1,732 ms / 2,098 ms |
+| queries per recommendation | **36, for every one of 1,172 products** |
+
+The query count is identical for a product with 1 comparable and one with 32,
+which is the point: nothing scales with the competitor pool, so there is no
+N+1. Measured by wrapping `execute`, because latency alone would hide two
+hundred fast queries on a local database. The attribute model is a 3–4 column
+solve on at most 32 rows and does not register against the query time.
+
+(PGlite is WebAssembly in-process; a native server is faster.)
+
+#### Scope held
+
+No scraping. No UI redesign. The recommendation page still renders the browser
+engine — the backend returns structured factors where the panel renders
+composed prose — but it now also calls the API and shows whether the two
+agree, which is the minimal integration Part 32 asked for and keeps the engine
+as the oracle.
+
+---
+
 ## 3a. Where AI/ML belongs in this system (asked explicitly at Stage 13)
 
 A deliberate position, because "AI-powered pricing" is easy to claim and hard to defend:
@@ -1156,6 +1325,62 @@ A deliberate position, because "AI-powered pricing" is easy to claim and hard to
 | LLM | **Not used anywhere** | An LLM asked to produce a price is unauditable and unfalsifiable — the exact failure mode this whole stage exists to eliminate. A future LLM layer could *narrate* model output, but must never generate the number. |
 
 The regression is isolated behind `fitHedonicModel()`, so a properly trained model can replace it without touching a single caller. **The recommendation remains fully explainable if the statistical component is removed** — it degrades to pure market positioning, which is the intended fallback.
+
+### Stage 27 update: this position was tested, and it held
+
+Phase 6 asked the question properly — research the methods real pricing
+systems use, audit what this dataset can support, and measure rather than
+assert. `scripts/audit-ml-feasibility.mjs` and
+`server/src/scripts/evaluate-pricing-models.ts` produce every number, and
+`docs/PRICING_MODEL_RESEARCH.md` is the write-up. Three findings matter here:
+
+**No demand model is possible, and that is not a tuning problem.** The
+dataset has abundant price variation — a median of 28 distinct prices per
+product across 151 consecutive capture days — and **zero** quantity. Searched
+for units sold, orders, conversion, clicks, impressions, revenue and
+inventory across every table: none exist. Elasticity needs Δquantity/Δprice;
+we have one half of that ratio. Review growth is measurable for 1,156
+products and is the closest proxy, but the reviews-per-purchase rate is
+unknown and category-dependent, so it cannot be scaled into units and is not
+used as demand.
+
+**Gradient boosting was rejected on sample size, not on taste.** A
+price-on-attributes model is only comparable *within* a product type, so the
+training sample is the type's size — median 8, maximum 32 — not 1,172.
+Meanwhile the naive evidence-weighted competitive median predicts the held-out
+price at 16.9% MAPE with 100% coverage. There is no headroom above that which
+32 rows and four features could reach without fitting noise.
+
+**Measuring the shipped model found a real defect.** Nobody had ever scored
+it, and it is scoreable: the hedonic fit never sees the target's own price, so
+its prediction against that known price is genuine generalisation error,
+available for 825 products. Of the 477 whose fit the in-sample adjusted-R²
+gate trusts, **226 fail leave-one-out cross-validation — and on exactly those
+the model predicts worse than copying the competitive median** (18.7% MAPE
+against 17.8%, RMSE 29% higher). Adjusted R² does not protect against
+overfitting when n is 5–32 and the features were chosen by correlation with
+the same target.
+
+So the enhancement Phase 6 shipped is not a bigger model. `hedonic-cv-v2`
+keeps the same features and the same target and changes two things: ridge in
+place of plain least squares, and the trust gate moved to **out-of-sample**
+LOOCV R². Exact leave-one-out is what makes validation possible at these
+sizes — at n = 8 there is nothing to split into folds, but for a linear
+smoother every fold is available in closed form from one fit as
+`eᵢ / (1 − hᵢᵢ)`.
+
+`baseline-v1` stays the default: Phase 6's job was to move the validated
+engine unchanged, and 77 parity assertions hold it to that. Promoting v2 cuts
+the share of products receiving an evidenced attribute premium from 58% to
+30% — the correct number, since the other 28 points do not survive
+validation, but a product decision rather than a migration detail.
+
+**The line about LLMs is unchanged and was never in question.** Nothing in the
+price path is a language model. The recommendation states its own target
+variable (`market_value_estimate_from_observed_listing_prices`) and labels the
+attribute relationship `association_not_causation`, because the model observes
+that the market prices certain attributes higher and does not establish that
+those attributes cause the price.
 
 ---
 
@@ -1618,13 +1843,18 @@ This section exists specifically to explain *why* the project moved the way it d
 
 ## 14. What is NOT implemented yet
 
+**This list was written before the backend existed and had gone badly stale.
+Corrected at Stage 27; the superseded entries are kept struck through so the
+history is not erased.**
+
 - Real Flipkart data source (no scraper exists at all, for any marketplace)
 - Real Amazon data source
-- Any Java backend (planned architecturally, not started)
-- A real database of any kind (Postgres or otherwise) — the conceptual design in §5 has never been turned into actual DDL that runs
-- Any real API (REST or otherwise) — `src/api/client.js`'s `request()` function exists but is never called by any current service function
-- Authentication / user accounts
-- Persistence beyond the current browser session (tracked products, everything) — no localStorage, no backend, nothing survives a reload
+- ~~Any Java backend~~ — superseded: the backend is Node/TypeScript + Fastify, and the reasoning for not choosing Java is in `docs/BACKEND_ARCHITECTURE.md`
+- ~~A real database of any kind~~ — **done (Stage 22).** PostgreSQL with Drizzle, real migrations, 389,534 rows, 37/37 integrity checks
+- ~~Any real API~~ — **done (Stages 23–27).** Auth, catalogue, marketplace data, competitors, analysis and the pricing recommendation are all served over HTTP; `src/api/http.js` is the client
+- ~~Authentication / user accounts~~ — **done (Stages 23–24).** Email + password with Argon2id, OTP email verification and password reset over real SMTP, opaque HMAC-hashed session tokens
+- Persistence of **tracked products** beyond the browser session — accounts and sessions persist, but the tracked-product list is still browser state and resets on reload
+- Repointing the catalogue, analysis and recommendation **pages** at the API — the services exist and the recommendation page calls the backend alongside the browser engine, but the screens still render from `src/data/`
 - Entity resolution / product matching as a real algorithm (the design docs describe a blocking → similarity-scoring → thresholding pipeline; the mock data's `match_status`/`match_confidence` fields are hand-authored constants, not the output of a real matcher)
 - Any real image assets (product photography) — the Catalogue/Product cards use a generic icon placeholder, not real product images
 - Production deployment of any kind
@@ -1683,7 +1913,7 @@ Each has a real representative in the dataset. Re-run these after any pricing ch
 Based on where the project actually stands, the next steps that follow directly from the established direction (not a new roadmap):
 
 1. **Present/defend the current state** to the professor if that hasn't happened yet — the `pricing-intelligence-walkthrough.md` document was built for exactly this.
-2. **Backend — decided and under way (Stages 21–26).** Node/TypeScript + Fastify + PostgreSQL + Drizzle, *not* Java: the reasoning is in `docs/BACKEND_ARCHITECTURE.md` and comes down to letting ~4,300 lines of verified pricing logic move server-side rather than be rewritten. Phases 1–3 (architecture, schema, migration, authentication, API foundation) are complete; Stage 23 replaced the credential with email + password and wired the frontend's auth layer to it for real, Stage 24 added a Gmail SMTP transport behind the existing email port, Stage 25 (Phase 4) exposed the marketplace data — listings, sellers, offers, price history across seven windows, reviews, seller ratings and promotions — through twelve read-only APIs, and Stage 26 (Phase 5) moved the competitor and cross-marketplace analysis engines server-side behind two authenticated endpoints, with parity against the frontend engine asserted across 115 comparisons. **Phase 6 (the pricing recommendation) has not been started and is awaiting the user's review.** `src/api/*Service.js` remains the swap point for the catalogue and pricing data, and its return shapes are the API contract; `src/api/authService.js` is the one service in that folder that already calls the real backend.
+2. **Backend — decided and under way (Stages 21–27).** Node/TypeScript + Fastify + PostgreSQL + Drizzle, *not* Java: the reasoning is in `docs/BACKEND_ARCHITECTURE.md` and comes down to letting ~4,300 lines of verified pricing logic move server-side rather than be rewritten. Phases 1–3 (architecture, schema, migration, authentication, API foundation) are complete; Stage 23 replaced the credential with email + password and wired the frontend's auth layer to it for real, Stage 24 added a Gmail SMTP transport behind the existing email port, Stage 25 (Phase 4) exposed the marketplace data — listings, sellers, offers, price history across seven windows, reviews, seller ratings and promotions — through twelve read-only APIs, Stage 26 (Phase 5) moved the competitor and cross-marketplace analysis engines server-side behind two authenticated endpoints with parity asserted across 115 comparisons, and Stage 27 (Phase 6) moved the pricing recommendation itself — anchor, constraints, three strategies, evidence gate, willingness-to-pay model and refusals — behind `/products/:id/recommendation`, with 77 parity assertions and a measured, versioned cross-validated alternative to the attribute model. **Phase 7 has not been started and is awaiting the user's review.** `src/api/*Service.js` remains the swap point for the catalogue and pricing data, and its return shapes are the API contract; `src/api/authService.js` calls the real backend, and `src/api/recommendationService.js` now calls it alongside the browser engine so the two can be compared.
 3. **Turn the conceptual database design (§5) into real DDL** and a real database (Postgres was the design docs' implicit assumption, given the JSONB-based Specifications design — but this was never explicitly finalized as a hard requirement).
 4. **Build (or at minimum design) the real entity-resolution/product-matching pipeline** described in the docs but never implemented — this is explicitly flagged in the original design review as "the single biggest gap."
 5. **Only after a real backend and real data exist:** revisit whether a real scraper/crawler is needed at all, versus using official marketplace APIs where available (a preference stated in the original design docs).
@@ -1775,6 +2005,20 @@ Based on where the project actually stands, the next steps that follow directly 
 12bq. **The backend returns numbers; the interface makes sentences.** A rendered claim cannot be checked against the database and a metric can, which is what makes DATA → CALCULATION → FINDING → EVIDENCE more than a diagram (Stage 26).
 12br. **Build the analysis context once per request, not once per finding.** What is free in memory on the frontend is a query storm over a database. Eight batched queries, none scaling with the candidate pool (Stage 26).
 12bs. **Measure before caching.** Sub-second endpoints do not earn a cache that has to be invalidated on every observation (Stage 26).
+
+12bt. **One wrong denominator is not one wrong number.** Counting marketplaces where the engine counts offers shifted an evidence score by a single weight-1 check, which moved the confidence level, the travel damping, the premium headroom and all three strategy prices on every product. Trace a small discrepancy to its root before fixing anything downstream of it (Stage 27).
+
+12bu. **A parameter that narrows the input is not automatically a feature.** Accepting `window` on the recommendation meant the "90-day normal" was computed from a 30-day slice, so the anchor moved. Ask what question the parameter answers; if it only removes evidence from the same question, it does not belong (Stage 27).
+
+12bv. **Port the defect, then say so.** The engine declares customer rating as a hedonic feature and filters it out before the rating is filled in, so rating can never be fitted. Reproducing that preserves parity; silently correcting it would change prices across the catalogue with no evidence of improvement. Fix it deliberately in a new version, not accidentally in a migration (Stage 27).
+
+12bw. **Parity is agreement, not safety.** Two engines can agree on a price above the legal MRP. Assert the invariants separately — never above MRP, never below the floor, never negative, never a claim without evidence — and construct the data for the cases the dataset does not contain (Stage 27).
+
+12bx. **Score the model you already ship before proposing a better one.** Nobody had measured the hedonic fit. It turned out its trust gate passes 226 fits that fail cross-validation and predict worse than copying the competitive median — a finding worth more than any new model, and available only because the naive baseline was scored alongside it (Stage 27).
+
+12by. **Adjusted R² is not validation at n = 8.** With 5–32 rows and features picked by correlation with the same target, in-sample fit overstates skill. Exact leave-one-out is available in closed form for a linear smoother (`eᵢ / (1 − hᵢᵢ)`), so honest validation costs one fit, not n (Stage 27).
+
+12bz. **Absent data is a stop, not a modelling challenge.** There is no quantity sold anywhere in this dataset, so elasticity and true willingness-to-pay are not estimable — not poorly estimable. Name what is missing and refuse the model; a validation score on a fabricated target is worse than no model (Stage 27).
 13. **Prefer understanding existing code over adding new abstractions.** The codebase is intentionally not over-engineered for its current scope (a class-project wireframe) — resist adding speculative infrastructure (e.g. a state-management library, a component library, a testing framework) unless the user's request genuinely requires it.
 11. **Keep this file up to date.** If you make a decision significant enough that a future session would need to know about it, add it here — particularly to §3 (evolution), §6 (critical decisions), §14/§15 (status), and §20 (historical context) as appropriate. Don't let this file go stale while the code moves on.
 12. **When in doubt about project intent, ask** rather than assume — several past requests in this project have been extremely explicit and prescriptive (see the visual-correction request that produced Stage 9); treat that as the user's established working style, not a one-off.
@@ -1861,12 +2105,39 @@ D:\advance dsa sir\                                  ← project root
     └── dist/                                               ← production build output (git-ignorable, not source)
 ```
 
+The backend is not mapped above because it postdates this tree. Its own layout
+and API reference live in `server/README.md`; the pieces added by Phase 6 are:
+
+```
+frontend/
+├── docs/PRICING_MODEL_RESEARCH.md          ← Parts 10–16: methodology research, the ML decision, all measurements
+├── scripts/
+│   ├── audit-ml-feasibility.mjs            ← what the dataset can and cannot support, by counting
+│   └── export-pricing-parity-fixture.mjs   ← generates the golden fixture FROM the frontend engine
+└── server/
+    ├── src/modules/pricing/
+    │   ├── pricing.service.ts              ← anchor, constraints, strategies, evidence, refusals, explanation
+    │   ├── pricing.repository.ts           ← fee rules, seller cost, observed MRP, match quality
+    │   ├── pricing.routes.ts               ← GET /products/:id/recommendation
+    │   ├── hedonic.ts                      ← baseline-v1 attribute model (+ the shared feature/design-matrix helpers)
+    │   └── hedonicCv.ts                    ← hedonic-cv-v2: ridge with exact leave-one-out validation
+    ├── src/scripts/
+    │   ├── evaluate-pricing-models.ts      ← naive vs baseline vs candidate, cross-sectional and forward
+    │   └── recommendation-baseline.ts      ← all 1,172 products: counts, safety violations, latency, query counts
+    └── tests/
+        ├── pricing-parity.test.ts          ← REC-01…10, WTP-01…07 against the frontend engine (77)
+        ├── pricing.test.ts                 ← CON-01…07, STRAT-01…05, SPARSE-01…06 invariants (19)
+        ├── pricing-model.test.ts           ← ML-01…10 for the statistical component (19)
+        └── fixtures/pricing-parity.json    ← the golden values; a diff here is a change to the pricing model
+```
+
 **Files to read before editing, by task:**
-- Changing the recommendation math → `src/utils/pricingEngine.js` + §5 (Price History/Offer) + §6 (rule 9).
+- Changing the recommendation math → **both** `src/utils/pricingEngine.js` and `server/src/modules/pricing/pricing.service.ts`, then regenerate the parity fixture. They are asserted to agree; changing one alone turns 77 tests red, which is the point.
+- Changing the attribute model → `server/src/modules/pricing/hedonic.ts` (baseline) or `hedonicCv.ts` (v2). The shared `usableFeatures`/`designMatrix` exist so the two versions cannot drift on feature selection — a change there affects both.
 - Adding a new page or changing navigation → `src/App.jsx` + `ProductWorkspaceLayout.jsx` + §7/§8.
 - Changing visual design → `src/styles/tokens.css` first, component CSS second — see §11 before touching either.
 - Adding a mock entity or field → the relevant `src/data/*.js` file + the matching entity section in §5, to keep the mock data and the conceptual design consistent.
-- Anything about future backend integration → `src/api/client.js` + §7 + §14.
+- Anything about backend integration → `src/api/http.js` + `server/README.md` + §7 + §14.
 
 ---
 

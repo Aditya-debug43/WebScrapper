@@ -1,6 +1,59 @@
-/* The recommendation page is a single component (RecommendationPanel), which
-   carries its own composition. Nothing page-level is needed beyond making
-   sure it starts against the rail rather than floating. */
+/* The recommendation page is essentially one component (RecommendationPanel),
+   which carries its own composition. Nothing page-level is needed beyond
+   making sure it starts against the rail rather than floating. */
 .pricing-recommendation {
   display: block;
+}
+
+/* ─────────────────────────────────────────────────── backend source strip
+
+   One line above the panel saying whether the backend recommendation API
+   agrees with the engine the panel is rendering. Deliberately quiet: it is
+   provenance, not a finding, and it must not compete with the price. It
+   disappears entirely when signed out, so the page is unchanged for anyone
+   who is not checking the migration.                                       */
+
+.rec-source {
+  display: flex;
+  align-items: flex-start;
+  gap: 7px;
+  margin: 0 0 var(--s-4);
+  padding: var(--s-2) var(--s-3);
+  border: 1px solid var(--rule);
+  border-radius: var(--r-sm, 6px);
+  background: var(--surface-sunken, transparent);
+  font-size: var(--t-xs);
+  line-height: 1.6;
+  color: var(--ink-500);
+}
+
+.rec-source svg {
+  flex: none;
+  margin-top: 3px;
+}
+
+.rec-source code {
+  padding: 0 4px;
+  border-radius: 3px;
+  background: var(--surface-raised, transparent);
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-size: 0.95em;
+}
+
+.rec-source--agrees svg {
+  color: var(--success, var(--ink-400));
+}
+
+.rec-source--differs {
+  /* A disagreement between the two engines is a real problem — parity is the
+     whole basis for trusting the backend — so it is allowed to be loud. */
+  border-color: var(--warning);
+  color: var(--ink-700, var(--ink-500));
+}
+.rec-source--differs svg {
+  color: var(--warning);
+}
+
+.rec-source--muted svg {
+  color: var(--ink-400);
 }

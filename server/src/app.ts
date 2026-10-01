@@ -19,6 +19,9 @@ import { AnalysisRepository } from "./modules/analysis/analysis.repository.js";
 import { CompetitorService } from "./modules/analysis/competitor.service.js";
 import { AnalysisService } from "./modules/analysis/analysis.service.js";
 import { registerAnalysisRoutes } from "./modules/analysis/analysis.routes.js";
+import { PricingRepository } from "./modules/pricing/pricing.repository.js";
+import { PricingService } from "./modules/pricing/pricing.service.js";
+import { registerPricingRoutes } from "./modules/pricing/pricing.routes.js";
 
 export type BuiltApp = {
   app: FastifyInstance;
@@ -153,6 +156,16 @@ export async function buildApp(
   const competitorService = new CompetitorService(analysisRepository);
   const analysisService = new AnalysisService(analysisRepository, competitorService);
 
+  // The recommendation sits ON TOP of the analysis and reuses it wholesale —
+  // the same competitor service, the same statistics. There is one
+  // definition of competitive evidence in this system.
+  const pricingService = new PricingService(
+    new PricingRepository(db),
+    analysisRepository,
+    competitorService,
+    analysisService
+  );
+
   /**
    * Liveness only. No version, no commit, no database host, no dependency
    * detail — a health endpoint is unauthenticated by necessity and is the
@@ -166,6 +179,7 @@ export async function buildApp(
       registerCatalogueRoutes(v1, catalogueService);
       registerMarketplaceRoutes(v1, marketplaceService);
       registerAnalysisRoutes(v1, analysisService);
+      registerPricingRoutes(v1, pricingService);
     },
     { prefix: "/api/v1" }
   );

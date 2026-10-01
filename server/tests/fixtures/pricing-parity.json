@@ -1,0 +1,1167 @@
+{
+  "generatedBy": "scripts/export-pricing-parity-fixture.mjs",
+  "note": "Expected values come from src/utils/pricingEngine.js — the validated engine and the baseline for Phase 6. Regenerate deliberately; a diff here is a change to the pricing model.",
+  "caseCount": 12,
+  "cases": [
+    {
+      "productId": "prod_dove_hair_fall",
+      "shape": "strong data, 6 marketplaces, per-unit meaningful",
+      "canonicalName": "Dove Hair Fall Rescue Shampoo (650 ml)",
+      "status": "recommended",
+      "constraintConflict": false,
+      "strategies": {
+        "fast_sale": {
+          "key": "fast_sale",
+          "priceMinor": 50900,
+          "supported": null,
+          "bindingConstraintKey": null,
+          "bindingBoundMinor": null
+        },
+        "balanced": {
+          "key": "balanced",
+          "priceMinor": 61900,
+          "supported": null,
+          "bindingConstraintKey": null,
+          "bindingBoundMinor": null
+        },
+        "premium": {
+          "key": "premium",
+          "priceMinor": 68900,
+          "supported": true,
+          "bindingConstraintKey": "ceiling",
+          "bindingBoundMinor": 69960
+        }
+      },
+      "anchor": {
+        "minor": 59730,
+        "basis": "own market"
+      },
+      "floorMinor": 38916,
+      "ceilingMinor": 69960,
+      "ceilingSource": "observed price range",
+      "travel": 0.8,
+      "mrp": {
+        "boundMinor": 74500,
+        "binding": false
+      },
+      "breakEven": {
+        "boundMinor": null,
+        "binding": false
+      },
+      "premiumCeiling": {
+        "basis": "own market",
+        "baseMinor": 66000,
+        "headroomMinor": 4387,
+        "capMinor": 76500,
+        "poolQ3Minor": 58012,
+        "poolQ3Suppressed": false
+      },
+      "wtp": {
+        "trusted": true,
+        "n": 9,
+        "r2": 0.931,
+        "adjR2": 0.908,
+        "predictedMinor": 55147,
+        "featureKeys": [
+          "__tier",
+          "volume_ml"
+        ],
+        "featureCount": 2,
+        "evidencedPremiumMinor": 5484,
+        "supported": true
+      },
+      "evidence": {
+        "level": "medium-high",
+        "score": 0.77,
+        "sufficient": true,
+        "coverageCap": "high",
+        "cappedByCoverage": false,
+        "dispersion": 0.1617501963232185,
+        "okChecks": [
+          "coherence",
+          "competition",
+          "competitor_breadth",
+          "evidence_depth",
+          "history",
+          "mrp",
+          "promotion_visibility"
+        ]
+      },
+      "ownMarket": {
+        "n": 29,
+        "min": 51900,
+        "median": 61200,
+        "max": 66000
+      },
+      "compStats": {
+        "n": 9,
+        "min": 42300,
+        "median": 49663,
+        "max": 63600
+      },
+      "poolStats": {
+        "floorZoneMinor": 42300,
+        "competitiveLowMinor": 47012,
+        "competitiveMidMinor": 51075,
+        "competitiveHighMinor": 58012,
+        "outlierAboveMinor": 63600
+      },
+      "normalMinor": 57000,
+      "distortionState": "normal"
+    },
+    {
+      "productId": "prod_lakme_gloss_lip",
+      "shape": "strong competition, 5 marketplaces",
+      "canonicalName": "Lakme Absolute Gloss Stylist Lipstick",
+      "status": "recommended",
+      "constraintConflict": false,
+      "strategies": {
+        "fast_sale": {
+          "key": "fast_sale",
+          "priceMinor": 51900,
+          "supported": null,
+          "bindingConstraintKey": null,
+          "bindingBoundMinor": null
+        },
+        "balanced": {
+          "key": "balanced",
+          "priceMinor": 55900,
+          "supported": null,
+          "bindingConstraintKey": null,
+          "bindingBoundMinor": null
+        },
+        "premium": {
+          "key": "premium",
+          "priceMinor": 61900,
+          "supported": true,
+          "bindingConstraintKey": null,
+          "bindingBoundMinor": null
+        }
+      },
+      "anchor": {
+        "minor": 56625,
+        "basis": "own market"
+      },
+      "floorMinor": 32108,
+      "ceilingMinor": 70000,
+      "ceilingSource": "applicable MRP",
+      "travel": 0.8,
+      "mrp": {
+        "boundMinor": 70000,
+        "binding": true
+      },
+      "breakEven": {
+        "boundMinor": null,
+        "binding": false
+      },
+      "premiumCeiling": {
+        "basis": "own market",
+        "baseMinor": 61400,
+        "headroomMinor": 618,
+        "capMinor": 71875,
+        "poolQ3Minor": 59853,
+        "poolQ3Suppressed": false
+      },
+      "wtp": {
+        "trusted": true,
+        "n": 10,
+        "r2": 0.677,
+        "adjR2": 0.585,
+        "predictedMinor": 52200,
+        "featureKeys": [
+          "__tier",
+          "weight_g"
+        ],
+        "featureCount": 2,
+        "evidencedPremiumMinor": 772,
+        "supported": true
+      },
+      "evidence": {
+        "level": "medium-high",
+        "score": 0.62,
+        "sufficient": true,
+        "coverageCap": "high",
+        "cappedByCoverage": false,
+        "dispersion": 0.39437660418449094,
+        "okChecks": [
+          "competition",
+          "competitor_breadth",
+          "evidence_depth",
+          "history",
+          "mrp",
+          "promotion_visibility"
+        ]
+      },
+      "ownMarket": {
+        "n": 19,
+        "min": 53600,
+        "median": 57500,
+        "max": 61400
+      },
+      "compStats": {
+        "n": 10,
+        "min": 34900,
+        "median": 51428,
+        "max": 74900
+      },
+      "poolStats": {
+        "floorZoneMinor": 34900,
+        "competitiveLowMinor": 41537,
+        "competitiveMidMinor": 55746,
+        "competitiveHighMinor": 59853,
+        "outlierAboveMinor": 74900
+      },
+      "normalMinor": 55000,
+      "distortionState": "normal"
+    },
+    {
+      "productId": "prod_boat_wave_band",
+      "shape": "multi-marketplace, meaningful history",
+      "canonicalName": "boAt Wave Fitness Band",
+      "status": "recommended",
+      "constraintConflict": false,
+      "strategies": {
+        "fast_sale": {
+          "key": "fast_sale",
+          "priceMinor": 114900,
+          "supported": null,
+          "bindingConstraintKey": null,
+          "bindingBoundMinor": null
+        },
+        "balanced": {
+          "key": "balanced",
+          "priceMinor": 124900,
+          "supported": null,
+          "bindingConstraintKey": null,
+          "bindingBoundMinor": null
+        },
+        "premium": {
+          "key": "premium",
+          "priceMinor": 134900,
+          "supported": true,
+          "bindingConstraintKey": null,
+          "bindingBoundMinor": null
+        }
+      },
+      "anchor": {
+        "minor": 125373,
+        "basis": "own market"
+      },
+      "floorMinor": 91356,
+      "ceilingMinor": 274890,
+      "ceilingSource": "observed price range",
+      "travel": 0.35,
+      "mrp": {
+        "boundMinor": 349900,
+        "binding": false
+      },
+      "breakEven": {
+        "boundMinor": null,
+        "binding": false
+      },
+      "premiumCeiling": {
+        "basis": "own market",
+        "baseMinor": 138000,
+        "headroomMinor": 970,
+        "capMinor": 158313,
+        "poolQ3Minor": 140136,
+        "poolQ3Suppressed": true
+      },
+      "wtp": {
+        "trusted": true,
+        "n": 5,
+        "r2": 0.711,
+        "adjR2": 0.615,
+        "predictedMinor": 126692,
+        "featureKeys": [
+          "display_in"
+        ],
+        "featureCount": 1,
+        "evidencedPremiumMinor": 2771,
+        "supported": true
+      },
+      "evidence": {
+        "level": "low",
+        "score": 0.38,
+        "sufficient": true,
+        "coverageCap": "medium-high",
+        "cappedByCoverage": false,
+        "dispersion": 0.38275998418347174,
+        "okChecks": [
+          "competition",
+          "evidence_depth",
+          "history",
+          "promotion_visibility"
+        ]
+      },
+      "ownMarket": {
+        "n": 18,
+        "min": 119900,
+        "median": 126650,
+        "max": 138000
+      },
+      "compStats": {
+        "n": 5,
+        "min": 99300,
+        "median": 123921,
+        "max": 249900
+      },
+      "poolStats": {
+        "floorZoneMinor": 99300,
+        "competitiveLowMinor": 107922,
+        "competitiveMidMinor": 124508,
+        "competitiveHighMinor": 140136,
+        "outlierAboveMinor": 249900
+      },
+      "normalMinor": 123000,
+      "distortionState": "normal"
+    },
+    {
+      "productId": "prod_cello_gripper_10",
+      "shape": "commodity, no promotions at all",
+      "canonicalName": "Cello Gripper Ball Pen (Pack of 10)",
+      "status": "recommended",
+      "constraintConflict": false,
+      "strategies": {
+        "fast_sale": {
+          "key": "fast_sale",
+          "priceMinor": 7900,
+          "supported": null,
+          "bindingConstraintKey": null,
+          "bindingBoundMinor": null
+        },
+        "balanced": {
+          "key": "balanced",
+          "priceMinor": 8900,
+          "supported": null,
+          "bindingConstraintKey": null,
+          "bindingBoundMinor": null
+        },
+        "premium": {
+          "key": "premium",
+          "priceMinor": 8900,
+          "supported": false,
+          "bindingConstraintKey": null,
+          "bindingBoundMinor": null
+        }
+      },
+      "anchor": {
+        "minor": 9293,
+        "basis": "own market"
+      },
+      "floorMinor": 6900,
+      "ceilingMinor": 11500,
+      "ceilingSource": "applicable MRP",
+      "travel": 0.8,
+      "mrp": {
+        "boundMinor": 11500,
+        "binding": true
+      },
+      "breakEven": {
+        "boundMinor": null,
+        "binding": false
+      },
+      "premiumCeiling": {
+        "basis": "own market",
+        "baseMinor": 9900,
+        "headroomMinor": 0,
+        "capMinor": 9900,
+        "poolQ3Minor": 10883,
+        "poolQ3Suppressed": true
+      },
+      "wtp": {
+        "trusted": false,
+        "n": 10,
+        "r2": 0.368,
+        "adjR2": 0.187,
+        "predictedMinor": 9445,
+        "featureKeys": [
+          "__tier",
+          "pack_size"
+        ],
+        "featureCount": 2,
+        "evidencedPremiumMinor": 0,
+        "supported": false
+      },
+      "evidence": {
+        "level": "medium-high",
+        "score": 0.77,
+        "sufficient": true,
+        "coverageCap": "high",
+        "cappedByCoverage": false,
+        "dispersion": 0.3010970284375333,
+        "okChecks": [
+          "coherence",
+          "competition",
+          "competitor_breadth",
+          "evidence_depth",
+          "history",
+          "mrp",
+          "promotion_visibility"
+        ]
+      },
+      "ownMarket": {
+        "n": 14,
+        "min": 9000,
+        "median": 9450,
+        "max": 9900
+      },
+      "compStats": {
+        "n": 10,
+        "min": 7500,
+        "median": 9389,
+        "max": 13100
+      },
+      "poolStats": {
+        "floorZoneMinor": 7500,
+        "competitiveLowMinor": 8408,
+        "competitiveMidMinor": 9459,
+        "competitiveHighMinor": 10883,
+        "outlierAboveMinor": 13100
+      },
+      "normalMinor": 9000,
+      "distortionState": "normal"
+    },
+    {
+      "productId": "prod_green_soul_vienna",
+      "shape": "sparse history — 44 observations",
+      "canonicalName": "Green Soul Vienna Pro Office Chair — Black",
+      "status": "recommended",
+      "constraintConflict": false,
+      "strategies": {
+        "fast_sale": {
+          "key": "fast_sale",
+          "priceMinor": 1079900,
+          "supported": null,
+          "bindingConstraintKey": null,
+          "bindingBoundMinor": null
+        },
+        "balanced": {
+          "key": "balanced",
+          "priceMinor": 1199900,
+          "supported": null,
+          "bindingConstraintKey": null,
+          "bindingBoundMinor": null
+        },
+        "premium": {
+          "key": "premium",
+          "priceMinor": 1259900,
+          "supported": true,
+          "bindingConstraintKey": null,
+          "bindingBoundMinor": null
+        }
+      },
+      "anchor": {
+        "minor": 1109210,
+        "basis": "own market"
+      },
+      "floorMinor": 487508,
+      "ceilingMinor": 1618100,
+      "ceilingSource": "observed price range",
+      "travel": 0.55,
+      "mrp": {
+        "boundMinor": 1999900,
+        "binding": false
+      },
+      "breakEven": {
+        "boundMinor": null,
+        "binding": false
+      },
+      "premiumCeiling": {
+        "basis": "own market",
+        "baseMinor": 1109210,
+        "headroomMinor": 152517,
+        "capMinor": 1379250,
+        "poolQ3Minor": 1317935,
+        "poolQ3Suppressed": true
+      },
+      "wtp": {
+        "trusted": true,
+        "n": 10,
+        "r2": 0.803,
+        "adjR2": 0.704,
+        "predictedMinor": 1223208,
+        "featureKeys": [
+          "__tier",
+          "max_load_kg",
+          "warranty_years"
+        ],
+        "featureCount": 3,
+        "evidencedPremiumMinor": 277303,
+        "supported": true
+      },
+      "evidence": {
+        "level": "medium",
+        "score": 0.46,
+        "sufficient": true,
+        "coverageCap": "high",
+        "cappedByCoverage": false,
+        "dispersion": 0.7671345556495588,
+        "okChecks": [
+          "competition",
+          "competitor_breadth",
+          "evidence_depth",
+          "mrp"
+        ]
+      },
+      "ownMarket": {
+        "n": 2,
+        "min": 1099000,
+        "median": 1103400,
+        "max": 1107800
+      },
+      "compStats": {
+        "n": 10,
+        "min": 529900,
+        "median": 809665,
+        "max": 1471000
+      },
+      "poolStats": {
+        "floorZoneMinor": 529900,
+        "competitiveLowMinor": 745882,
+        "competitiveMidMinor": 887769,
+        "competitiveHighMinor": 1317935,
+        "outlierAboveMinor": 1471000
+      },
+      "normalMinor": 1120000,
+      "distortionState": "normal"
+    },
+    {
+      "productId": "prod_airpods_pro2",
+      "shape": "single marketplace — refusal expected",
+      "canonicalName": "Apple AirPods Pro (2nd Generation)",
+      "status": "insufficient_evidence",
+      "constraintConflict": false,
+      "strategies": null,
+      "anchor": null,
+      "floorMinor": null,
+      "ceilingMinor": null,
+      "ceilingSource": null,
+      "travel": null,
+      "mrp": {
+        "boundMinor": null,
+        "binding": null
+      },
+      "breakEven": {
+        "boundMinor": null,
+        "binding": null
+      },
+      "premiumCeiling": null,
+      "wtp": null,
+      "evidence": {
+        "level": "low",
+        "score": 0.62,
+        "sufficient": false,
+        "coverageCap": "low",
+        "cappedByCoverage": true,
+        "dispersion": 0,
+        "okChecks": [
+          "coherence",
+          "competition",
+          "fees",
+          "history",
+          "match_quality",
+          "mrp",
+          "promotion_visibility"
+        ]
+      },
+      "ownMarket": null,
+      "compStats": {
+        "n": 1,
+        "min": 1456100,
+        "median": 1456100,
+        "max": 1456100
+      },
+      "poolStats": null,
+      "normalMinor": null,
+      "distortionState": null
+    },
+    {
+      "productId": "prod_galaxy_m14_5g_6_128_blue",
+      "shape": "HAS SELLER COST — break-even floor is live",
+      "canonicalName": "Samsung Galaxy M14 5G (6GB RAM, 128GB) — Berry Blue",
+      "status": "recommended",
+      "constraintConflict": false,
+      "strategies": {
+        "fast_sale": {
+          "key": "fast_sale",
+          "priceMinor": 1119900,
+          "supported": null,
+          "bindingConstraintKey": null,
+          "bindingBoundMinor": null
+        },
+        "balanced": {
+          "key": "balanced",
+          "priceMinor": 1449900,
+          "supported": null,
+          "bindingConstraintKey": null,
+          "bindingBoundMinor": null
+        },
+        "premium": {
+          "key": "premium",
+          "priceMinor": 1549900,
+          "supported": true,
+          "bindingConstraintKey": null,
+          "bindingBoundMinor": null
+        }
+      },
+      "anchor": {
+        "minor": 1267750,
+        "basis": "own market"
+      },
+      "floorMinor": 1113043,
+      "ceilingMinor": 1799900,
+      "ceilingSource": "applicable MRP",
+      "travel": 1,
+      "mrp": {
+        "boundMinor": 1799900,
+        "binding": true
+      },
+      "breakEven": {
+        "boundMinor": 1113043,
+        "binding": true
+      },
+      "premiumCeiling": {
+        "basis": "own market",
+        "baseMinor": 1341900,
+        "headroomMinor": 316938,
+        "capMinor": 1551875,
+        "poolQ3Minor": 1466565,
+        "poolQ3Suppressed": true
+      },
+      "wtp": {
+        "trusted": true,
+        "n": 10,
+        "r2": 0.826,
+        "adjR2": 0.687,
+        "predictedMinor": 1626847,
+        "featureKeys": [
+          "__tier",
+          "ram_gb",
+          "rear_camera_mp",
+          "storage_gb"
+        ],
+        "featureCount": 4,
+        "evidencedPremiumMinor": 316938,
+        "supported": true
+      },
+      "evidence": {
+        "level": "high",
+        "score": 0.85,
+        "sufficient": true,
+        "coverageCap": "high",
+        "cappedByCoverage": false,
+        "dispersion": 0.44820896603173693,
+        "okChecks": [
+          "competition",
+          "competitor_breadth",
+          "cost",
+          "evidence_depth",
+          "fees",
+          "history",
+          "match_quality",
+          "mrp",
+          "promotion_visibility"
+        ]
+      },
+      "ownMarket": {
+        "n": 6,
+        "min": 1147000,
+        "median": 1241500,
+        "max": 1341900
+      },
+      "compStats": {
+        "n": 10,
+        "min": 699900,
+        "median": 1187638,
+        "max": 1904900
+      },
+      "poolStats": {
+        "floorZoneMinor": 699900,
+        "competitiveLowMinor": 1020981,
+        "competitiveMidMinor": 1210394,
+        "competitiveHighMinor": 1466565,
+        "outlierAboveMinor": 1904900
+      },
+      "normalMinor": 1316500,
+      "distortionState": "normal"
+    },
+    {
+      "productId": "prod_galaxy_m14_5g_8_256_silver",
+      "shape": "same model family — identity dedup",
+      "canonicalName": "Samsung Galaxy M14 5G (8GB RAM, 256GB) — Icy Silver",
+      "status": "recommended",
+      "constraintConflict": false,
+      "strategies": {
+        "fast_sale": {
+          "key": "fast_sale",
+          "priceMinor": 1529900,
+          "supported": null,
+          "bindingConstraintKey": null,
+          "bindingBoundMinor": null
+        },
+        "balanced": {
+          "key": "balanced",
+          "priceMinor": 1839900,
+          "supported": null,
+          "bindingConstraintKey": null,
+          "bindingBoundMinor": null
+        },
+        "premium": {
+          "key": "premium",
+          "priceMinor": 1969900,
+          "supported": true,
+          "bindingConstraintKey": null,
+          "bindingBoundMinor": null
+        }
+      },
+      "anchor": {
+        "minor": 1646300,
+        "basis": "own market"
+      },
+      "floorMinor": 965908,
+      "ceilingMinor": 2099900,
+      "ceilingSource": "applicable MRP",
+      "travel": 0.8,
+      "mrp": {
+        "boundMinor": 2099900,
+        "binding": true
+      },
+      "breakEven": {
+        "boundMinor": null,
+        "binding": false
+      },
+      "premiumCeiling": {
+        "basis": "own market",
+        "baseMinor": 1649000,
+        "headroomMinor": 329260,
+        "capMinor": 2010625,
+        "poolQ3Minor": 1767111,
+        "poolQ3Suppressed": true
+      },
+      "wtp": {
+        "trusted": true,
+        "n": 10,
+        "r2": 0.808,
+        "adjR2": 0.654,
+        "predictedMinor": 2082021,
+        "featureKeys": [
+          "__tier",
+          "ram_gb",
+          "rear_camera_mp",
+          "storage_gb"
+        ],
+        "featureCount": 4,
+        "evidencedPremiumMinor": 411575,
+        "supported": true
+      },
+      "evidence": {
+        "level": "medium-high",
+        "score": 0.69,
+        "sufficient": true,
+        "coverageCap": "high",
+        "cappedByCoverage": false,
+        "dispersion": 0.43971609387654376,
+        "okChecks": [
+          "competition",
+          "competitor_breadth",
+          "evidence_depth",
+          "fees",
+          "history",
+          "mrp",
+          "promotion_visibility"
+        ]
+      },
+      "ownMarket": {
+        "n": 4,
+        "min": 1563000,
+        "median": 1608500,
+        "max": 1649000
+      },
+      "compStats": {
+        "n": 10,
+        "min": 1049900,
+        "median": 1495283,
+        "max": 2399900
+      },
+      "poolStats": {
+        "floorZoneMinor": 1049900,
+        "competitiveLowMinor": 1234485,
+        "competitiveMidMinor": 1567019,
+        "competitiveHighMinor": 1767111,
+        "outlierAboveMinor": 2399900
+      },
+      "normalMinor": 1716500,
+      "distortionState": "normal"
+    },
+    {
+      "productId": "prod_green_soul_mid",
+      "shape": "thin competitor pool",
+      "canonicalName": "Green Soul Vienna Mid Back Mesh Office Chair",
+      "status": "recommended",
+      "constraintConflict": false,
+      "strategies": {
+        "fast_sale": {
+          "key": "fast_sale",
+          "priceMinor": 639900,
+          "supported": null,
+          "bindingConstraintKey": null,
+          "bindingBoundMinor": null
+        },
+        "balanced": {
+          "key": "balanced",
+          "priceMinor": 719900,
+          "supported": null,
+          "bindingConstraintKey": null,
+          "bindingBoundMinor": null
+        },
+        "premium": {
+          "key": "premium",
+          "priceMinor": 779900,
+          "supported": true,
+          "bindingConstraintKey": null,
+          "bindingBoundMinor": null
+        }
+      },
+      "anchor": {
+        "minor": 665855,
+        "basis": "own market"
+      },
+      "floorMinor": 321908,
+      "ceilingMinor": 1208900,
+      "ceilingSource": "observed price range",
+      "travel": 0.55,
+      "mrp": {
+        "boundMinor": 1299900,
+        "binding": false
+      },
+      "breakEven": {
+        "boundMinor": null,
+        "binding": false
+      },
+      "premiumCeiling": {
+        "basis": "own market",
+        "baseMinor": 689400,
+        "headroomMinor": 91555,
+        "capMinor": 830875,
+        "poolQ3Minor": 749900,
+        "poolQ3Suppressed": true
+      },
+      "wtp": {
+        "trusted": true,
+        "n": 10,
+        "r2": 0.868,
+        "adjR2": 0.802,
+        "predictedMinor": 736723,
+        "featureKeys": [
+          "__tier",
+          "max_load_kg",
+          "warranty_years"
+        ],
+        "featureCount": 3,
+        "evidencedPremiumMinor": 166464,
+        "supported": true
+      },
+      "evidence": {
+        "level": "medium",
+        "score": 0.54,
+        "sufficient": true,
+        "coverageCap": "high",
+        "cappedByCoverage": false,
+        "dispersion": 0.5952759670281473,
+        "okChecks": [
+          "competition",
+          "competitor_breadth",
+          "evidence_depth",
+          "mrp",
+          "promotion_visibility"
+        ]
+      },
+      "ownMarket": {
+        "n": 8,
+        "min": 649900,
+        "median": 664700,
+        "max": 689400
+      },
+      "compStats": {
+        "n": 10,
+        "min": 349900,
+        "median": 531241,
+        "max": 1099000
+      },
+      "poolStats": {
+        "floorZoneMinor": 349900,
+        "competitiveLowMinor": 441223,
+        "competitiveMidMinor": 533619,
+        "competitiveHighMinor": 749900,
+        "outlierAboveMinor": 1099000
+      },
+      "normalMinor": 668000,
+      "distortionState": "normal"
+    },
+    {
+      "productId": "prod_funskool_uno",
+      "shape": "insufficient evidence — refusal expected",
+      "canonicalName": "Mattel UNO Card Game",
+      "status": "insufficient_evidence",
+      "constraintConflict": false,
+      "strategies": null,
+      "anchor": null,
+      "floorMinor": null,
+      "ceilingMinor": null,
+      "ceilingSource": null,
+      "travel": null,
+      "mrp": {
+        "boundMinor": null,
+        "binding": null
+      },
+      "breakEven": {
+        "boundMinor": null,
+        "binding": null
+      },
+      "premiumCeiling": null,
+      "wtp": null,
+      "evidence": {
+        "level": "low",
+        "score": 0.46,
+        "sufficient": false,
+        "coverageCap": "low",
+        "cappedByCoverage": true,
+        "dispersion": 0.20530685920577618,
+        "okChecks": [
+          "coherence",
+          "competition",
+          "history",
+          "mrp",
+          "promotion_visibility"
+        ]
+      },
+      "ownMarket": null,
+      "compStats": {
+        "n": 2,
+        "min": 27700,
+        "median": 27700,
+        "max": 44300
+      },
+      "poolStats": null,
+      "normalMinor": null,
+      "distortionState": null
+    },
+    {
+      "productId": "prod_oneplus_buds3",
+      "shape": "HAS SELLER COST — earbuds fee rules",
+      "canonicalName": "OnePlus Buds 3 — Splendor Green",
+      "status": "recommended",
+      "constraintConflict": false,
+      "strategies": {
+        "fast_sale": {
+          "key": "fast_sale",
+          "priceMinor": 264900,
+          "supported": null,
+          "bindingConstraintKey": null,
+          "bindingBoundMinor": null
+        },
+        "balanced": {
+          "key": "balanced",
+          "priceMinor": 289900,
+          "supported": null,
+          "bindingConstraintKey": null,
+          "bindingBoundMinor": null
+        },
+        "premium": {
+          "key": "premium",
+          "priceMinor": 309900,
+          "supported": true,
+          "bindingConstraintKey": null,
+          "bindingBoundMinor": null
+        }
+      },
+      "anchor": {
+        "minor": 275325,
+        "basis": "own market"
+      },
+      "floorMinor": 227171,
+      "ceilingMinor": 399900,
+      "ceilingSource": "applicable MRP",
+      "travel": 0.8,
+      "mrp": {
+        "boundMinor": 399900,
+        "binding": true
+      },
+      "breakEven": {
+        "boundMinor": 227171,
+        "binding": true
+      },
+      "premiumCeiling": {
+        "basis": "own market",
+        "baseMinor": 281000,
+        "headroomMinor": 30135,
+        "capMinor": 344375,
+        "poolQ3Minor": 331136,
+        "poolQ3Suppressed": true
+      },
+      "wtp": {
+        "trusted": true,
+        "n": 6,
+        "r2": 0.784,
+        "adjR2": 0.641,
+        "predictedMinor": 293753,
+        "featureKeys": [
+          "__tier",
+          "total_battery_hours"
+        ],
+        "featureCount": 2,
+        "evidencedPremiumMinor": 37669,
+        "supported": true
+      },
+      "evidence": {
+        "level": "medium-high",
+        "score": 0.77,
+        "sufficient": true,
+        "coverageCap": "high",
+        "cappedByCoverage": false,
+        "dispersion": 0.5968080785992096,
+        "okChecks": [
+          "competition",
+          "competitor_breadth",
+          "cost",
+          "evidence_depth",
+          "fees",
+          "history",
+          "match_quality",
+          "mrp"
+        ]
+      },
+      "ownMarket": {
+        "n": 2,
+        "min": 270000,
+        "median": 275500,
+        "max": 281000
+      },
+      "compStats": {
+        "n": 6,
+        "min": 124900,
+        "median": 256084,
+        "max": 397000
+      },
+      "poolStats": {
+        "floorZoneMinor": 124900,
+        "competitiveLowMinor": 196199,
+        "competitiveMidMinor": 261273,
+        "competitiveHighMinor": 331136,
+        "outlierAboveMinor": 397000
+      },
+      "normalMinor": 275000,
+      "distortionState": "normal"
+    },
+    {
+      "productId": "prod_dell_inspiron15_i5_8_512",
+      "shape": "HAS SELLER COST — laptop fee rules",
+      "canonicalName": "Dell Inspiron 15 (Core i5, 8GB RAM, 512GB SSD)",
+      "status": "recommended",
+      "constraintConflict": false,
+      "strategies": {
+        "fast_sale": {
+          "key": "fast_sale",
+          "priceMinor": 4369900,
+          "supported": null,
+          "bindingConstraintKey": null,
+          "bindingBoundMinor": null
+        },
+        "balanced": {
+          "key": "balanced",
+          "priceMinor": 4479900,
+          "supported": null,
+          "bindingConstraintKey": null,
+          "bindingBoundMinor": null
+        },
+        "premium": {
+          "key": "premium",
+          "priceMinor": 4519900,
+          "supported": false,
+          "bindingConstraintKey": null,
+          "bindingBoundMinor": null
+        }
+      },
+      "anchor": {
+        "minor": 4481550,
+        "basis": "own market"
+      },
+      "floorMinor": 4259240,
+      "ceilingMinor": 4936800,
+      "ceilingSource": "observed price range",
+      "travel": 1,
+      "mrp": {
+        "boundMinor": 5499000,
+        "binding": false
+      },
+      "breakEven": {
+        "boundMinor": 4259240,
+        "binding": true
+      },
+      "premiumCeiling": {
+        "basis": "own market",
+        "baseMinor": 4522000,
+        "headroomMinor": 0,
+        "capMinor": 4522000,
+        "poolQ3Minor": 4021176,
+        "poolQ3Suppressed": false
+      },
+      "wtp": {
+        "trusted": false,
+        "n": 8,
+        "r2": 0.642,
+        "adjR2": 0.373,
+        "predictedMinor": 3414679,
+        "featureKeys": [
+          "__tier",
+          "ram_gb",
+          "weight_kg"
+        ],
+        "featureCount": 3,
+        "evidencedPremiumMinor": 0,
+        "supported": false
+      },
+      "evidence": {
+        "level": "high",
+        "score": 0.92,
+        "sufficient": true,
+        "coverageCap": "high",
+        "cappedByCoverage": false,
+        "dispersion": 0.2120119819910961,
+        "okChecks": [
+          "coherence",
+          "competition",
+          "competitor_breadth",
+          "cost",
+          "evidence_depth",
+          "history",
+          "match_quality",
+          "mrp",
+          "promotion_visibility"
+        ]
+      },
+      "ownMarket": {
+        "n": 2,
+        "min": 4439000,
+        "median": 4480500,
+        "max": 4522000
+      },
+      "compStats": {
+        "n": 8,
+        "min": 2799000,
+        "median": 3341014,
+        "max": 4488000
+      },
+      "poolStats": {
+        "floorZoneMinor": 2799000,
+        "competitiveLowMinor": 3126296,
+        "competitiveMidMinor": 3402036,
+        "competitiveHighMinor": 4021176,
+        "outlierAboveMinor": 4488000
+      },
+      "normalMinor": 4483500,
+      "distortionState": "normal"
+    }
+  ]
+}

@@ -102,6 +102,35 @@ Roughly, in order:
 The statistical component can only ever argue for a *premium offset*, never
 set a price. The constraint layer sits outside it.
 
+This whole pipeline now also exists on the backend at
+`GET /api/v1/products/:id/recommendation`, and the two agree: 77 parity
+assertions over twelve products chosen to exercise every branch, comparing
+structured values rather than rendered sentences. The browser engine remains
+the oracle the backend is measured against.
+
+### Two model versions, and what they are honest about
+
+The attribute model ships in two versions, selected with `?model=`:
+
+| version | fit | trusted when |
+|---|---|---|
+| `baseline-v1` *(default)* | least squares | in-sample adjusted R² ≥ 0.5 |
+| `hedonic-cv-v2` | ridge, penalty chosen by leave-one-out cross-validation | **out-of-sample** R² ≥ 0.5 |
+
+v2 exists because the baseline's gate was measured across the catalogue and
+found too loose: of 477 products whose attribute model it trusts, 226 fail
+cross-validation, and on exactly those it predicts *worse* than simply
+copying the competitive median. The measurement, the forward-in-time
+validation and the reasoning are in
+[`docs/PRICING_MODEL_RESEARCH.md`](docs/PRICING_MODEL_RESEARCH.md).
+
+**What this is not.** There is no sales volume, conversion rate, inventory
+quantity or customer-level willingness to pay in this dataset, so nothing here
+models demand or elasticity and nothing is an "optimal price". These are
+market-value estimates under stated constraints — ML-assisted market price
+estimation, not an AI that knows what to charge. True demand-based pricing
+becomes possible when sales data exists, and not before.
+
 ---
 
 ## Pages
@@ -267,8 +296,18 @@ Being explicit, because the screens look more finished than the system is:
   at seed time with the right shape for each platform. They are the right
   field to build a "View on Amazon" link against once real ingestion exists,
   and they do not resolve today.
-- **No trained ML model.** The willingness-to-pay component is a small
-  least-squares regression fitted per request, not a trained artefact.
+- **The recommendation page still renders the browser engine.** The backend
+  recommendation API exists, is authenticated, and is proven to agree with the
+  engine across 77 assertions — but the backend returns structured factors
+  where the page renders composed prose, so switching the source outright
+  would mean redesigning the panel. The page calls the API alongside the
+  engine and shows whether the two agree; repointing it is the next phase.
+- **No trained ML model, deliberately.** The willingness-to-pay component is a
+  small regression fitted per request over one product's comparables — 5 to 32
+  rows — not a trained artefact, and there is nothing to store between
+  requests. A pooled model would need a sample this dataset does not have: a
+  price-on-attributes model is only comparable within a product type, and the
+  largest product type holds 32 products.
 - **Authentication is real; nothing else is.** Accounts, sessions, email
   verification and password reset all go through the API and a real database.
   Tracked products are still browser state and reset on reload.

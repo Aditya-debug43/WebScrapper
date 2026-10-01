@@ -164,6 +164,17 @@ const MAP = {
     isFilterable: r.isFilterable ?? false, filterType: r.filterType ?? null,
     buckets: r.buckets ?? null, higherIsBetter: r.higherIsBetter ?? null,
   }),
+  feeRules: (r: any) => ({
+    id: r.id, marketplaceId: r.marketplaceId, categoryId: r.categoryId ?? null,
+    priceSlabMin: r.priceSlabMin ?? null, priceSlabMax: r.priceSlabMax ?? null,
+    referralPct: r.referralPct, fixedClosingFee: r.fixedClosingFee ?? 0,
+    shippingFeeBasis: r.shippingFeeBasis ?? null, effectiveFrom: r.effectiveFrom,
+    effectiveTo: r.effectiveTo ?? null, isCurrent: r.isCurrent ?? true,
+  }),
+  sellerCostInputs: (r: any) => ({
+    productId: r.productId, costPriceMinor: r.costPriceMinor,
+    enteredAt: r.enteredAt, note: r.note ?? null,
+  }),
   listings: (r: any) => ({
     id: r.id, productId: r.productId, marketplaceId: r.marketplaceId,
     externalListingId: r.externalListingId, listingUrl: r.listingUrl ?? null,
@@ -312,6 +323,14 @@ async function seedMarketplaceGraph(
    * terms — and the result is a plausible-looking number that is wrong.
    */
   await load(db, "attribute_definitions", t.attributeDefinitions, MAP.attributeDefinitions);
+  /**
+   * Commercial inputs. Phase 6 needs them: without fee rules no break-even
+   * floor can be computed, and the floor then silently falls back to the
+   * market for every product — including the three that genuinely have a
+   * seller cost.
+   */
+  await load(db, "fee_rules", t.feeRules, MAP.feeRules);
+  await load(db, "seller_cost_inputs", t.sellerCostInputs, MAP.sellerCostInputs);
 
   const listingIds = new Set<string>();
   await load(db, "listings", t.listings, MAP.listings, {

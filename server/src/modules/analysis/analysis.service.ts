@@ -104,6 +104,12 @@ export function weightedDistribution(pairs: Array<{ value: number; weight: numbe
   };
 }
 
+/** The median of the series points at or after a cutoff date, or null. */
+function medianOver(series: Array<{ date: string; minor: number }>, from: string): number | null {
+  const values = series.filter((p) => p.date >= from).map((p) => p.minor);
+  return values.length ? distribution(values)!.median : null;
+}
+
 function distribution(values: number[]) {
   if (!values.length) return null;
   const s = [...values].sort((a, b) => a - b);
@@ -396,9 +402,15 @@ export class AnalysisService {
      * -89 here matched on this dataset by luck and would have drifted the
      * moment an observation landed on the boundary.
      */
-    const ninetyDayFrom = shiftDays(referenceDate, -90);
-    const normalValues = series.filter((p) => p.date >= ninetyDayFrom).map((p) => p.minor);
-    const normalMinor = normalValues.length ? distribution(normalValues)!.median : null;
+    /**
+     * The engine's fallback chain in order: the 90-day median, else the
+     * 60-day, else the product's own market, else the comparable median. A
+     * product captured only recently has no 90-day window to speak of, and
+     * falling back is better than reporting no normal at all.
+     */
+    const median90 = medianOver(series, shiftDays(referenceDate, -90));
+    const median60 = medianOver(series, shiftDays(referenceDate, -60));
+    const normalMinor = median90 ?? median60 ?? ownMarket?.median ?? compStats?.median ?? null;
     const distortionRatio = ownMarket?.median && normalMinor ? ownMarket.median / normalMinor : 1;
     const distortion =
       distortionRatio <= 0.9

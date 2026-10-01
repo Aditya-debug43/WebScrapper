@@ -303,6 +303,11 @@ modules one-to-one so the swap is mechanical:
 | *(new, from Stage 18/20)* | `GET /api/v1/products/:id/analysis` |
 | *(new, from Stage 20)* | `GET /api/v1/products/:id/signals`, `…/windows` |
 
+As built, `/products/:id/recommendation` takes `marketplace` and `model`, and
+deliberately takes **no** `window`: a recommendation is measured against the
+product's whole observed history, so narrowing it would ask the same question
+with less evidence rather than a different one.
+
 Rule 7 — do not expose the database directly — is enforced by never returning a
 row: every endpoint returns the same purpose-built response object the frontend
 service returns today. There is no generic `/api/table/:name`.
@@ -338,6 +343,21 @@ that fails.
 - **Phase 1 — audit + architecture.** Complete; this document.
 - **Phase 2 — database + migration.** Complete; see §3 and §5, and
   `server/README.md` for how to run it.
-- **Phases 3–8** — not yet specified by the brief. Expected shape: authentication,
-  read APIs, moving the analytical core server-side, the recommendation service,
-  ingestion, and deployment.
+- **Phase 3 — authentication + API foundation.** Complete. Email + password
+  with Argon2id, OTP verification and password reset over real SMTP, opaque
+  HMAC-hashed session tokens, and the catalogue read APIs.
+- **Phase 4 — marketplace read APIs.** Complete. Listings, sellers, offers,
+  price history across seven observation windows, reviews, seller ratings and
+  promotions, through twelve read-only endpoints. No index was added: every
+  access path was already covered, which was measured before deciding.
+- **Phase 5 — competitor engine + cross-marketplace analysis.** Complete, with
+  parity against the frontend engine asserted across 115 comparisons.
+- **Phase 6 — the pricing recommendation.** Complete. Anchor, constraints,
+  three strategies, evidence gate, willingness-to-pay model and refusals, at
+  `GET /api/v1/products/:id/recommendation`, with 77 parity assertions. The
+  attribute model is versioned: `baseline-v1` is the migrated engine and the
+  default; `hedonic-cv-v2` is a measured alternative trusted on out-of-sample
+  error. The methodology research and the decision not to build a demand model
+  are in `PRICING_MODEL_RESEARCH.md`.
+- **Phases 7–8** — not yet specified by the brief. Expected shape: ingestion
+  and deployment, plus repointing the remaining frontend screens at the API.

@@ -557,6 +557,179 @@ pool ever grows by an order of magnitude this is the first place to look.
 
 (These numbers are PGlite, which is WebAssembly; a native server is faster.)
 
+### Pricing recommendation
+
+One endpoint, bearer token, built entirely on top of the analysis above —
+there is no second competitor computation anywhere in this service.
+
+| Method | Path | Auth | Notes |
+|---|---|---|---|
+| `GET` | `/api/v1/products/:id/recommendation` | bearer | `marketplace`, `model` |
+
+There is deliberately **no `window` parameter**. A recommendation is measured
+against the product's whole observed history — its 90-day normal, its
+distortion reading and its history-depth check all are — so narrowing the
+history would not ask a different question, it would ask the same one with
+less evidence. An earlier draft did accept a window, and it computed the
+"90-day normal" from a 30-day slice and moved the anchor with it.
+
+#### The pipeline
+
+```
+DATA → MARKET ANALYSIS → COMPETITIVE CONTEXT → HISTORICAL CONTEXT
+     → VALUE SIGNALS → CONSTRAINTS → RECOMMENDATION → EXPLANATION
+```
+
+**Anchor.** A blend of the product's own in-stock market and its 90-day
+normal, 65/35. With a single own offer the weight shifts to 0.75 inside a
+±10% band; with none, the evidence-weighted comparable median stands in.
+
+**Hard constraints, in this order.** Ceiling: 110% of the highest pool price,
+or the applicable MRP where that is lower — the MRP is a legal ceiling, not a
+preference. Floor: 92% of the cheapest pool price, capped at 85% of the
+ceiling, raised to the break-even price where a seller cost exists. If the
+floor ends up above the ceiling, **no price is emitted** — every legal price
+would be loss-making, and a number there would be worse than useless.
+
+**Three strategies**, each clamped into `[floor, ceiling]` and snapped to a
+credible ending on a grid that coarsens with price (₹10 / ₹50 / ₹100, minus
+one). Snapping steps back inside the bounds when rounding pushes it out.
+
+**Travel.** How far any strategy may move from the anchor is capped by the
+evidence level — `high` 1.0, `medium-high` 0.8, `medium` 0.55, `low` 0.35 —
+so a thin comparable set produces a smaller claim rather than a bolder one.
+
+**Evidence.** Ten weighted checks (breadth, weighted depth and coherence at
+weight 2; history, competition, cost, fees, MRP, match quality and promotion
+visibility at weight 1), scored out of 13 and then **capped by competitive
+coverage**: a `thin` set cannot produce `high` confidence however well the
+other checks score. Below three comparables the service refuses outright.
+
+#### The attribute model, and its two versions
+
+A hedonic regression of log(price) on standardised pricing-relevant
+attributes across the comparable set. It answers "does the market actually
+pay more for the ways in which this product is better?", and on this dataset
+the answer is usually no — which it says, rather than inventing a premium.
+
+| `model=` | fit | trusted when |
+|---|---|---|
+| `baseline-v1` *(default)* | OLS | in-sample adjusted R² ≥ 0.5 |
+| `hedonic-cv-v2` | ridge, penalty chosen by exact leave-one-out CV | **out-of-sample** LOOCV R² ≥ 0.5 |
+
+Same features, same target, same design matrix — the two share
+`usableFeatures` and `designMatrix` precisely so any difference between them
+is the fitting method and nothing else.
+
+v2 exists because the baseline's gate was measured and found too loose: of
+477 products whose attribute model it trusts, **226 fail cross-validation,
+and on exactly those it predicts worse than copying the competitive median**
+(18.7% MAPE against 17.8%, RMSE 29% higher). The full evaluation — including
+a forward test with comparables priced 45 days before the target — is in
+[`docs/PRICING_MODEL_RESEARCH.md`](../docs/PRICING_MODEL_RESEARCH.md).
+
+`baseline-v1` remains the default because Phase 6's job was to move the
+validated engine unchanged, and 77 parity assertions hold it to that.
+Promoting v2 drops the share of products receiving an evidenced premium from
+58% to 30%; that is the correct number, and it is a product decision rather
+than a migration detail.
+
+Whatever the version, the model may move the Balanced strategy by at most 25%
+of the anchor, damped by the evidence level, and only when its own gate
+passes. Every response states the version that produced it, in both
+`data.model.version` and `meta.modelVersion`.
+
+#### No model is trained, and that is deliberate
+
+There is no training step, no stored artifact and no inference server,
+because there is no global model to store. The regression is a **local fit
+over one product's comparables** — 5 to 32 rows, three or four features —
+solved in microseconds inside the request. A `DATA → TRAIN → VERSION → STORE
+→ LOAD → INFERENCE` lifecycle would be machinery around a computation
+cheaper than the query that feeds it.
+
+What would change that is a model pooled across products, which this dataset
+does not support: a price-on-attributes model is only comparable *within* a
+product type, and the largest product type here holds 32 products.
+
+#### What it will not claim
+
+This dataset contains no units sold, no conversion rate, no inventory
+quantity and no customer-level willingness to pay. So the service does not
+produce an "optimal price" and does not model demand or elasticity. It states
+its own target variable in every response —
+`predicts: "market_value_estimate_from_observed_listing_prices"` — and the
+attribute factor carries `interpretation: "association_not_causation"`,
+because the model observes that the market prices certain attributes higher
+and does not establish that those attributes cause the price.
+
+#### Refusals are first-class
+
+| `reason` | meaning |
+|---|---|
+| `insufficient_comparables` | fewer than three usable comparables, or the evidence checks failed |
+| `no_current_price` | nothing in stock, so there is no market to price into |
+| `constraint_conflict` | the floor rose above the ceiling; every legal price is loss-making |
+
+A refusal carries `status: "insufficient_evidence"`, `recommendation: null`,
+an empty `strategies`, a structured `missing` list, and the competitor
+context it *did* have — with `statistics: null`, because a median over one or
+two comparables is arithmetic rather than a market, and publishing it under
+that heading would hand back as evidence the very thing the refusal says is
+absent. `constraintConflict` distinguishes the third case from the first two:
+a seller needs to know whether it is the data or their own cost blocking the
+sale.
+
+#### Explanation, not prose
+
+Structured factors — `competitive_position`, `historical_position`,
+`attribute_value`, `evidence_level` — each with a direction, an impact in
+minor units where one exists, and its evidence. The backend composes no
+sentences. A sentence cannot be checked against the database; a number can.
+
+#### Performance
+
+Measured over all 1,172 products with
+`npx tsx src/scripts/recommendation-baseline.ts`:
+
+| | value |
+|---|---|
+| p50 / p90 / p99 / max | 542 ms / 1,155 ms / 1,741 ms / 2,089 ms |
+| queries per recommendation | **36 — identical for every one of the 1,172** |
+| attribute model | a 3–4 column solve on ≤32 rows; does not register |
+
+36 for a product with one comparable and 36 for a product with thirty-two,
+which is the whole point: nothing scales with the competitor pool, so there is
+no N+1. The count comes from wrapping `execute`, because latency alone would
+hide two hundred fast queries on a local database. The recommendation reuses
+the analysis context wholesale, so the competitive set is computed **once** per
+request.
+
+(PGlite is WebAssembly in-process; a native server is faster.)
+
+#### The catalogue-wide baseline
+
+| | |
+|---|---|
+| recommended | **1,043** |
+| refused | **129** — 111 `insufficient_comparables`, 18 `no_current_price` |
+| MRP / floor / ceiling / ordering / CF-1 violations | **0** |
+| contradictions, errors | **0** |
+
+**`hedonic-cv-v2` produces the same 1,043 / 129 with the same 111 / 18 split
+and zero violations.** That is the design working: which attribute model is in
+force changes the size of an evidenced premium, never whether a product can be
+priced at all. Switching models cannot strand a product.
+
+Earlier phases recorded "1,156 purchasable → 1,043 recommended / 113 refused".
+That denominator was wrong: there are **1,154** products with a purchasable
+offer and 18 with none, and 113 + 16 = 129, so the total never moved. Confirmed
+by asking the frontend engine the same question over the same 1,172 products
+(`node scripts/engine-recommendation-baseline.mjs`) — it returns 1,043 / 129
+with the same 111 / 18 split and zero constraint conflicts. The script asserts
+the reasons as well as the total, because a total that matches while the reasons
+have shifted is the kind of agreement that should not pass.
+
 ### Validation
 
 Fastify JSON schema, enforced before a handler runs. Unknown query parameters
@@ -747,7 +920,7 @@ the ten-minute window the code itself is bounded by.
 ## Tests
 
 ```bash
-npm test              # 217 tests
+npm test              # 444 tests
 npx tsx --test tests/auth.test.ts      # one file
 ```
 
@@ -764,8 +937,12 @@ exercised with `app.inject()`, so nothing binds a port.
 | `tests/smtp-socket.test.ts` | SMTP-13 — a real SMTP conversation | 6 |
 | `tests/marketplace.test.ts` | MKT, LIST, SELL, OFFER, PROMO, REV + golden records | 40 |
 | `tests/price-history.test.ts` | HIST, PRICE + price-ladder parity | 24 |
-| `tests/analysis.test.ts` | COMP-01…12, ANALYSIS-01…12 + security | 29 |
+| `tests/analysis.test.ts` | COMP-01…12, ANALYSIS-01…12 + security | 30 |
 | `tests/analysis-parity.test.ts` | PARITY-01…10 against the frontend engine | 115 |
+| `tests/pricing-parity.test.ts` | REC-01…10, WTP-01…07 against the frontend engine | 77 |
+| `tests/pricing.test.ts` | CON-01…07, STRAT-01…05, SPARSE-01…06 invariants | 19 |
+| `tests/pricing-model.test.ts` | ML-01…10 plus the two rules mutation testing exposed | 22 |
+| `tests/pricing-security.test.ts` | auth, token forgery, parameter rejection, leakage | 8 |
 
 ### Isolation
 
@@ -860,13 +1037,23 @@ balancer; without it every per-IP limit would be shared by the entire internet.
 | `npm run db:verify` | 37 integrity checks; non-zero exit on failure |
 | `npm run email:check -- you@example.com` | verify the transport and send one real test message |
 
-One script lives on the frontend side, because it needs Vite to resolve the
+Measurement scripts, run directly with `tsx`. None of them is part of the
+suite, because each takes minutes and answers a question you ask on purpose:
+
+| Command | What it does |
+|---|---|
+| `npx tsx src/scripts/recommendation-baseline.ts` | every product through the recommendation: 14 table counts, recommended/refused against the project baseline, the safety violations that must be zero, latency percentiles and queries per request. Add `--model hedonic-cv-v2` to score the other version. Non-zero exit on any difference. |
+| `npx tsx src/scripts/evaluate-pricing-models.ts` | scores the naive competitive median, `baseline-v1` and `hedonic-cv-v2` on held-out prediction across the catalogue, cross-sectionally and forward in time. This is where the numbers in `docs/PRICING_MODEL_RESEARCH.md` come from. |
+
+Some scripts live on the frontend side, because they need Vite to resolve the
 engine's extensionless imports:
 
 | Command | What it does |
 |---|---|
 | `node scripts/export-price-parity-fixture.mjs` | regenerate `server/tests/fixtures/price-ladder-parity.json` from `src/utils/priceLayers.js`. A diff in that file is a change to the pricing basis — regenerate deliberately. |
 | `node scripts/export-analysis-parity-fixture.mjs` | regenerate `server/tests/fixtures/analysis-parity.json` from the competitive-set and cross-marketplace engines. A diff is a change to the analytical engine. |
+| `node scripts/export-pricing-parity-fixture.mjs` | regenerate `server/tests/fixtures/pricing-parity.json` from `src/utils/pricingEngine.js` — the recommendation baseline. A diff is a change to the pricing model. |
+| `node scripts/audit-ml-feasibility.mjs` | counts what the dataset does and does not contain: demand signals, price variation, time structure, within-type sample sizes, target-variable candidates. |
 
 ---
 
@@ -898,3 +1085,38 @@ misspelled field was accepted as if correct.
 **A custom rate-limit `errorResponseBuilder` broke the error shape**, turning
 every 429 into a 500. The central error handler now renders it, so there is one
 place that formats errors rather than two.
+
+**Phase 6 — four defects in the recommendation port, all found by parity.**
+The first parity run passed 30 of 77. None of the four causes was visible by
+reading the code or by looking at a rendered recommendation.
+
+- *The 90-day normal was computed over a window.* Accepting a `window`
+  parameter scoped the price series, so the "90-day normal" came from a 30-day
+  slice — and since the anchor blends the own market with that normal 65/35,
+  every anchor was wrong. The parameter is gone.
+- *The evidence checks counted marketplaces where the engine counts offers.*
+  One product has 6 marketplaces and 29 in-stock offers, so the competition
+  check and the promotion-visibility share used a denominator five times too
+  small. That shifted the evidence score by one weight-1 check on **every**
+  product, which moved the confidence level, the travel damping, the premium
+  headroom and all three strategy prices.
+- *MRP inflation was measured against the comparable median* instead of the
+  product's own current price, so a marked-down chair looked mispriced and
+  lost an evidence point it had earned.
+- *The normal had no fallback chain* — 90-day, else 60-day, else own market,
+  else comparable median. Only the first was implemented.
+
+**And one latent defect in the baseline engine, reproduced deliberately.**
+`candidateFeatures` filters candidates on a finite `targetValue` while the
+customer-rating feature's target is still `NaN`; the caller substitutes the
+real rating afterwards. Rating is therefore declared a hedonic feature and can
+never be fitted. Porting it faithfully meant reproducing that, with the
+reasoning recorded at the point of the quirk — correcting it silently would
+change prices across the catalogue with no evidence of improvement.
+
+**Two gaps in the response, found by writing the invariant tests.**
+`evidence` was reported on refusals but not on recommendations, so the
+assessment that decided a price was worth emitting was invisible on the prices
+it authorised. And a refusal did not distinguish "not enough comparables" from
+"no valid price exists" — different problems for a seller, since one is about
+the data and the other about their own cost.
