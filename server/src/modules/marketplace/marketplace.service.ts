@@ -413,6 +413,43 @@ export class MarketplaceService {
     const longest = windows.reduce((a, b) => (b.window.days > a.window.days ? b : a), windows[0]!);
     const current = longest.last;
 
+    /**
+     * How many platforms carried the product in each window, and how much of
+     * the time it was unbuyable.
+     *
+     * One query over the widest range, bucketed per window here — a price
+     * series collapses each day to its cheapest in-stock offer and so cannot
+     * answer either question, and asking per window would be seven queries
+     * for one fact.
+     */
+    const coverageRows = await this.repo.coverageSeries(productId, {
+      from: longest.window.from,
+      to: longest.window.to,
+      marketplaceId: opts.marketplaceId,
+    });
+    const coverageFor = (from: string, to: string) => {
+      const inRange = coverageRows.filter((r) => r.date >= from && r.date <= to);
+      const outOfStock = inRange.filter((r) => !r.inStock).length;
+      return {
+        marketplaceCount: new Set(inRange.map((r) => r.marketplaceId)).size,
+        observationRows: inRange.length,
+        outOfStockRows: outOfStock,
+        outOfStockShare: inRange.length ? round((outOfStock / inRange.length) * 100, 1) : null,
+      };
+    };
+
+    /**
+     * How often this product is captured at all, as the median gap between
+     * capture days. A window shorter than the cadence is empty for a reason
+     * that is about the pipeline, not the market, and the interface says so.
+     */
+    const captureDays = [...new Set(coverageRows.map((r) => r.date))].sort();
+    const gaps = captureDays
+      .slice(1)
+      .map((d, i) => (new Date(d).getTime() - new Date(captureDays[i]!).getTime()) / 86_400_000)
+      .sort((a, b) => a - b);
+    const cadenceDays = gaps.length ? gaps[Math.floor(gaps.length / 2)]! : null;
+
     return {
       data: {
         productId,
@@ -428,6 +465,20 @@ export class MarketplaceService {
           capabilityNote: CAPABILITY_NOTE[w.capability],
           observationCount: w.n,
           statistics: w.statistics,
+          /**
+           * The band, not just the number: "4.1%" means nothing without the
+           * thresholds, and every caller would otherwise carry its own copy
+           * of them.
+           */
+          volatilityBand:
+            w.statistics?.volatilityPct == null
+              ? null
+              : w.statistics.volatilityPct < 3
+                ? "stable"
+                : w.statistics.volatilityPct < 8
+                  ? "moderate"
+                  : "volatile",
+          coverage: coverageFor(w.window.from, w.window.to),
           withheld: w.withheld,
           /**
            * Where the current price sits inside the window's observed range,
@@ -441,7 +492,12 @@ export class MarketplaceService {
               : null,
         })),
       },
-      meta: { referenceDate, priceBasis: PRICE_BASIS, marketplaceId: opts.marketplaceId ?? null },
+      meta: {
+        referenceDate,
+        priceBasis: PRICE_BASIS,
+        marketplaceId: opts.marketplaceId ?? null,
+        cadenceDays,
+      },
     };
   }
 

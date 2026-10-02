@@ -311,12 +311,13 @@ Being explicit, because the screens look more finished than the system is:
   at seed time with the right shape for each platform. They are the right
   field to build a "View on Amazon" link against once real ingestion exists,
   and they do not resolve today.
-- **The analysis screens still read the browser's copy.** The competitor engine
-  and cross-marketplace analysis exist server-side with 115 parity assertions
-  behind them, but those pages have not been repointed — and the
-  cross-marketplace analysis is now the only place in the browser that still
-  calls `buildRecommendation`. A test names it explicitly so a second caller
-  cannot appear unnoticed. Repointing it is the next migration.
+- **The catalogue screens still read the browser's copy.** Products,
+  listings, offers and the dashboard render from in-memory JavaScript, and the
+  same data also lives in PostgreSQL behind a full set of read APIs. The two
+  pricing-intelligence screens — recommendation and cross-marketplace analysis
+  — are both backend-driven, and a guard walks the import graph from each to
+  prove neither can reach a pricing engine. Repointing the catalogue screens
+  is the next migration.
 - **No trained ML model, deliberately.** The willingness-to-pay component is a
   small regression fitted per request over one product's comparables — 5 to 32
   rows — not a trained artefact, and there is nothing to store between

@@ -911,6 +911,53 @@
   max-width: var(--measure);
 }
 
+/* ─────────────────────────────────────────────────────── error state
+
+   Phase 8 put a network call behind this page, so it can now fail. The
+   error borrows the empty state's composition rather than introducing a
+   second visual language for "something is wrong".                      */
+
+.cma-error h2 {
+  margin: 0 0 var(--s-2);
+  font-size: var(--t-lg);
+  color: var(--ink-900, var(--ink-700));
+}
+
+.cma-error p {
+  margin: 0 0 var(--s-3);
+}
+
+.cma-error-note {
+  font-size: var(--t-xs);
+  color: var(--ink-400);
+}
+
+.cma-retry {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  margin-top: var(--s-2);
+  padding: var(--s-2) var(--s-4);
+  border: 1px solid var(--rule);
+  border-radius: var(--r-sm, 6px);
+  background: var(--surface, transparent);
+  color: var(--ink-700, var(--ink-500));
+  font: inherit;
+  font-size: var(--t-xs);
+  cursor: pointer;
+  transition: border-color 140ms ease, color 140ms ease;
+}
+
+.cma-retry:hover {
+  border-color: var(--ink-400);
+  color: var(--ink-900, var(--ink-700));
+}
+
+.cma-retry:focus-visible {
+  outline: 2px solid var(--focus, var(--ink-700));
+  outline-offset: 2px;
+}
+
 /* ============================================================= responsive */
 
 @media (max-width: 900px) {

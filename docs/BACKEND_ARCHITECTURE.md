@@ -364,6 +364,12 @@ that fails.
   back; the browser performs no pricing calculation. The engine survives as the
   oracle, with a test comparing every field the panel reads — prose included —
   and another walking the import graph to keep it off the runtime path.
-- **Phase 8** — not yet specified by the brief. Expected shape: ingestion and
-  deployment, plus repointing the remaining frontend screens (catalogue,
-  product, price history and cross-marketplace analysis) at the API.
+- **Phase 8 — the analysis screen reads the backend.** Complete. The
+  cross-marketplace analysis page calls `/analysis`, `/recommendation` and
+  `/price-summary` and renders what comes back. No screen computes a price in
+  the browser any more, and an import-graph guard proves neither pricing
+  screen can reach the engine — including through the observation-window
+  helpers, which were split into vocabulary and statistics for that reason.
+- **Phase 9 and beyond** — not yet specified. Expected shape: ingestion and
+  deployment, plus repointing the remaining catalogue screens (catalogue,
+  product, price history, dashboard) at the API.

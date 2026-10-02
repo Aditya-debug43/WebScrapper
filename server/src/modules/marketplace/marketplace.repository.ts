@@ -541,6 +541,32 @@ export class MarketplaceRepository {
    * sellers would outvote one with a single seller and the "median price of
    * this product" would drift toward whoever lists it most.
    */
+  /**
+   * One row per captured offer-day: which marketplace it was on, and whether
+   * it was buyable.
+   *
+   * `dailySeries` answers "what did this cost?" by collapsing each day to its
+   * cheapest in-stock price, which cannot answer "how many platforms carried
+   * it?" or "how often was it out of stock?" — both of which the window panel
+   * states. Returned for the widest range once and bucketed per window by the
+   * caller, rather than queried seven times.
+   */
+  async coverageSeries(productId: string | null, f: Omit<HistoryFilters, "page" | "pageSize">) {
+    const where = this.historyScope(productId, { ...f, page: 1, pageSize: 1 });
+    return rows<{ date: string; marketplaceId: string; inStock: boolean }>(
+      this.db,
+      sql`
+      select po.observed_at::text as date,
+             l.marketplace_id     as "marketplaceId",
+             po.is_in_stock       as "inStock"
+        from price_observations po
+        join offers   o on o.id = po.offer_id
+        join listings l on l.id = o.listing_id
+       where ${where}
+       order by po.observed_at`
+    );
+  }
+
   async dailySeries(productId: string | null, f: Omit<HistoryFilters, "page" | "pageSize">) {
     const where = this.historyScope(productId, { ...f, page: 1, pageSize: 1 });
     return rows<{ date: string; minor: number; landedMinor: number }>(

@@ -8,7 +8,7 @@ import {
   type ExcludedCompetitor,
   type ScoredCompetitor,
 } from "../analysis/competitor.service.js";
-import { weightedDistribution, type AnalysisService } from "../analysis/analysis.service.js";
+import { weightedDistribution, type AnalysisService, type Finding } from "../analysis/analysis.service.js";
 import type { AnalysisRepository } from "../analysis/analysis.repository.js";
 import type { MarketplaceIdentity, PricingRepository } from "./pricing.repository.js";
 import { fitHedonicModel, type HedonicResult } from "./hedonic.js";
@@ -679,6 +679,26 @@ export class PricingService {
       viability,
     });
 
+    /* ---- the analysis bridge ---------------------------------------------- */
+
+    /**
+     * The analysis screen's closing argument, and the attribute model stated
+     * as one of its findings. Phase 5 left both here on purpose; see
+     * `buildBridge`.
+     */
+    const wtpFinding = this.wtpFinding(wtp, premiumSupported, evidencedPremiumMinor);
+    const analysisFindings = (analysisData.findings ?? []) as Finding[];
+    const bridge = this.buildBridge({
+      findings: [...analysisFindings, wtpFinding],
+      strategies,
+      ownMedianMinor: ownMarket?.median ?? null,
+      compMedianMinor: compStats.median,
+      premiumSupported,
+      evidenceLevel: evidence.level,
+      coverage: set.coverage as unknown as Record<string, unknown>,
+      constraints: { floorMinor, ceilingMinor, ceilingSource },
+    });
+
     /* ---- explanation ------------------------------------------------------ */
 
     const explanation = this.buildExplanation({
@@ -772,6 +792,15 @@ export class PricingService {
         viability,
         /** Run before anything is shown; a failure flags what to distrust. */
         sanityChecks,
+        /**
+         * The analysis screen's "therefore": the findings partitioned by the
+         * direction they argue for, and where each strategy sits against the
+         * product's own market and the comparable median. Phase 5 recorded
+         * this as belonging to the recommendation; it does.
+         */
+        bridge,
+        /** The attribute model as a finding, for the analysis screen's list. */
+        wtpFinding,
         /**
          * The policy values a caller may need to QUOTE.
          *
@@ -973,6 +1002,105 @@ export class PricingService {
       const marginMinor = netMinor - commercial.cost.costPriceMinor;
       return { ...m, netMinor, marginMinor, marginPct: marginMinor / priceMinor };
     });
+  }
+
+  /**
+   * The willingness-to-pay finding, and the bridge from findings to prices.
+   *
+   * Phase 5 moved the cross-marketplace analysis to the backend and
+   * deliberately left these two behind, recording the reason in
+   * `meta.notMigrated`: both are the recommendation engine's, and the
+   * recommendation engine did not exist server-side yet. It does now, so they
+   * come home here rather than being rebuilt in a browser.
+   *
+   * The bridge is the analysis screen's closing argument — "these findings,
+   * therefore these prices". It partitions the findings by the direction they
+   * argue for and states where each strategy sits against the two markets.
+   * No new business logic: the findings are the analysis service's, the
+   * prices are already decided, and the percentages are ratios between
+   * numbers in this same response.
+   */
+  private buildBridge(input: {
+    findings: Finding[];
+    strategies: Strategy[];
+    ownMedianMinor: number | null;
+    compMedianMinor: number | null;
+    premiumSupported: boolean;
+    evidenceLevel: string;
+    coverage: Record<string, unknown>;
+    constraints: { floorMinor: number; ceilingMinor: number; ceilingSource: string };
+  }) {
+    const ratio = (price: number, reference: number | null) =>
+      reference == null || reference === 0 ? null : Math.round(((price - reference) / reference) * 1000) / 10;
+
+    return {
+      forPremium: input.findings.filter((f) => f.direction === "premium"),
+      forAggressive: input.findings.filter((f) => f.direction === "aggressive"),
+      neutral: input.findings.filter((f) => f.direction === "neutral"),
+      /**
+       * The verdict is a FLAG, not a sentence — the interface phrases it.
+       * `premiumEvidenced` is the whole claim the bridge makes.
+       */
+      premiumEvidenced: input.premiumSupported,
+      strategies: input.strategies.map((s) => ({
+        key: s.key,
+        label: s.label,
+        priceMinor: s.priceMinor,
+        supported: s.supported,
+        boundBy: s.bindingConstraint?.label ?? null,
+        vsOwnMarketPct: ratio(s.priceMinor, input.ownMedianMinor),
+        vsCompMedianPct: ratio(s.priceMinor, input.compMedianMinor),
+      })),
+      floorMinor: input.constraints.floorMinor,
+      ceilingMinor: input.constraints.ceilingMinor,
+      ceilingSource: input.constraints.ceilingSource,
+      confidence: input.evidenceLevel,
+      coverage: input.coverage,
+    };
+  }
+
+  /**
+   * The attribute model as a FINDING, in the same shape the analysis uses.
+   *
+   * The analysis screen lists this alongside the nine the analysis service
+   * produces; it lives here because it is the hedonic model's verdict and the
+   * hedonic model is the recommendation's.
+   */
+  private wtpFinding(
+    wtp: HedonicResult | HedonicCvResult,
+    supported: boolean,
+    evidencedPremiumMinor: number
+  ): Finding {
+    return {
+      id: "wtp",
+      dimension: "Willingness to pay",
+      direction: supported ? "premium" : "aggressive",
+      headline: supported
+        ? "The market measurably pays for this product's attributes"
+        : "No measurable attribute premium in this market",
+      metrics: {
+        trusted: wtp.trusted,
+        supported,
+        n: wtp.n,
+        adjR2: wtp.adjR2 ?? null,
+        loocvR2: (wtp as HedonicCvResult).loocvR2 ?? null,
+        predictedMinor: wtp.predictedMinor,
+        evidencedPremiumMinor,
+        reason: wtp.reason,
+      },
+      evidence: wtp.trusted
+        ? [
+            { kind: "fit", n: wtp.n, adjR2: wtp.adjR2 ?? null, loocvR2: (wtp as HedonicCvResult).loocvR2 ?? null },
+            ...wtp.features.map((f) => ({
+              kind: "feature" as const,
+              label: f.label,
+              targetValue: f.targetValue,
+              compMean: f.compMean,
+              unit: f.unit,
+            })),
+          ]
+        : [{ kind: "abstained", reason: wtp.reason }],
+    };
   }
 
   /**

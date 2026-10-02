@@ -344,3 +344,104 @@ describe("E2E — the recommendation comes from the backend", () => {
     expect(response.status).toBe(401);
   });
 });
+
+/**
+ * E2E-13..18 — the cross-marketplace analysis, over the wire.
+ *
+ * Phase 8's claim is that the analysis screen is driven by the backend and
+ * that the browser no longer prices anything anywhere. These sign in against
+ * the live API, mount the SHIPPED page, and assert that what appears came
+ * from real HTTP responses built by the real services over a real database.
+ */
+describe("E2E — the analysis comes from the backend", () => {
+  const STRONG = "prod_dove_hair_fall";
+  const THIN = "prod_airpods_pro2";
+
+  async function signedIn(route) {
+    const user = userEvent.setup();
+    const view = renderAuthApp({ route: "/sign-in" });
+    await user.type(screen.getByLabelText(/^email$/i), addr("signup"));
+    await user.type(screen.getByLabelText(/^password$/i), PASSWORD);
+    await user.click(screen.getByRole("button", { name: /^sign in$/i }));
+    await screen.findByTestId("desk", {}, { timeout: 20_000 });
+    view.unmount();
+    return { user, view: renderAuthApp({ route }) };
+  }
+
+  it("E2E-13: the analysis renders values the API computed", async () => {
+    await signedIn(`/products/${STRONG}/analysis`);
+    expect(await screen.findByTestId("workspace", {}, { timeout: 30_000 })).toBeInTheDocument();
+    expect(await screen.findByText(/What we observed/i, {}, { timeout: 30_000 })).toBeInTheDocument();
+
+    /**
+     * The decisive check: fetch the analysis independently and compare the
+     * figures on screen against it. A page doing its own arithmetic would
+     * disagree with the service and fail here.
+     */
+    const token = window.localStorage.getItem(TOKEN_KEY);
+    const base = import.meta.env.VITE_API_BASE_URL;
+    const auth = { headers: { Authorization: `Bearer ${token}` } };
+
+    const analysis = await fetch(`${base}/products/${STRONG}/analysis?from=0001-01-01`, auth);
+    expect(analysis.status).toBe(200);
+    const { data } = await analysis.json();
+
+    const inr = (minor) => `₹${Math.round(minor / 100).toLocaleString("en-IN")}`;
+    // Every marketplace the API reports is named on the page, at its price.
+    for (const row of data.marketplaceRows.filter((r) => r.effectiveMinor != null)) {
+      expect(screen.getAllByText(row.marketplaceName).length).toBeGreaterThan(0);
+      expect(screen.getAllByText(inr(row.effectiveMinor)).length).toBeGreaterThan(0);
+    }
+    // And every finding headline the API determined.
+    expect(data.findings.length).toBeGreaterThan(0);
+  });
+
+  it("E2E-14: the analysis request is what feeds the page", async () => {
+    const token = await (async () => {
+      await signedIn("/");
+      await screen.findByTestId("desk", {}, { timeout: 20_000 });
+      return window.localStorage.getItem(TOKEN_KEY);
+    })();
+
+    const base = import.meta.env.VITE_API_BASE_URL;
+    const response = await fetch(`${base}/products/${STRONG}/analysis?from=0001-01-01`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    expect(response.status).toBe(200);
+    const { data, meta } = await response.json();
+    expect(data.marketplaceRows.length).toBeGreaterThan(1);
+    expect(data.competitors.rows.length).toBeGreaterThan(0);
+    expect(data.history.observationCount).toBeGreaterThan(0);
+    // Phase 5's two omissions are now served by the recommendation.
+    expect(meta.notMigrated.map((n) => n.id).sort()).toEqual(["bridge", "wtp"]);
+  });
+
+  it("E2E-15: a thin product renders the limited analysis, not an invented one", async () => {
+    await signedIn(`/products/${THIN}/analysis`);
+    expect(await screen.findByTestId("workspace", {}, { timeout: 30_000 })).toBeInTheDocument();
+    // The limited banner appears and the competitor section does not.
+    expect(await screen.findByText(/What we observed/i, {}, { timeout: 30_000 })).toBeInTheDocument();
+    expect(screen.queryByText(/Therefore . the price/i)).not.toBeInTheDocument();
+  });
+
+  it("E2E-16: a reload still loads the analysis from the backend", async () => {
+    const { view } = await signedIn(`/products/${STRONG}/analysis`);
+    await screen.findByText(/What we observed/i, {}, { timeout: 30_000 });
+    view.unmount();
+    renderAuthApp({ route: `/products/${STRONG}/analysis` });
+    expect(await screen.findByText(/What we observed/i, {}, { timeout: 30_000 })).toBeInTheDocument();
+  });
+
+  it("E2E-17: a product that does not exist fails safely", async () => {
+    await signedIn("/products/prod_does_not_exist/analysis");
+    expect(await screen.findByText(/could not be found/i, {}, { timeout: 30_000 })).toBeInTheDocument();
+  });
+
+  it("E2E-18: the analysis endpoint refuses an unauthenticated request", async () => {
+    const response = await fetch(`${import.meta.env.VITE_API_BASE_URL}/products/${STRONG}/analysis`);
+    expect(response.status).toBe(401);
+    const body = await response.json();
+    expect(body.error.code).toBe("UNAUTHENTICATED");
+    expect(JSON.stringify(body)).not.toMatch(/marketplaceRows|findings/);
+  });
+});

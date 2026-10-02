@@ -71,6 +71,7 @@ function localImports(file) {
 
 const files = sourceFiles(SRC);
 const RECOMMENDATION_PAGE = join(SRC, "pages", "PricingRecommendation.jsx");
+const ANALYSIS_PAGE = join(SRC, "pages", "CrossMarketplaceAnalysis.jsx");
 
 /** Everything the recommendation page pulls in, transitively. */
 function reachableFrom(entry) {
@@ -93,6 +94,45 @@ describe("the browser does not decide a price", () => {
     expect(files.some((f) => f.endsWith(join("utils", "pricingEngine.js")))).toBe(true);
   });
 
+  it("nothing reachable from the ANALYSIS page imports a pricing module", () => {
+    /**
+     * Phase 8's acceptance criterion. The analysis screen used to run the
+     * whole engine — `buildCrossMarketplaceAnalysis` calls
+     * `buildRecommendation` — and reached it a second way through the
+     * observation-window statistics. Both routes are gone: the analysis comes
+     * from the API, and the window vocabulary was split from the window
+     * statistics so naming a horizon no longer drags the engine in.
+     */
+    const reachable = [...reachableFrom(ANALYSIS_PAGE)].map((f) => relative(SRC, f).replace(/\\/g, "/"));
+
+    // The walk really does reach the page's own parts.
+    expect(reachable).toContain("api/analysisService.js");
+    expect(reachable).toContain("utils/analysisPresenter.js");
+    expect(reachable).toContain("utils/storeSignals.js");
+    expect(reachable).toContain("api/http.js");
+
+    const offenders = reachable.filter((rel) => PRICING_MODULES.some((m) => rel === `utils/${m}.js`));
+    expect(offenders, `the analysis page reaches a pricing module: ${offenders.join(", ")}`).toEqual([]);
+  });
+
+  it("neither page reaches the engine through the observation windows", () => {
+    /**
+     * The subtle route, and the one a text search would miss:
+     * `observationWindows` imported the engine for its statistics, so any
+     * screen that merely named a horizon pulled the pricing engine in behind
+     * it. The vocabulary and the statistics are separate modules now.
+     */
+    const vocabulary = codeOf(join(SRC, "utils", "observationWindows.js"));
+    expect(vocabulary).not.toContain('from "./pricingEngine"');
+
+    for (const entry of [RECOMMENDATION_PAGE, ANALYSIS_PAGE]) {
+      const reachable = [...reachableFrom(entry)].map((f) => relative(SRC, f).replace(/\\/g, "/"));
+      expect(reachable, `${relative(SRC, entry)} reaches the window statistics`).not.toContain(
+        "utils/observationWindowStats.js"
+      );
+    }
+  });
+
   it("only the one known caller still invokes buildRecommendation", () => {
     /**
      * `buildRecommendation` IS the pricing decision, and after Phase 7 exactly
@@ -106,6 +146,9 @@ describe("the browser does not decide a price", () => {
      * a second caller appearing fails this test.
      */
     const ALLOWED = ["utils/crossMarketplaceAnalysis.js", "utils/pricingEngine.js"];
+    // Phase 8 note: `crossMarketplaceAnalysis` is no longer reachable from any
+    // page. It survives as the analysis oracle the backend is measured
+    // against, exactly as `pricingEngine` does for the recommendation.
     const callers = files
       .filter((f) => /\bbuildRecommendation\b/.test(codeOf(f)))
       .map((f) => relative(SRC, f).replace(/\\/g, "/"))

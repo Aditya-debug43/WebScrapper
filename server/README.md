@@ -713,6 +713,18 @@ price and the MRP, `no_shared_marketplace` with both marketplace sets,
 `same_model_family` with the variant that kept the slot — because "why is this
 not a benchmark?" deserves the figures, and the client composes the sentence.
 
+Phase 8 added two more, both of which Phase 5 had recorded in
+`meta.notMigrated` as belonging here rather than to the analysis:
+
+| field | what it is |
+|---|---|
+| `bridge` | the analysis screen's "therefore": the findings partitioned by the direction each argues for, and where each strategy sits against the product's own market and the comparable median |
+| `wtpFinding` | the attribute model stated as a finding, in the same shape the analysis uses, so the screen can list it beside the other nine |
+
+Neither is new logic. The findings are the analysis service's, the prices are
+already decided, and the percentages are ratios between numbers in the same
+response.
+
 #### Performance
 
 Measured over all 1,172 products with
@@ -1069,6 +1081,9 @@ suite, because each takes minutes and answers a question you ask on purpose:
 | Command | What it does |
 |---|---|
 | `npx tsx src/scripts/recommendation-baseline.ts` | every product through the recommendation: 14 table counts, recommended/refused against the project baseline, the safety violations that must be zero, latency percentiles and queries per request. Add `--model hedonic-cv-v2` to score the other version. Non-zero exit on any difference. |
+| `npx tsx src/scripts/analysis-performance.ts` | times the three requests the analysis screen makes and counts their queries, so an N+1 cannot hide behind a fast local database. |
+| `npx tsx src/scripts/export-backend-recommendations.ts` | regenerate `tests/fixtures/backend-recommendations.json` — the real payloads the recommendation screen reads. |
+| `npx tsx src/scripts/export-backend-analysis.ts` | regenerate `tests/fixtures/backend-analysis.json` — the `/analysis`, `/recommendation` and `/price-summary` payloads the analysis screen reads, with the parameters it uses. A diff in either is a change to a contract a screen depends on. |
 | `npx tsx src/scripts/evaluate-pricing-models.ts` | scores the naive competitive median, `baseline-v1` and `hedonic-cv-v2` on held-out prediction across the catalogue, cross-sectionally and forward in time. This is where the numbers in `docs/PRICING_MODEL_RESEARCH.md` come from. |
 
 Some scripts live on the frontend side, because they need Vite to resolve the

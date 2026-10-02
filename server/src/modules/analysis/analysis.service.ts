@@ -756,6 +756,16 @@ function buildStrength(
     specAdvantages,
     specDisadvantages,
     specTies,
+    /**
+     * How many pricing-relevant numeric attributes this product type declares
+     * at all — the denominator the comparison was made against. Advantages
+     * plus disadvantages plus ties undercounts it, because an attribute the
+     * target does not carry is still one the type declares, and a caller
+     * saying "measured on N attributes" means this N — every pricing-relevant
+     * attribute the type declares, not only the numeric ones the comparison
+     * could actually score.
+     */
+    pricingRelevantAttributeCount: attrs.filter((a) => a.isPricingRelevant).length,
   };
 }
 

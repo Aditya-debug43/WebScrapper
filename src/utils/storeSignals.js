@@ -6,8 +6,7 @@ import { getActivePromotionsForOffer } from "../data/promotions";
 import { getReviewVelocity } from "../data/reviewSnapshots";
 import { getProductReviewMetrics } from "./productMetrics";
 import { buildPriceLayers } from "./priceLayers";
-import { trustWeightedRating } from "./crossMarketplaceAnalysis";
-import { analyseWindow, datasetLatestDate, windowStart } from "./observationWindows";
+import { datasetLatestDate, windowStart } from "./observationWindows";
 import { formatMinor } from "./money";
 
 /**
@@ -66,6 +65,24 @@ import { formatMinor } from "./money";
  */
 
 const pct1 = (v) => Math.round(v * 1000) / 10;
+/**
+ * The backend's horizon for this window length, in the shape this module
+ * reads. Returns an empty window rather than throwing when the horizons could
+ * not be loaded — the signals below degrade one at a time.
+ */
+function windowFrom(analysis, windowDays) {
+  const match = (analysis?.horizons?.windows ?? []).find((w) => w.days === windowDays);
+  if (!match) {
+    return { n: 0, promoDays: 0, promoLabels: [], coverage: { marketplaceCount: null, outOfStockShare: null, observationRows: 0, outOfStockRows: 0 } };
+  }
+  return {
+    ...match,
+    promoDays: match.promoDays ?? 0,
+    promoLabels: match.promoLabels ?? [],
+    coverage: match.coverage ?? { marketplaceCount: null, outOfStockShare: null, observationRows: 0, outOfStockRows: 0 },
+  };
+}
+
 const plural = (n, one, many) => (n === 1 ? one : many);
 
 /** A parameter is only reported when it can be computed; otherwise it says why not. */
@@ -185,10 +202,24 @@ function reviewVelocityFor(productId) {
   return any ? Math.round(sum * 100) / 100 : null;
 }
 
+/**
+ * NON-PRICE PARAMETERS, from the backend's window and trust figures.
+ *
+ * Phase 8 removed this module's last two links to the pricing engine: the
+ * observation window and the trust-weighted rating now arrive from the
+ * backend through `analysis` instead of being recomputed here. What remains
+ * is the non-price parameter work itself — availability, fulfilment,
+ * promotion state, demand proxy — which decides no price and is part of the
+ * catalogue migration rather than the pricing one.
+ */
 export function buildStoreSignals(productId, { windowDays = 30, analysis = null } = {}) {
   const to = datasetLatestDate();
   const from = windowStart(windowDays, to);
-  const win = analyseWindow(productId, windowDays);
+  /**
+   * The window the backend measured for this horizon. Recomputing it here
+   * would put a second definition of "the last 30 days" in the browser.
+   */
+  const win = windowFrom(analysis, windowDays);
   const { listings, rows } = currentOfferState(productId);
 
   if (rows.length === 0) {
@@ -208,7 +239,8 @@ export function buildStoreSignals(productId, { windowDays = 30, analysis = null 
     null
   );
   const metrics = getProductReviewMetrics(productId);
-  const trust = trustWeightedRating(metrics?.rating ?? null, metrics?.reviewCount ?? null);
+  // The backend's trust-weighted rating, not a second copy of the damping.
+  const trust = analysis?.competitors?.targetTrustRating ?? null;
   const velocity = reviewVelocityFor(productId);
   const featured = featuredPosition(productId, from, to);
 

@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useOutletContext, useSearchParams } from "react-router-dom";
 import {
   ArrowRight,
@@ -19,16 +19,12 @@ import {
   Globe,
   Percent,
 } from "lucide-react";
-import { buildCrossMarketplaceAnalysis } from "../utils/crossMarketplaceAnalysis";
+import { useAuth } from "../state/AuthContext";
+import { getCrossMarketplaceAnalysis } from "../api/analysisService";
 import { buildStoreSignals } from "../utils/storeSignals";
-import {
-  OBSERVATION_WINDOWS,
-  DEFAULT_WINDOW_KEY,
-  CAPABILITY,
-  compareWindows,
-  windowByKey,
-} from "../utils/observationWindows";
+import { OBSERVATION_WINDOWS, DEFAULT_WINDOW_KEY, CAPABILITY, windowByKey } from "../utils/observationWindows";
 import FilterControl from "../components/common/FilterControl";
+import LoadingState from "../components/common/LoadingState";
 import { formatMinor } from "../utils/money";
 import { getMarketplace } from "../data/marketplaces";
 import "./CrossMarketplaceAnalysis.css";
@@ -45,9 +41,10 @@ import "./CrossMarketplaceAnalysis.css";
  *   5. HISTORY              whether today's market is normal
  *   6. THEREFORE            how those findings become the recommended price
  *
- * Every number rendered here comes from `buildCrossMarketplaceAnalysis`, which
- * derives from the same entity graph the rest of the app reads. Nothing is
- * computed in this file.
+ * Every number rendered here comes from the backend analysis API. Phase 8
+ * moved the calculation server-side, so this file fetches, formats and
+ * renders — it reaches no conclusion and prices nothing. The window selector
+ * drives the horizons panel, which is its own question and its own request.
  */
 
 const DIRECTION_META = {
@@ -105,13 +102,41 @@ export default function CrossMarketplaceAnalysis() {
     ? params.get("w")
     : DEFAULT_WINDOW_KEY;
 
-  const analysis = useMemo(() => buildCrossMarketplaceAnalysis(productId), [productId]);
-  const horizons = useMemo(() => compareWindows(productId), [productId]);
+  const { token } = useAuth();
+  const [state, setState] = useState({ status: "loading", analysis: null, error: null });
+  const [attempt, setAttempt] = useState(0);
+  const retry = useCallback(() => setAttempt((n) => n + 1), []);
+  const requestedFor = useRef(null);
+
+  useEffect(() => {
+    if (!productId) return undefined;
+    const controller = new AbortController();
+    const key = `${productId}:${attempt}`;
+    requestedFor.current = key;
+    // Clear first: a previous product's analysis must not sit on screen while
+    // this one loads.
+    setState({ status: "loading", analysis: null, error: null });
+
+    getCrossMarketplaceAnalysis(productId, { token, signal: controller.signal })
+      .then((analysis) => {
+        if (requestedFor.current !== key) return;
+        setState({ status: "ready", analysis, error: null });
+      })
+      .catch((error) => {
+        if (error?.name === "AbortError" || requestedFor.current !== key) return;
+        setState({ status: "error", analysis: null, error });
+      });
+
+    return () => controller.abort();
+  }, [productId, token, attempt]);
+
+  const analysis = state.analysis;
+  const horizons = analysis?.horizons ?? null;
   const signals = useMemo(
-    () => buildStoreSignals(productId, { windowDays: windowByKey(windowKey).days, analysis }),
+    () => (analysis ? buildStoreSignals(productId, { windowDays: windowByKey(windowKey).days, analysis }) : null),
     [productId, windowKey, analysis]
   );
-  const selected = horizons.windows.find((w) => w.key === windowKey) ?? horizons.windows[0];
+  const selected = horizons?.windows?.find((w) => w.key === windowKey) ?? horizons?.windows?.[0] ?? null;
 
   const setWindow = (key) => {
     const next = new URLSearchParams(params);
@@ -120,6 +145,8 @@ export default function CrossMarketplaceAnalysis() {
     setParams(next, { replace: false });
   };
 
+  if (state.status === "loading") return <LoadingState label="Building the cross-marketplace analysis…" />;
+  if (state.status === "error") return <AnalysisError error={state.error} onRetry={retry} />;
   if (!analysis.available) {
     return <div className="card cma-empty">{analysis.reason}</div>;
   }
@@ -525,6 +552,13 @@ export default function CrossMarketplaceAnalysis() {
           {/* The same product at seven horizons. What each one can support is
               derived from the observations actually inside it, so the short
               windows are honest about being snapshots rather than trends. */}
+          {/* The horizons are their own request. If it failed, this one
+              section degrades and the rest of the analysis stands. */}
+          {!horizons || !selected ? (
+            <p className="cma-horizon-note">
+              The observation horizons could not be loaded. Every other figure on this page is unaffected.
+            </p>
+          ) : (
           <div className="cma-horizons">
             <div className="cma-horizon-head">
               <span className="eyebrow">Observation window</span>
@@ -650,6 +684,7 @@ export default function CrossMarketplaceAnalysis() {
               <strong>{horizons.persistence.label}.</strong> {horizons.persistence.detail}
             </p>
           </div>
+          )}
 
           <div className="cma-hist">
             <span className="eyebrow cma-hist-label">The 90-day basis the engine reasons on</span>
@@ -909,6 +944,42 @@ export default function CrossMarketplaceAnalysis() {
             See the full recommendation <ArrowRight size={14} strokeWidth={2} />
           </Link>
         </section>
+      )}
+    </div>
+  );
+}
+
+/**
+ * The analysis could not be loaded.
+ *
+ * Distinguished by code because the actions differ: a missing product is
+ * permanent, a dead network is worth retrying. Authentication is deliberately
+ * not handled here — an expired token is cleared by the API layer and the
+ * route guard redirects, as on every other authenticated screen.
+ */
+function AnalysisError({ error, onRetry }) {
+  const code = error?.code ?? "UNEXPECTED_ERROR";
+  const notFound = code === "NOT_FOUND";
+  const offline = code === "NETWORK_ERROR";
+
+  return (
+    <div className="card cma-empty cma-error">
+      <h2>
+        {notFound
+          ? "This product could not be found"
+          : offline
+            ? "Could not reach the analysis service"
+            : "The analysis could not be loaded"}
+      </h2>
+      <p>{error?.message ?? "Something went wrong while building the analysis."}</p>
+      <p className="cma-error-note">
+        Nothing is shown because nothing was received. The analysis is computed server-side from the captured market,
+        and figures invented here to fill the gap would look exactly as authoritative as real ones.
+      </p>
+      {!notFound && (
+        <button type="button" className="cma-retry" onClick={onRetry}>
+          Try again
+        </button>
       )}
     </div>
   );

@@ -4,6 +4,7 @@ import AccountMenu from "../../src/components/auth/AccountMenu";
 import { RedirectIfAuthenticated, RequireAuth } from "../../src/components/auth/RouteGuards";
 import { AuthProvider } from "../../src/state/AuthContext";
 import { ThemeProvider } from "../../src/state/ThemeContext";
+import CrossMarketplaceAnalysis from "../../src/pages/CrossMarketplaceAnalysis";
 import PricingRecommendation from "../../src/pages/PricingRecommendation";
 import SignIn from "../../src/pages/auth/SignIn";
 import CreateAccount from "../../src/pages/auth/CreateAccount";
@@ -48,6 +49,7 @@ export function renderAuthApp({ route = "/sign-in" } = {}) {
               */}
               <Route path="/products/:productId" element={<ProductWorkspaceStub />}>
                 <Route path="recommendation" element={<PricingRecommendation />} />
+                <Route path="analysis" element={<CrossMarketplaceAnalysis />} />
               </Route>
             </Route>
 

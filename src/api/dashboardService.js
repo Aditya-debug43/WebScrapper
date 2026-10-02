@@ -4,7 +4,8 @@ import { getBrand } from "../data/brands";
 import { getListingsForProduct } from "../data/listings";
 import { marketplaces } from "../data/marketplaces";
 import { getCurrentEffectivePrice } from "../utils/pricingEngine";
-import { analyseWindow, OBSERVATION_WINDOWS, DEFAULT_WINDOW_KEY, windowByKey, datasetLatestDate } from "../utils/observationWindows";
+import { OBSERVATION_WINDOWS, DEFAULT_WINDOW_KEY, windowByKey, datasetLatestDate } from "../utils/observationWindows";
+import { analyseWindow } from "../utils/observationWindowStats";
 import { demoSetIds, profileFor } from "../utils/demoSet";
 
 /**

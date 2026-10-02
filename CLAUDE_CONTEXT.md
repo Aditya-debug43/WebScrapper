@@ -1404,6 +1404,94 @@ the user to sign in, exactly as on every other authenticated screen.
 
 ---
 
+### Stage 29 — Backend phase 8: the analysis screen reads the backend (current)
+
+The last screen that priced anything in the browser now asks the API instead.
+`buildCrossMarketplaceAnalysis` called `buildRecommendation`, so until this
+phase the analysis page ran the entire pricing engine client-side.
+
+```
+BEFORE  CrossMarketplaceAnalysis → buildCrossMarketplaceAnalysis() → buildRecommendation() → src/data/*.js
+AFTER   CrossMarketplaceAnalysis → analysisService → /analysis + /recommendation + /price-summary
+                                 → analysisPresenter → the page
+```
+
+#### Phase 5 predicted exactly what was missing
+
+The analysis response already carried the marketplace rows, the competitors,
+the history, the strength and nine of the ten findings. Its
+`meta.notMigrated` named the two omissions and the reason: the **bridge** and
+the **willingness-to-pay finding** both belong to the recommendation engine,
+which did not exist server-side when Phase 5 ran. It does now, so both were
+built where they belong — on the recommendation, not by reaching back into the
+analysis — and the presenter merges the WTP finding into the list and
+re-attaches prose to the bridge's partitions.
+
+That is the whole of the new backend logic. Everything else was serialisation
+(`strength.pricingRelevantAttributeCount`) or a figure the window panel needed
+that `price-summary` did not yet report (per-window `coverage`,
+`volatilityBand`, and the capture `cadenceDays`) — the last of which costs one
+extra query for the widest range, bucketed per window rather than queried
+seven times.
+
+#### The engine was reachable by a second route
+
+The obvious dependency was the analysis module itself. The subtle one was
+`observationWindows.js`, which imported the engine for its window statistics —
+so any screen that merely *named* a horizon pulled the pricing engine into the
+bundle behind it. It is now split: `observationWindows.js` holds the seven
+horizons, the capability ladder and the date arithmetic with no engine import,
+and `observationWindowStats.js` holds the statistics that need one. The
+dashboard, which is part of the catalogue migration rather than this one, is
+the only remaining caller of the latter.
+
+`storeSignals.js` reached the engine too, for a trust-weighted rating and a
+window. Both now come from the backend response. What it still does — the
+non-price parameters — decides no price and belongs to the catalogue
+migration.
+
+#### Proving the screen did not change
+
+`tests/analysis-presenter.test.js` runs the engine and the presenter over
+**eight** products spanning strong, adequate, thin, single-marketplace and
+refused coverage, and compares every value the screen displays, prose
+included. Getting it green surfaced the genuine differences:
+
+- the backend's finding **headlines** were worded differently from the
+  engine's, and nothing pinned them — Phase 5's parity asserts ids, directions
+  and metrics, not prose. The presenter now words them as the screen always
+  did, which is this project's standing division of labour: the backend
+  decides what the finding IS, the interface decides how it reads.
+- `spec_position` quoted the wrong denominator, because the backend counted
+  only the numeric attributes it could score rather than every
+  pricing-relevant attribute the product type declares.
+- a **limited** analysis must suppress the competitive section wholesale —
+  Phase 5's honesty gate — rather than show rows while withholding the
+  conclusion.
+
+#### Intentional differences, all of one kind
+
+Three orderings are now deterministic where they used to follow whatever order
+an in-memory array happened to be built in: a competitor's marketplace list,
+the specification labels in a `spec_position` headline, and (from Phase 7) the
+per-marketplace margin rows. None is reproducible from a database, and none
+carries meaning. They are the only visual changes.
+
+One thing is deliberately withheld rather than added: a **limited** analysis
+does not show the 90-day normal or the distortion reading, matching the screen
+as it stands. The backend computes both and they are real; the engine simply
+never had them on that path. Surfacing them is an improvement for a later
+phase to make on purpose.
+
+#### Measured
+
+`/analysis` is **18 queries flat** for every product — nothing scales with the
+competitor pool — at p50 462 ms, against the ~0.8 s Phase 5 recorded. The
+screen's three requests go out in parallel, so a reader waits for the slowest
+rather than the sum.
+
+---
+
 ## 3a. Where AI/ML belongs in this system (asked explicitly at Stage 13)
 
 A deliberate position, because "AI-powered pricing" is easy to claim and hard to defend:
@@ -1670,8 +1758,22 @@ All eight pages from the Stage 7 plan are implemented (plus the Stage 18 Analysi
 
 ## 9. Current data flow
 
-Two flows now, because the migration is partway through. The split is by
-screen, not by accident.
+Two flows, split by screen. Both pricing-intelligence screens read the
+backend; the catalogue screens still read the browser's copy of the data.
+
+**The analysis — through the backend (Stage 29, Phase 8):**
+
+```
+CrossMarketplaceAnalysis page
+   → getCrossMarketplaceAnalysis(productId, { token })   src/api/analysisService.js
+       → three authenticated requests, in parallel:
+           GET /api/v1/products/:id/analysis?from=0001-01-01   market, competitors, history, findings
+           GET /api/v1/products/:id/recommendation             the prices those findings argue toward
+           GET /api/v1/products/:id/price-summary?windows=…    the seven observation horizons
+       → presentAnalysis(...)                            src/utils/analysisPresenter.js
+           turns the API's figures into the sentences the screen renders
+   → the page renders the result
+```
 
 **The recommendation — through the backend (Stage 28, Phase 7):**
 
@@ -1702,12 +1804,15 @@ Page component
    → page renders it via the useAsyncData hook (loading/error/data)
 ```
 
-The catalogue, product, price-history and cross-marketplace-analysis screens
-still read `src/data/`. The cross-marketplace analysis is the one remaining
-caller of `buildRecommendation` in the browser; repointing it at the Phase 5
-`/analysis` endpoint (which exists, with 115 parity assertions behind it) is a
-later phase. The guard test names that caller explicitly, so the count can go
-down and never up.
+The catalogue, product and price-history screens still read `src/data/`, and
+the dashboard still computes its own observation windows. **No screen computes
+a price any more.** `buildRecommendation` has no reachable caller: both
+`pricingEngine.js` and `crossMarketplaceAnalysis.js` survive as the oracles the
+backend is measured against, and `tests/no-runtime-pricing-engine.test.js`
+walks the real import graph from both pricing screens to prove neither can
+reach them — including through `observationWindows`, which Phase 8 split into
+vocabulary and statistics precisely because naming a horizon used to drag the
+engine in behind it.
 
 **What is real:** the React app itself, the routing, the UI interactions, the pricing/recommendation math (a real algorithm running against the mock numbers — see §10), the buy-box computation, the net-realisation/margin math, the review-velocity calculation.
 
