@@ -1313,6 +1313,97 @@ as the oracle.
 
 ---
 
+### Stage 28 — Backend phase 7: the recommendation screen reads the backend (current)
+
+Phase 6 built the recommendation API and proved it agreed with the browser
+engine. Phase 7 made it the thing the screen actually uses. The engine remains,
+as the oracle it is measured against, and nothing on the runtime path can reach
+it.
+
+```
+BEFORE   PricingRecommendation → buildRecommendation() → src/data/*.js
+AFTER    PricingRecommendation → recommendationService → GET /api/v1/products/:id/recommendation
+                                                       → PricingService → PostgreSQL
+                               → recommendationPresenter → RecommendationPanel
+```
+
+#### The gap was serialisation and prose, not logic
+
+The panel destructures about twenty-five fields and renders sentences
+throughout; the API returned numbers and composed no prose, by design. The
+audit's job was to say which of those was missing *data* and which was missing
+*wording*, because the two have different fixes and only one of them is allowed
+to happen in the browser.
+
+Almost everything turned out to be already computed server-side and simply not
+serialised — `diversity`, `method`, `excluded`, `reference` and the full
+competitor rows were sitting on the Phase 5 competitive set. What genuinely had
+to be added was per-strategy `position` and `margins`, the named `zones`, the
+`commercial` layer, the cheapest offer's price ladder, `competition`,
+`viability` and the `sanityChecks` — all of them derivations of an
+already-decided price rather than new pricing logic, and all of them now
+computed where the price is.
+
+The prose moved to `src/utils/recommendationPresenter.js`, which formats and
+decides nothing. Where a sentence quotes a policy figure — "capped at 25% above
+the own-market median" — it reads that 25% from the response rather than
+keeping its own copy, because a second copy is a second thing to drift.
+
+#### Proving the screen did not change
+
+`tests/recommendation-presenter.test.js` runs the engine and the presenter over
+the same twelve golden products and compares **every field the panel reads,
+prose included**. A reworded sentence, a dropped rationale line or a missing
+margin row fails it. That comparison found four real differences:
+
+1. **The product-strength weights had been wrong since Phase 5.** The port used
+   0.2/0.3 for reviews/specifications where the engine uses 0.15/0.35, and
+   renamed the `specs` key. Both sets summed to 1, so the index looked
+   plausible and was wrong — 0.40 against 0.44 on the golden product. No price
+   depends on it, which is why 77 pricing-parity assertions passed over it for
+   a whole phase. It surfaced the moment the screen read the value from the API
+   instead of computing its own, which is the argument for this phase in one
+   sentence.
+2. **`history` had no 30/60/90-day medians.** The panel shows all three; the
+   analysis response carried none of them.
+3. **Exclusion reasons had lost their figures** — "priced above this product's
+   applicable MRP" where the engine says "priced at ₹296, above this product's
+   applicable MRP of ₹115". Fixed by sending a structured `exclusion` alongside
+   the reason and composing the sentence in the presenter.
+4. **`trendPct` is a percentage in the API and a fraction in the panel.** A
+   unit mismatch between two contracts, adapted in the presenter where that
+   belongs.
+
+#### One deliberate visual change
+
+The per-marketplace margin rows are now ordered by marketplace **name**. The
+engine listed them in the order its seed array happened to be written in, which
+is not reproducible from a database that has no ordering column. Alphabetical
+is deterministic; it is the only thing on this screen that looks different.
+
+#### States a function call did not have
+
+A network request can be slow, fail, or be refused, so the page now handles
+each explicitly — with one rule: **never show a price this page did not
+receive.** No stale result while a new one loads, no locally computed fallback
+when the request fails. Authentication is deliberately NOT handled on this
+page: an expired token is cleared by the API layer and the route guard sends
+the user to sign in, exactly as on every other authenticated screen.
+
+#### What is enforced rather than intended
+
+- `tests/no-runtime-pricing-engine.test.js` walks the real import graph from the
+  recommendation page and fails if anything reachable from it imports a pricing
+  module, and separately allowlists the one remaining `buildRecommendation`
+  caller (the cross-marketplace analysis) so a second can never appear quietly.
+- `tests/recommendation-page-source.test.jsx` covers loading, success, refusal,
+  network failure, retry, not-found, a malformed response, and the case that
+  matters most — a previous product's price must never remain on screen.
+- E2E-07…12 sign in against the live API, mount the shipped page, and assert
+  the figures rendered are the figures a separate HTTP call returns.
+
+---
+
 ## 3a. Where AI/ML belongs in this system (asked explicitly at Stage 13)
 
 A deliberate position, because "AI-powered pricing" is easy to claim and hard to defend:
@@ -1579,6 +1670,29 @@ All eight pages from the Stage 7 plan are implemented (plus the Stage 18 Analysi
 
 ## 9. Current data flow
 
+Two flows now, because the migration is partway through. The split is by
+screen, not by accident.
+
+**The recommendation — through the backend (Stage 28, Phase 7):**
+
+```
+PricingRecommendation page
+   → getRecommendation(productId, { token })        src/api/recommendationService.js
+       → apiRequest(...)                             src/api/http.js, bearer token
+           → GET /api/v1/products/:id/recommendation
+               → PricingService  →  AnalysisService / CompetitorService  →  PostgreSQL
+       → presentRecommendation(payload)              src/utils/recommendationPresenter.js
+           turns the API's figures into the sentences the panel renders
+   → RecommendationPanel renders the result
+```
+
+The browser performs **no pricing calculation** on this path: no hedonic
+regression, no floor or ceiling reconstruction, no strategy derivation. The
+presenter formats and composes prose; it decides nothing, and
+`tests/no-runtime-pricing-engine.test.js` fails if that stops being true.
+
+**Everything else — still in the browser:**
+
 ```
 Page component
    → calls an async function in src/api/<domain>Service.js
@@ -1587,6 +1701,13 @@ Page component
    → returns a plain JS object/array (the same shape a JSON API response would have)
    → page renders it via the useAsyncData hook (loading/error/data)
 ```
+
+The catalogue, product, price-history and cross-marketplace-analysis screens
+still read `src/data/`. The cross-marketplace analysis is the one remaining
+caller of `buildRecommendation` in the browser; repointing it at the Phase 5
+`/analysis` endpoint (which exists, with 115 parity assertions behind it) is a
+later phase. The guard test names that caller explicitly, so the count can go
+down and never up.
 
 **What is real:** the React app itself, the routing, the UI interactions, the pricing/recommendation math (a real algorithm running against the mock numbers — see §10), the buy-box computation, the net-realisation/margin math, the review-velocity calculation.
 
@@ -1913,7 +2034,7 @@ Each has a real representative in the dataset. Re-run these after any pricing ch
 Based on where the project actually stands, the next steps that follow directly from the established direction (not a new roadmap):
 
 1. **Present/defend the current state** to the professor if that hasn't happened yet — the `pricing-intelligence-walkthrough.md` document was built for exactly this.
-2. **Backend — decided and under way (Stages 21–27).** Node/TypeScript + Fastify + PostgreSQL + Drizzle, *not* Java: the reasoning is in `docs/BACKEND_ARCHITECTURE.md` and comes down to letting ~4,300 lines of verified pricing logic move server-side rather than be rewritten. Phases 1–3 (architecture, schema, migration, authentication, API foundation) are complete; Stage 23 replaced the credential with email + password and wired the frontend's auth layer to it for real, Stage 24 added a Gmail SMTP transport behind the existing email port, Stage 25 (Phase 4) exposed the marketplace data — listings, sellers, offers, price history across seven windows, reviews, seller ratings and promotions — through twelve read-only APIs, Stage 26 (Phase 5) moved the competitor and cross-marketplace analysis engines server-side behind two authenticated endpoints with parity asserted across 115 comparisons, and Stage 27 (Phase 6) moved the pricing recommendation itself — anchor, constraints, three strategies, evidence gate, willingness-to-pay model and refusals — behind `/products/:id/recommendation`, with 77 parity assertions and a measured, versioned cross-validated alternative to the attribute model. **Phase 7 has not been started and is awaiting the user's review.** `src/api/*Service.js` remains the swap point for the catalogue and pricing data, and its return shapes are the API contract; `src/api/authService.js` calls the real backend, and `src/api/recommendationService.js` now calls it alongside the browser engine so the two can be compared.
+2. **Backend — decided and under way (Stages 21–27).** Node/TypeScript + Fastify + PostgreSQL + Drizzle, *not* Java: the reasoning is in `docs/BACKEND_ARCHITECTURE.md` and comes down to letting ~4,300 lines of verified pricing logic move server-side rather than be rewritten. Phases 1–3 (architecture, schema, migration, authentication, API foundation) are complete; Stage 23 replaced the credential with email + password and wired the frontend's auth layer to it for real, Stage 24 added a Gmail SMTP transport behind the existing email port, Stage 25 (Phase 4) exposed the marketplace data — listings, sellers, offers, price history across seven windows, reviews, seller ratings and promotions — through twelve read-only APIs, Stage 26 (Phase 5) moved the competitor and cross-marketplace analysis engines server-side behind two authenticated endpoints with parity asserted across 115 comparisons, Stage 27 (Phase 6) moved the pricing recommendation itself — anchor, constraints, three strategies, evidence gate, willingness-to-pay model and refusals — behind `/products/:id/recommendation` with 77 parity assertions, and Stage 28 (Phase 7) made that endpoint the recommendation screen's actual source: the browser no longer prices anything, and a test walks the import graph to keep it that way. **Phase 8 has not been started and is awaiting the user's review.** `src/api/*Service.js` remains the swap point for the catalogue data; `src/api/authService.js` and `src/api/recommendationService.js` call the real backend, and the catalogue, product, price-history and cross-marketplace-analysis screens still read `src/data/`.
 3. **Turn the conceptual database design (§5) into real DDL** and a real database (Postgres was the design docs' implicit assumption, given the JSONB-based Specifications design — but this was never explicitly finalized as a hard requirement).
 4. **Build (or at minimum design) the real entity-resolution/product-matching pipeline** described in the docs but never implemented — this is explicitly flagged in the original design review as "the single biggest gap."
 5. **Only after a real backend and real data exist:** revisit whether a real scraper/crawler is needed at all, versus using official marketplace APIs where available (a preference stated in the original design docs).
@@ -2017,6 +2138,16 @@ Based on where the project actually stands, the next steps that follow directly 
 12bx. **Score the model you already ship before proposing a better one.** Nobody had measured the hedonic fit. It turned out its trust gate passes 226 fits that fail cross-validation and predict worse than copying the competitive median — a finding worth more than any new model, and available only because the naive baseline was scored alongside it (Stage 27).
 
 12by. **Adjusted R² is not validation at n = 8.** With 5–32 rows and features picked by correlation with the same target, in-sample fit overstates skill. Exact leave-one-out is available in closed form for a linear smoother (`eᵢ / (1 − hᵢᵢ)`), so honest validation costs one fit, not n (Stage 27).
+
+12ca. **Two implementations that agree are still two implementations.** The backend's product-strength weights were wrong for an entire phase and 77 parity assertions passed over them, because no price depended on the value and the screen was computing its own copy. It surfaced the day the screen started reading the API's. Agreement testing finds disagreement; it does not find the thing neither side is asked about (Stage 28).
+
+12cb. **Separate "missing data" from "missing wording" before fixing either.** Most of what the recommendation screen needed was already computed server-side and merely unserialised. The rest was prose. Only one of those is allowed to happen in the browser, and conflating them is how a presenter quietly becomes a second engine (Stage 28).
+
+12cc. **A client that quotes a policy figure should read it from the response.** "Capped at 25% above the own-market median" is the service's number. A copy in the interface is a second thing to drift (Stage 28).
+
+12cd. **When a function call becomes a request, the states are the new work.** Loading, failure, retry, not-found, malformed, and — the one that matters most on a pricing screen — never leaving the previous product's price on display. The rule that settles all of them: never show a number this page did not receive (Stage 28).
+
+12ce. **Enforce the architecture with a test, not a convention.** One import would restore a second pricing engine, and it would agree for a while before drifting. A test that walks the real import graph is the only thing that stops it, and allowlisting the single known exception keeps the count going down and never up (Stage 28).
 
 12bz. **Absent data is a stop, not a modelling challenge.** There is no quantity sold anywhere in this dataset, so elasticity and true willingness-to-pay are not estimable — not poorly estimable. Name what is missing and refuse the model; a validation score on a fabricated target is worse than no model (Stage 27).
 13. **Prefer understanding existing code over adding new abstractions.** The codebase is intentionally not over-engineered for its current scope (a class-project wireframe) — resist adding speculative infrastructure (e.g. a state-management library, a component library, a testing framework) unless the user's request genuinely requires it.

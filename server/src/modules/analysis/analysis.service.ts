@@ -385,7 +385,7 @@ export class AnalysisService {
       ? analyseCompetitors({ set, target, ownMedianMinor: ownMarket?.median ?? currentPriceMinor, unitBasis, targetReview })
       : null;
 
-    const history = analyseHistory(series, currentPriceMinor);
+    const history = analyseHistory(series, currentPriceMinor, referenceDate);
 
     /**
      * The product's 90-day normal, and whether today's market is distorted
@@ -728,12 +728,23 @@ function buildStrength(
   const tierScore = clamp(targetTier - medianTier, -1, 1);
 
   const components = [
+    /**
+     * Weights and keys as the validated engine defines them. The port had
+     * `reviews` at 0.2 and `specifications` at 0.3 — both summed to 1, so the
+     * index looked plausible and was wrong (0.40 against the engine's 0.44 on
+     * the golden product), and the key was renamed from `specs`.
+     *
+     * Nothing downstream of the index sets a price, which is why 77 pricing
+     * parity assertions passed over it. It surfaced the moment the screen
+     * started reading the value from here instead of computing it locally —
+     * the argument for making the UI consume the API rather than agree with it.
+     */
     { key: "rating", label: "Customer rating", weight: 0.3, score: ratingScore },
-    { key: "reviews", label: "Review volume", weight: 0.2, score: reviewScore },
-    { key: "specifications", label: "Specification profile", weight: 0.3, score: specScore },
+    { key: "reviews", label: "Review volume", weight: 0.15, score: reviewScore },
+    { key: "specs", label: "Specification profile", weight: 0.35, score: specScore },
     { key: "brand", label: "Brand tier", weight: 0.2, score: tierScore },
   ];
-  const index = Math.round(components.reduce((s, c) => s + c.weight * c.score, 0) * 100) / 100;
+  const index = Math.round(components.reduce((s, c) => s + c.weight * c.score, 0) * 1000) / 1000;
 
   return {
     index,
@@ -824,7 +835,11 @@ type History = ReturnType<typeof analyseHistory>;
  * Needs at least four points — below that a percentile within the series is
  * arithmetic about the sampling rather than about the market.
  */
-function analyseHistory(series: Array<{ date: string; minor: number; saleLabel: string | null }>, currentMinor: number | null) {
+function analyseHistory(
+  series: Array<{ date: string; minor: number; saleLabel: string | null }>,
+  currentMinor: number | null,
+  referenceDate: string
+) {
   if (series.length < 4) return null;
 
   const values = series.map((p) => p.minor);
@@ -850,6 +865,15 @@ function analyseHistory(series: Array<{ date: string; minor: number; saleLabel: 
     minMinor: stats.min,
     maxMinor: stats.max,
     medianMinor: stats.median,
+    /**
+     * The trailing medians, which is how a reader judges whether today's price
+     * is unusual: one window can be a sale, three disagreeing is a trend.
+     * Same cutoff rule as the 90-day normal — `date >= today − N`, so a window
+     * spans N+1 calendar days.
+     */
+    median30: medianOver(series, shiftDays(referenceDate, -30)),
+    median60: medianOver(series, shiftDays(referenceDate, -60)),
+    median90: medianOver(series, shiftDays(referenceDate, -90)),
     currentMinor: current,
     percentile,
     volatility: volatility == null ? null : Math.round(volatility * 1000) / 10,

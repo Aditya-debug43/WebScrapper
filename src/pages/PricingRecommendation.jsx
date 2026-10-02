@@ -1,96 +1,122 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useOutletContext } from "react-router-dom";
-import { CheckCircle2, AlertTriangle } from "lucide-react";
-import { useAsyncData } from "../utils/useAsyncData";
+import { AlertTriangle, RefreshCw } from "lucide-react";
 import { useAuth } from "../state/AuthContext";
-import {
-  getRecommendation,
-  getBackendRecommendation,
-  compareRecommendations,
-} from "../api/recommendationService";
+import { getRecommendation } from "../api/recommendationService";
 import RecommendationPanel from "../components/recommendation/RecommendationPanel";
 import LoadingState from "../components/common/LoadingState";
 import "./PricingRecommendation.css";
 
 /**
- * The panel still renders the LOCAL engine, deliberately.
+ * The recommendation screen.
  *
- * Phase 6 moved the pricing engine to the backend and proved parity, but the
- * backend emits structured factors where this panel renders composed prose,
- * so switching the source outright would mean redesigning the panel. Instead
- * the page consumes the backend alongside the engine and reports whether the
- * two agree — which demonstrates the endpoint works end to end, keeps the
- * engine as the oracle it is supposed to be until the migration is proven in
- * production, and changes nothing about what the user sees.
+ * Since Phase 7 the price comes from the backend and the browser calculates
+ * nothing. The page therefore has to handle the things a network call can do
+ * that a function call cannot — being slow, failing, or being refused — and
+ * each of those has its own state below.
+ *
+ * The one rule that shapes all of them: **never show a price this page did not
+ * receive.** No stale result while a new one loads, no locally computed
+ * fallback when the request fails. A number on this screen is the backend's
+ * answer or there is no number.
  */
 export default function PricingRecommendation() {
   const { productId } = useOutletContext();
   const { token } = useAuth();
-  const { data: rec, loading } = useAsyncData(() => getRecommendation(productId), [productId]);
-  const [backend, setBackend] = useState({ state: "idle", comparison: null, message: null });
+  const [state, setState] = useState({ status: "loading", rec: null, error: null });
+
+  /**
+   * Bumped to re-run the effect on a retry. A ref-and-state pair would work
+   * too; this keeps the fetch in one place with the same cancellation.
+   */
+  const [attempt, setAttempt] = useState(0);
+  const retry = useCallback(() => setAttempt((n) => n + 1), []);
+
+  /** Guards against a slow response for a product the user has navigated away from. */
+  const requestedFor = useRef(null);
 
   useEffect(() => {
-    // Signed out, no backend to ask. The page is unchanged in that case.
-    if (!token || !rec) {
-      setBackend({ state: "idle", comparison: null, message: null });
-      return undefined;
-    }
+    if (!productId) return undefined;
     const controller = new AbortController();
-    setBackend({ state: "loading", comparison: null, message: null });
+    const key = `${productId}:${attempt}`;
+    requestedFor.current = key;
 
-    getBackendRecommendation(productId, { token, signal: controller.signal })
-      .then((payload) => {
-        const comparison = compareRecommendations(rec, payload?.data);
-        setBackend({ state: "ready", comparison, message: payload?.meta?.modelVersion ?? null });
+    // Clear first: a previous product's recommendation must not be on screen
+    // while this one loads.
+    setState({ status: "loading", rec: null, error: null });
+
+    getRecommendation(productId, { token, signal: controller.signal })
+      .then((rec) => {
+        if (requestedFor.current !== key) return;
+        setState({ status: "ready", rec, error: null });
       })
       .catch((error) => {
-        if (error?.name === "AbortError") return;
-        // A backend that is unreachable must not break the page: the panel
-        // above is rendered from the engine and does not depend on it.
-        setBackend({ state: "error", comparison: null, message: error?.message ?? "unavailable" });
+        if (error?.name === "AbortError" || requestedFor.current !== key) return;
+        setState({ status: "error", rec: null, error });
       });
 
     return () => controller.abort();
-  }, [productId, token, rec]);
+  }, [productId, token, attempt]);
 
-  if (loading || !rec) return <LoadingState label="Building recommendation…" />;
+  if (state.status === "loading") return <LoadingState label="Building recommendation…" />;
+  if (state.status === "error") return <RecommendationError error={state.error} onRetry={retry} />;
 
+  // A refusal is a successful response, and the panel renders it: the backend
+  // says what is missing and the screen says so too, rather than showing a
+  // price nobody computed.
   return (
     <div className="pricing-recommendation">
-      <SourceStrip backend={backend} />
-      <RecommendationPanel rec={rec} />
+      <RecommendationPanel rec={state.rec} />
     </div>
   );
 }
 
-/** One line: which engine produced these numbers, and does the backend agree? */
-function SourceStrip({ backend }) {
-  if (backend.state === "idle" || backend.state === "loading") return null;
-
-  if (backend.state === "error") {
-    return (
-      <p className="rec-source rec-source--muted">
-        <AlertTriangle size={13} strokeWidth={2} />
-        Showing the in-app engine. The backend recommendation API could not be reached ({backend.message}).
-      </p>
-    );
-  }
-
-  const { agrees, comparedCount, differences } = backend.comparison ?? {};
-  if (agrees) {
-    return (
-      <p className="rec-source rec-source--agrees">
-        <CheckCircle2 size={13} strokeWidth={2} />
-        Backend <code>{backend.message}</code> agrees with the in-app engine on all {comparedCount} compared values.
-      </p>
-    );
-  }
+/**
+ * The request failed. Distinguished by code, because the actions differ: a
+ * missing product is permanent, an expired session needs a sign-in, and a dead
+ * network is worth retrying.
+ *
+ * Authentication is NOT handled here — an expired token is cleared by the API
+ * layer and the route guard sends the user to sign in, which is the behaviour
+ * every other authenticated screen already has. Reimplementing it on this page
+ * would make this the one screen that logs out differently.
+ */
+function RecommendationError({ error, onRetry }) {
+  const code = error?.code ?? "UNEXPECTED_ERROR";
+  const notFound = code === "NOT_FOUND";
+  const offline = code === "NETWORK_ERROR";
 
   return (
-    <p className="rec-source rec-source--differs">
-      <AlertTriangle size={13} strokeWidth={2} />
-      Backend <code>{backend.message}</code> differs on{" "}
-      {differences.map((d) => `${d.field} (${d.local} vs ${d.backend})`).join(", ")}.
-    </p>
+    <div className="rec-root">
+      <section className="card rec-refusal">
+        <header>
+          <span className="rec-refusal-icon conflict">
+            <AlertTriangle size={18} strokeWidth={2} />
+          </span>
+          <div>
+            <h2>
+              {notFound
+                ? "This product could not be found"
+                : offline
+                  ? "Could not reach the pricing service"
+                  : "The recommendation could not be loaded"}
+            </h2>
+            <p>{error?.message ?? "Something went wrong while building the recommendation."}</p>
+          </div>
+        </header>
+
+        <p className="rec-refusal-note">
+          No price is shown because none was received. The recommendation is computed server-side from the captured
+          market, and a figure invented here to fill the gap would look exactly as authoritative as a real one.
+        </p>
+
+        {!notFound && (
+          <button type="button" className="rec-retry" onClick={onRetry}>
+            <RefreshCw size={13} strokeWidth={2} />
+            Try again
+          </button>
+        )}
+      </section>
+    </div>
   );
 }

@@ -228,3 +228,119 @@ describe("E2E — the real application against the real API", () => {
     expect(after.status).toBe(401);
   });
 });
+
+/**
+ * E2E-07..12 — the recommendation, over the wire.
+ *
+ * Phase 7's claim is that the recommendation screen is driven by the backend.
+ * These sign in against the live API, mount the SHIPPED page, and assert that
+ * what appears on it came from a real HTTP response built by the real service
+ * over a real database. Nothing here is stubbed, including the failure case.
+ */
+describe("E2E — the recommendation comes from the backend", () => {
+  /** Strong data, 6 marketplaces: the recommendation path. */
+  const PRICED = "prod_dove_hair_fall";
+  /** Almost nothing comparable: the refusal path. */
+  const REFUSED = "prod_airpods_pro2";
+
+  async function signedIn(route) {
+    const user = userEvent.setup();
+    const view = renderAuthApp({ route: "/sign-in" });
+    await user.type(screen.getByLabelText(/^email$/i), addr("signup"));
+    await user.type(screen.getByLabelText(/^password$/i), PASSWORD);
+    await user.click(screen.getByRole("button", { name: /^sign in$/i }));
+    await screen.findByTestId("desk", {}, { timeout: 20_000 });
+    view.unmount();
+    // A second mount with the session already in storage — the same thing a
+    // page refresh does.
+    return { user, view: renderAuthApp({ route }) };
+  }
+
+  it("E2E-07: the page renders a price the API computed", async () => {
+    await signedIn(`/products/${PRICED}/recommendation`);
+
+    expect(await screen.findByTestId("workspace", {}, { timeout: 30_000 })).toBeInTheDocument();
+    expect(await screen.findByText(/Pricing strategies/i, {}, { timeout: 30_000 })).toBeInTheDocument();
+
+    // The three strategies, and a selected price.
+    expect(await screen.findByText(/^Fast Sale$/)).toBeInTheDocument();
+    expect(screen.getAllByText(/^Balanced$/).length).toBeGreaterThan(0);
+    expect(screen.getByText(/^Premium$/)).toBeInTheDocument();
+
+    /**
+     * The decisive check: the figure on screen is the figure the API returned.
+     * Fetched independently here, so a page rendering its own arithmetic would
+     * disagree with the service and fail.
+     */
+    const token = window.localStorage.getItem(TOKEN_KEY);
+    const response = await fetch(`${import.meta.env.VITE_API_BASE_URL}/products/${PRICED}/recommendation`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    expect(response.status).toBe(200);
+    const { data } = await response.json();
+    expect(data.status).toBe("recommended");
+
+    const inr = (minor) => `₹${Math.round(minor / 100).toLocaleString("en-IN")}`;
+    const balanced = data.strategies.find((s) => s.key === "balanced");
+    expect(screen.getAllByText(inr(balanced.priceMinor)).length).toBeGreaterThan(0);
+    expect(screen.getByText(new RegExp(`Floor — ${inr(data.floorMinor)}`))).toBeInTheDocument();
+    expect(screen.getByText(new RegExp(`Ceiling — ${inr(data.ceilingMinor)}`))).toBeInTheDocument();
+    expect(screen.getByText(new RegExp(`Confidence: ${data.evidence.level}`, "i"))).toBeInTheDocument();
+  });
+
+  it("E2E-08: a refused product renders the refusal, not an invented price", async () => {
+    await signedIn(`/products/${REFUSED}/recommendation`);
+
+    expect(
+      await screen.findByText(/Not enough comparable evidence|No valid price exists/i, {}, { timeout: 30_000 })
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/Pricing strategies/i)).not.toBeInTheDocument();
+
+    const token = window.localStorage.getItem(TOKEN_KEY);
+    const response = await fetch(`${import.meta.env.VITE_API_BASE_URL}/products/${REFUSED}/recommendation`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    const { data } = await response.json();
+    expect(data.status).toBe("insufficient_evidence");
+    expect(data.recommendation).toBeNull();
+  });
+
+  it("E2E-09: a reload still loads the recommendation from the backend", async () => {
+    const { view } = await signedIn(`/products/${PRICED}/recommendation`);
+    await screen.findByText(/Pricing strategies/i, {}, { timeout: 30_000 });
+
+    // Unmount and mount again with the session in storage — a refresh.
+    view.unmount();
+    renderAuthApp({ route: `/products/${PRICED}/recommendation` });
+    expect(await screen.findByText(/Pricing strategies/i, {}, { timeout: 30_000 })).toBeInTheDocument();
+  });
+
+  it("E2E-10: a product that does not exist fails safely", async () => {
+    await signedIn("/products/prod_does_not_exist/recommendation");
+    expect(await screen.findByText(/could not be found/i, {}, { timeout: 30_000 })).toBeInTheDocument();
+    expect(screen.queryByText(/Pricing strategies/i)).not.toBeInTheDocument();
+  });
+
+  it("E2E-11: the endpoint refuses an unauthenticated request", async () => {
+    const response = await fetch(`${import.meta.env.VITE_API_BASE_URL}/products/${PRICED}/recommendation`);
+    expect(response.status).toBe(401);
+    const body = await response.json();
+    expect(body.error.code).toBe("UNAUTHENTICATED");
+    expect(JSON.stringify(body)).not.toMatch(/strategies|priceMinor/);
+  });
+
+  it("E2E-12: a revoked session cannot load a recommendation", async () => {
+    const { user } = await signedIn("/");
+    // The remount restores the session before the menu exists.
+    await screen.findByTestId("desk", {}, { timeout: 20_000 });
+    const token = window.localStorage.getItem(TOKEN_KEY);
+    await user.click(screen.getByRole("button", { name: /^account —/i }));
+    await user.click(screen.getByRole("menuitem", { name: /sign out/i }));
+    await waitFor(() => expect(window.localStorage.getItem(TOKEN_KEY)).toBeNull());
+
+    const response = await fetch(`${import.meta.env.VITE_API_BASE_URL}/products/${PRICED}/recommendation`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    expect(response.status).toBe(401);
+  });
+});

@@ -2,10 +2,15 @@ import { AppError } from "../../lib/errors.js";
 import { PRICE_BASIS } from "../../lib/priceLadder.js";
 /** Earlier than any observation this dataset holds, so the range is unbounded below. */
 const EARLIEST_DATE = "0001-01-01";
-import { COMPETITOR_POLICY, type CompetitorService, type ScoredCompetitor } from "../analysis/competitor.service.js";
+import {
+  COMPETITOR_POLICY,
+  type CompetitorService,
+  type ExcludedCompetitor,
+  type ScoredCompetitor,
+} from "../analysis/competitor.service.js";
 import { weightedDistribution, type AnalysisService } from "../analysis/analysis.service.js";
 import type { AnalysisRepository } from "../analysis/analysis.repository.js";
-import type { PricingRepository } from "./pricing.repository.js";
+import type { MarketplaceIdentity, PricingRepository } from "./pricing.repository.js";
 import { fitHedonicModel, type HedonicResult } from "./hedonic.js";
 import { fitHedonicCvModel, type HedonicCvResult } from "./hedonicCv.js";
 
@@ -91,6 +96,40 @@ export type ModelVersion = (typeof MODEL_VERSIONS)[number];
 
 const clamp = (v: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, v));
 
+/**
+ * One competitor, as a caller sees it.
+ *
+ * Everything needed to justify the member's presence and its weight — the
+ * tier and WHY it is that tier, the similarity, the data-quality notes behind
+ * the evidence weight, and the variants folded into it. A client should never
+ * have to ask a second endpoint to explain a row it was given here.
+ */
+function serialiseCompetitor(c: ScoredCompetitor) {
+  return {
+    productId: c.productId,
+    canonicalName: c.canonicalName,
+    brandId: c.brandId,
+    brandName: c.brandName,
+    brandTier: c.brandTier,
+    tier: c.tier,
+    tierReason: c.tierReason,
+    priceMinor: c.currentPriceMinor,
+    rating: c.rating,
+    reviewCount: c.reviewCount,
+    similarity: Math.round(c.similarity * 10000) / 10000,
+    evidenceWeight: c.evidenceWeight,
+    qualityNotes: c.quality?.notes ?? [],
+    marketplaceIds: c.marketplaceIds,
+    /**
+     * Other variants of the same model, folded into this one slot. Two
+     * storage tiers of one phone are one pricing decision, so they hold one
+     * place in the set — but the ones folded away are named, because a reader
+     * who sees "6 competitors" is entitled to know it was not 9.
+     */
+    familyAlternates: c.familyAlternates,
+  };
+}
+
 /* --------------------------------------------------- psychological pricing */
 
 /**
@@ -165,7 +204,27 @@ export type Strategy = {
   /** The unconstrained value, before clamping and snapping. */
   rawPriceMinor: number;
   supported: boolean;
+  /** Which one is the headline, so a client need not know the key. */
+  recommended: boolean;
   bindingConstraint: { key: string; label: string; boundMinor: number } | null;
+  /** Where this price would sit among the prices a buyer chooses between. */
+  position: {
+    rank: number;
+    of: number;
+    total: number;
+    percentile: number;
+    undercuts: number;
+    sitsAbove: number;
+  };
+  /** What this price earns on each marketplace, net of fees and GST. */
+  margins: Array<{
+    marketplace: MarketplaceIdentity;
+    feeRule: { referralPct: number; fixedClosingFee: number; isCategoryDefault: boolean } | null;
+    breakEvenMinor: number | null;
+    netMinor: number | null;
+    marginMinor: number | null;
+    marginPct: number | null;
+  }>;
   /** Structured drivers. Prose is the interface's job. */
   drivers: Array<{ factor: string; direction: "upward" | "downward" | "neutral"; valueMinor?: number; note: string }>;
 };
@@ -203,7 +262,8 @@ export class PricingService {
     if (!referenceDate) throw new AppError("NOT_FOUND", "No price observations have been captured.");
 
     // Phase 5 does the analysis; this service does not repeat any of it.
-    const [analysisResult, set, attrs, mrpFacts, cost, feeRules, marketplaceIds, matchQuality, offerStates] = await Promise.all([
+    const [analysisResult, set, attrs, mrpFacts, cost, feeRules, marketplaceIds, matchQuality, offerStates, marketplaces] =
+      await Promise.all([
       /**
        * The FULL observed history, deliberately — not a window.
        *
@@ -237,6 +297,11 @@ export class PricingService {
        * by a factor of five.
        */
       this.analysisRepo.offerStates(productId),
+      // Named marketplaces, so the margin table can be labelled rather than
+      // listing opaque ids. Covers marketplaces this product is not listed on,
+      // which is the point: fee position everywhere is what a listing decision
+      // needs.
+      this.repo.marketplaces(),
     ]);
 
     const analysisData = analysisResult.data as Record<string, any>;
@@ -262,6 +327,48 @@ export class PricingService {
       ...comps.map((c) => ({ value: c.currentPriceMinor, weight: c.evidenceWeight ?? 0 })),
     ];
     const poolStats = weightedDistribution(poolRows) ?? (compStats ? { ...compStats, effectiveN: compStats.n } : null);
+    /**
+     * The pool's raw prices, for ranking a candidate price within it.
+     *
+     * `poolStats` describes the distribution; this is the distribution itself,
+     * which is what a percentile position needs. One row per competitive
+     * identity — the target once at its own median, each rival once.
+     */
+    const poolPrices = poolRows.map((r) => r.value).sort((a, b) => a - b);
+
+    /**
+     * The cheapest in-stock offer's full price ladder.
+     *
+     * The interface shows how the comparison price was arrived at — MRP,
+     * selling price, shipping, landed, discount, effective — for the one offer
+     * the comparison actually uses. Derived here rather than client-side so
+     * there is one definition of "the cheapest offer".
+     */
+    const cheapestOffer = inStockOffers.reduce<(typeof inStockOffers)[number] | null>(
+      (best, o) => (best == null || o.universalEffectiveMinor < best.universalEffectiveMinor ? o : best),
+      null
+    );
+
+    const marketplaceRows = (analysisData.marketplaceRows ?? []) as Array<Record<string, any>>;
+
+    /**
+     * What is actually competing on this product's own listings — offers and
+     * sellers, not marketplaces. Already measured by the analysis layer; this
+     * only shapes it for a caller.
+     */
+    const competition = {
+      listingCount: marketplaceRows.length,
+      marketplaceCount: new Set(marketplaceRows.map((r) => r.marketplaceId)).size,
+      offerCount: scopedOffers.length,
+      inStockOfferCount: inStockOffers.length,
+      cheapestMinor: ownMarket?.min ?? null,
+      medianMinor: ownMarket?.median ?? null,
+      spreadMinor: ownMarket ? ownMarket.max - ownMarket.min : null,
+      reviewVelocity: marketplaceRows.reduce<number | null>(
+        (acc, r) => (r.reviewVelocity == null ? acc : Math.max(acc ?? 0, r.reviewVelocity as number)),
+        null
+      ),
+    };
 
     /* ---- the refusal gate ----------------------------------------------- */
 
@@ -290,6 +397,14 @@ export class PricingService {
       competitorCount: comps.length,
       coverage: set.coverage,
       evidence,
+      /**
+       * The marketplaces, on BOTH paths.
+       *
+       * A refusal names the platforms a screened-out candidate is sold on, and
+       * without this the only way to turn those ids into names would be a
+       * second request — on the response that explains why there is no price.
+       */
+      marketplaces,
     };
 
     if (!evidence.sufficient || !compStats || currentPriceMinor == null) {
@@ -298,6 +413,10 @@ export class PricingService {
         analysisData,
         set,
         members: comps,
+        excluded: set.excluded,
+        reference: set.reference,
+        diversity: set.diversity,
+        method: set.method,
         modelVersion,
         referenceDate,
       });
@@ -317,7 +436,11 @@ export class PricingService {
 
     const marketFloorRaw = Math.round(poolStats!.min * PRICING_POLICY.marketFloorOfPoolMin);
     const marketFloor = Math.min(marketFloorRaw, Math.round(ceilingMinor * PRICING_POLICY.marketFloorCapOfCeiling));
-    const breakEvenFloor = this.breakEvenFloor(cost, feeRules, marketplaceIds);
+    const commercial = this.commercialLayer(cost, feeRules, marketplaceIds, marketplaces);
+    const breakEvenFloor =
+      commercial.highestBreakEvenMinor == null
+        ? null
+        : Math.round(commercial.highestBreakEvenMinor * PRICING_POLICY.breakEvenMargin);
     const floorMinor = breakEvenFloor ? Math.max(breakEvenFloor, marketFloor) : marketFloor;
 
     const hardConstraints = [
@@ -348,6 +471,10 @@ export class PricingService {
         analysisData,
         set,
         members: comps,
+        excluded: set.excluded,
+        reference: set.reference,
+        diversity: set.diversity,
+        method: set.method,
         modelVersion,
         referenceDate,
         constraints: { hard: hardConstraints, floorMinor, ceilingMinor, ceilingSource },
@@ -445,7 +572,10 @@ export class PricingService {
         priceMinor: fastMinor,
         rawPriceMinor: rawFast,
         supported: true,
+        recommended: false,
         bindingConstraint: bindingFor(rawFast),
+        position: this.positionOf(fastMinor, poolPrices),
+        margins: this.marginsAt(fastMinor, commercial),
         drivers: [
           {
             factor: ownMarket ? "cheapest_own_offer" : "cheapest_pool_price",
@@ -464,7 +594,11 @@ export class PricingService {
         priceMinor: balancedMinor,
         rawPriceMinor: rawBalanced,
         supported: true,
+        /** The headline, so a client does not have to know which key wins. */
+        recommended: true,
         bindingConstraint: bindingFor(rawBalanced),
+        position: this.positionOf(balancedMinor, poolPrices),
+        margins: this.marginsAt(balancedMinor, commercial),
         drivers: [
           { factor: "anchor", direction: "neutral", valueMinor: anchor.minor, note: `anchored on the ${anchor.basis}` },
           ...(evidencedPremiumMinor !== 0
@@ -489,7 +623,10 @@ export class PricingService {
          * it only CLAIMS evidence when the attribute model earned it.
          */
         supported: premiumSupported,
+        recommended: false,
         bindingConstraint: bindingFor(premium.rawMinor),
+        position: this.positionOf(premiumMinor, poolPrices),
+        margins: this.marginsAt(premiumMinor, commercial),
         drivers: [
           { factor: premium.basis === "own market" ? "own_market_top" : "comparable_band", direction: "upward", valueMinor: premium.baseMinor, note: `the ceiling this product's ${premium.basis} supports` },
           ...(premiumSupported
@@ -498,6 +635,49 @@ export class PricingService {
         ],
       },
     ];
+
+    /* ---- zones, viability and the checks that run before anything shows --- */
+
+    /**
+     * The pool as named bands rather than raw quartiles, because "the
+     * competitive band" is what a reader reasons about. One row per
+     * competitive identity: this product once at its own median, each rival
+     * once — never one row per own offer, which would measure the product
+     * against itself.
+     */
+    const zones = {
+      poolSize: poolPrices.length,
+      ownCount: ownMarket ? 1 : 0,
+      compCount: comps.length,
+      grain: "one row per competitive identity — sellers, listings and variants of one product count once",
+      effectiveN: poolStats!.effectiveN ?? poolPrices.length,
+      floorZoneMinor: poolStats!.min,
+      competitiveLowMinor: poolStats!.q1,
+      competitiveMidMinor: poolStats!.median,
+      competitiveHighMinor: poolStats!.q3,
+      outlierAboveMinor: poolStats!.max,
+      concentration: poolStats!.median ? poolStats!.iqr! / poolStats!.median : null,
+    };
+
+    const viability = this.assessViability({
+      cost,
+      breakEvenFloor,
+      marketMidMinor: zones.competitiveMidMinor,
+    });
+
+    const sanityChecks = this.buildSanityChecks({
+      strategies,
+      anchor,
+      zones,
+      mrpMinor,
+      floorMinor,
+      premiumSupported,
+      premiumBasis: premium.basis,
+      ownMarketRef: ownMarket?.median ?? null,
+      ownMarketTop: ownMarket?.max ?? null,
+      distortionState: distortion.state,
+      viability,
+    });
 
     /* ---- explanation ------------------------------------------------------ */
 
@@ -534,8 +714,31 @@ export class PricingService {
         ceilingSource,
         marketContext: {
           currentPriceMinor,
+          /** The ladder behind the comparison price, for the cheapest offer. */
+          currentPriceLayers: cheapestOffer
+            ? {
+                marketplaceId: cheapestOffer.marketplaceId,
+                mrpMinor: cheapestOffer.mrpMinor,
+                sellingPriceMinor: cheapestOffer.sellingPriceMinor,
+                shippingFeeMinor: cheapestOffer.shippingFeeMinor,
+                landedMinor: cheapestOffer.landedMinor,
+                universalDiscountMinor: cheapestOffer.universalDiscountMinor,
+                universalEffectiveMinor: cheapestOffer.universalEffectiveMinor,
+                conditionalDiscountMinor: Math.min(
+                  cheapestOffer.conditionalDiscountRaw ?? 0,
+                  cheapestOffer.universalEffectiveMinor
+                ),
+                conditionalBestMinor:
+                  cheapestOffer.universalEffectiveMinor -
+                  Math.min(cheapestOffer.conditionalDiscountRaw ?? 0, cheapestOffer.universalEffectiveMinor),
+              }
+            : null,
           ownMarket,
           pool: poolStats,
+          /** The pool as named bands, which is how a reader reasons about it. */
+          zones,
+          /** What is competing on this product's own listings. */
+          competition,
           normalMinor,
           distortion,
         },
@@ -544,14 +747,46 @@ export class PricingService {
           statistics: compStats,
           directCount: set.coverage.directCount,
           comparableCount: set.coverage.comparableCount,
-          members: comps.map((c) => ({
-            productId: c.productId,
-            canonicalName: c.canonicalName,
-            tier: c.tier,
-            priceMinor: c.currentPriceMinor,
-            similarity: Math.round(c.similarity * 10000) / 10000,
-            evidenceWeight: c.evidenceWeight,
-          })),
+          members: comps.map(serialiseCompetitor),
+          /**
+           * What was considered and rejected, and what sits outside the
+           * comparable range. A comparable set is only as good as what it
+           * refuses to include, so the refusals are part of the evidence
+           * rather than an appendix to it.
+           */
+          excluded: set.excluded.map((c) => ({ ...serialiseCompetitor(c), reason: c.reason, exclusion: c.exclusion })),
+          reference: set.reference.map(serialiseCompetitor),
+          diversity: set.diversity,
+          method: set.method,
+        },
+        /** How this product compares on the attributes the market prices. */
+        strength,
+        /** The seller's economics, per marketplace. */
+        commercial,
+        /**
+         * The marketplaces, on BOTH paths, so a client can name a platform id
+         * it is handed anywhere in the response without a second request.
+         */
+        marketplaces,
+        /** Whether the market will pay what the seller needs. Kept separate. */
+        viability,
+        /** Run before anything is shown; a failure flags what to distrust. */
+        sanityChecks,
+        /**
+         * The policy values a caller may need to QUOTE.
+         *
+         * Not for recomputing anything — the prices are already decided. A
+         * client that says "capped at 25% above the own-market median" should
+         * be reading that 25% from the service that applied it, not keeping a
+         * second copy that can drift out of step.
+         */
+        policy: {
+          maxEvidencedPremiumOverOwn: PRICING_POLICY.maxEvidencedPremiumOverOwn,
+          maxUnevidencedPremiumOverAnchor: PRICING_POLICY.maxUnevidencedPremiumOverAnchor,
+          balancedPremiumShare: PRICING_POLICY.balancedPremiumShare,
+          fastUndercut: PRICING_POLICY.fastUndercut,
+          healthyDispersion: PRICING_POLICY.healthyDispersion,
+          comparableWeightFactor: COMPETITOR_POLICY.comparableWeightFactor,
         },
         historicalContext: analysisData.history,
         /**
@@ -662,20 +897,225 @@ export class PricingService {
     feeRules: Array<{ marketplaceId: string; referralPct: number; fixedClosingFee: number }>,
     marketplaceIds: string[]
   ): number | null {
-    if (!cost) return null;
+    const highest = this.commercialLayer(cost, feeRules, marketplaceIds, []).highestBreakEvenMinor;
+    return highest == null ? null : Math.round(highest * PRICING_POLICY.breakEvenMargin);
+  }
+
+  /**
+   * The seller's economics, per marketplace.
+   *
+   * One break-even price per marketplace that has a fee rule — the price at
+   * which revenue net of referral, fixed fee and GST on both exactly covers
+   * cost. The floor takes the highest of them (a price must clear break-even
+   * wherever it is sold) with a 2% working margin; this layer is also what the
+   * interface needs to show WHERE the economics bind.
+   *
+   * Marketplaces with no captured fee rule are reported with `feeRule: null`
+   * rather than dropped, so a missing rate is visible instead of looking like
+   * a marketplace that does not exist.
+   */
+  private commercialLayer(
+    cost: { costPriceMinor: number } | null,
+    feeRules: Array<{ marketplaceId: string; referralPct: number; fixedClosingFee: number; isCategoryDefault?: boolean }>,
+    marketplaceIds: string[],
+    marketplaces: MarketplaceIdentity[]
+  ) {
     const byMarketplace = new Map(feeRules.map((f) => [f.marketplaceId, f]));
-    const floors: number[] = [];
-    for (const id of marketplaceIds) {
-      const rule = byMarketplace.get(id);
-      if (!rule) continue;
-      const referralFrac = rule.referralPct / 100;
-      const fixedFeeMinor = rule.fixedClosingFee * 100;
-      const numerator = cost.costPriceMinor + fixedFeeMinor * (1 + PRICING_POLICY.gstOnFees);
-      const denominator = 1 - referralFrac * (1 + PRICING_POLICY.gstOnFees);
-      floors.push(Math.round(numerator / denominator));
+    const byId = new Map(marketplaces.map((m) => [m.id, m]));
+
+    const perMarketplace = marketplaceIds.map((id) => {
+      const rule = byMarketplace.get(id) ?? null;
+      let breakEvenMinor: number | null = null;
+      if (cost && rule) {
+        const referralFrac = rule.referralPct / 100;
+        const fixedFeeMinor = rule.fixedClosingFee * 100;
+        const numerator = cost.costPriceMinor + fixedFeeMinor * (1 + PRICING_POLICY.gstOnFees);
+        const denominator = 1 - referralFrac * (1 + PRICING_POLICY.gstOnFees);
+        breakEvenMinor = Math.round(numerator / denominator);
+      }
+      return {
+        marketplace: byId.get(id) ?? { id, name: id, marketplaceType: null, brandColor: null },
+        feeRule: rule
+          ? {
+              referralPct: rule.referralPct,
+              fixedClosingFee: rule.fixedClosingFee,
+              isCategoryDefault: rule.isCategoryDefault ?? false,
+            }
+          : null,
+        breakEvenMinor,
+      };
+    });
+
+    const floors = perMarketplace.map((m) => m.breakEvenMinor).filter((v): v is number => v != null);
+    return {
+      cost,
+      perMarketplace,
+      highestBreakEvenMinor: floors.length ? Math.max(...floors) : null,
+      usesDefaultFeeRule: perMarketplace.some((m) => m.feeRule?.isCategoryDefault),
+    };
+  }
+
+  /**
+   * The margin a given price leaves on each marketplace.
+   *
+   * Price minus referral, minus the fixed closing fee, minus 18% GST charged
+   * on both of those, minus what the seller paid. Null where no cost has been
+   * entered or no fee rule is captured — an unknown margin is reported as
+   * unknown rather than as zero.
+   */
+  private marginsAt(priceMinor: number, commercial: ReturnType<PricingService["commercialLayer"]>) {
+    return commercial.perMarketplace.map((m) => {
+      if (!commercial.cost || !m.feeRule) return { ...m, netMinor: null, marginMinor: null, marginPct: null };
+      const referral = Math.round(priceMinor * (m.feeRule.referralPct / 100));
+      const fixed = m.feeRule.fixedClosingFee * 100;
+      const gst = Math.round((referral + fixed) * PRICING_POLICY.gstOnFees);
+      const netMinor = priceMinor - referral - fixed - gst;
+      const marginMinor = netMinor - commercial.cost.costPriceMinor;
+      return { ...m, netMinor, marginMinor, marginPct: marginMinor / priceMinor };
+    });
+  }
+
+  /**
+   * Whether the market will pay what the seller needs — kept SEPARATE from the
+   * recommendation.
+   *
+   * The market does not care what a product cost. When the middle of the
+   * competitive market sits below break-even, that conflict is reported rather
+   * than silently clamped away by lifting the price to a level the market will
+   * not pay. A seller in that position needs to know the lever is cost, not
+   * price.
+   */
+  private assessViability(input: {
+    cost: { costPriceMinor: number } | null;
+    breakEvenFloor: number | null;
+    marketMidMinor: number | null;
+  }) {
+    if (!input.cost || input.breakEvenFloor == null || input.marketMidMinor == null) {
+      return { known: false, conflict: false, breakEvenMinor: null, marketMidMinor: input.marketMidMinor ?? null };
     }
-    if (floors.length === 0) return null;
-    return Math.round(Math.max(...floors) * PRICING_POLICY.breakEvenMargin);
+    return {
+      known: true,
+      conflict: input.marketMidMinor < input.breakEvenFloor,
+      breakEvenMinor: input.breakEvenFloor,
+      marketMidMinor: input.marketMidMinor,
+    };
+  }
+
+  /**
+   * The checks that run before a number is shown.
+   *
+   * A failed check does not hide the price — it says which part of the
+   * reasoning to distrust, which is more useful than refusing outright and far
+   * more useful than showing a clean-looking number. The CF-1 invariant is
+   * here: no strategy may sit materially above the product's own observed
+   * market without a trusted attribute model saying it should.
+   */
+  private buildSanityChecks(input: {
+    strategies: Strategy[];
+    anchor: { minor: number; basis: string };
+    zones: { competitiveMidMinor: number | null };
+    mrpMinor: number | null;
+    floorMinor: number;
+    premiumSupported: boolean;
+    premiumBasis: string;
+    ownMarketRef: number | null;
+    ownMarketTop: number | null;
+    distortionState: string;
+    viability: { known: boolean; conflict: boolean };
+  }) {
+    const checks: Array<{ key: string; label: string; passed: boolean; metrics: Record<string, unknown> }> = [];
+    const add = (key: string, label: string, passed: boolean, metrics: Record<string, unknown>) =>
+      checks.push({ key, label, passed, metrics });
+
+    const anchorRef = input.anchor.minor || input.zones.competitiveMidMinor || 0;
+    for (const s of input.strategies) {
+      const deviation = anchorRef ? (s.priceMinor - anchorRef) / anchorRef : 0;
+      if (Math.abs(deviation) > 0.35) {
+        add(`deviation_${s.key}`, `${s.label} distance from market anchor`, false, {
+          deviation,
+          anchorMinor: anchorRef,
+          anchorBasis: input.anchor.basis,
+          threshold: 0.35,
+        });
+      }
+    }
+
+    add(
+      "mrp",
+      "No strategy exceeds MRP",
+      input.strategies.every((s) => input.mrpMinor == null || s.priceMinor <= input.mrpMinor),
+      { mrpMinor: input.mrpMinor }
+    );
+    add("floor", "No strategy below the hard floor", input.strategies.every((s) => s.priceMinor >= input.floorMinor), {
+      floorMinor: input.floorMinor,
+    });
+    add(
+      "ordered",
+      "Strategies increase in price",
+      input.strategies[0]!.priceMinor <= input.strategies[1]!.priceMinor &&
+        input.strategies[1]!.priceMinor <= input.strategies[2]!.priceMinor,
+      { order: input.strategies.map((s) => s.priceMinor) }
+    );
+    add("premium_evidence", "Premium is evidence-backed", input.premiumSupported, {
+      supported: input.premiumSupported,
+      basis: input.premiumBasis,
+    });
+
+    if (input.ownMarketRef) {
+      /**
+       * Without evidence the limit is the TOP of the product's own observed
+       * range (or the anchor, which for a single-offer product may sit slightly
+       * above it): pricing at the dearest price the product already achieves is
+       * not a premium. With evidence it widens to +25% over the own median. The
+       * 2% tolerance absorbs psychological snapping, which can round a
+       * compliant price up by one grid step.
+       */
+      const limitMinor = input.premiumSupported
+        ? Math.round(input.ownMarketRef * (1 + PRICING_POLICY.maxEvidencedPremiumOverOwn))
+        : Math.max(input.ownMarketTop ?? 0, input.anchor.minor);
+      const dearest = Math.max(...input.strategies.map((s) => s.priceMinor));
+      add("premium_vs_own_market", "No strategy outruns the product's own market", dearest <= Math.round(limitMinor * 1.02), {
+        dearestMinor: dearest,
+        limitMinor,
+        ownMedianMinor: input.ownMarketRef,
+        overOwnMedianPct: (dearest - input.ownMarketRef) / input.ownMarketRef,
+        evidenced: input.premiumSupported,
+        // The share that set the limit, so a caller quoting "+25%" is quoting
+        // the policy rather than a constant it keeps its own copy of.
+        capPct: PRICING_POLICY.maxEvidencedPremiumOverOwn,
+        tolerance: 0.02,
+      });
+    }
+
+    add("market_distortion", "Market is not promotionally distorted", input.distortionState === "normal", {
+      state: input.distortionState,
+    });
+    add("viability", "Market price is commercially viable", !input.viability.conflict, {
+      known: input.viability.known,
+      conflict: input.viability.conflict,
+    });
+
+    return checks;
+  }
+
+  /**
+   * Where a price would sit among the prices a buyer could choose between.
+   *
+   * The candidate price is inserted into the pool before ranking, so the
+   * percentile describes its position in the market it would join rather than
+   * in a market it is absent from.
+   */
+  private positionOf(priceMinor: number, poolPrices: number[]) {
+    const all = [...poolPrices, priceMinor].sort((a, b) => a - b);
+    const rank = all.indexOf(priceMinor) + 1;
+    return {
+      rank,
+      of: all.length,
+      total: poolPrices.length,
+      percentile: all.length > 1 ? (rank - 1) / (all.length - 1) : 0,
+      undercuts: poolPrices.filter((p) => p > priceMinor).length,
+      sitsAbove: poolPrices.filter((p) => p < priceMinor).length,
+    };
   }
 
   /**
@@ -1003,6 +1443,10 @@ export class PricingService {
       analysisData: Record<string, any>;
       set: { coverage: Record<string, unknown> };
       members: ScoredCompetitor[];
+      excluded: ExcludedCompetitor[];
+      reference: ScoredCompetitor[];
+      diversity: unknown;
+      method: unknown;
       modelVersion: ModelVersion;
       referenceDate: string;
       constraints?: Record<string, unknown>;
@@ -1069,14 +1513,17 @@ export class PricingService {
           statistics: null,
           directCount: coverage.directCount,
           comparableCount: coverage.comparableCount,
-          members: input.members.map((c) => ({
-            productId: c.productId,
-            canonicalName: c.canonicalName,
-            tier: c.tier,
-            priceMinor: c.currentPriceMinor,
-            similarity: Math.round(c.similarity * 10000) / 10000,
-            evidenceWeight: c.evidenceWeight,
-          })),
+          members: input.members.map(serialiseCompetitor),
+          /**
+           * The same shape a recommendation carries. A refusal is the case
+           * where "what was screened out, and why" matters MOST — it is the
+           * difference between "nothing comparable exists" and "plenty exists
+           * but none of it shares a marketplace with you".
+           */
+          excluded: input.excluded.map((c) => ({ ...serialiseCompetitor(c), reason: c.reason, exclusion: c.exclusion })),
+          reference: input.reference.map(serialiseCompetitor),
+          diversity: input.diversity,
+          method: input.method,
         },
         ...(input.constraints ? { constraints: input.constraints } : {}),
       },

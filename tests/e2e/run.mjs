@@ -96,6 +96,19 @@ async function main() {
   step("applying migrations to a throwaway database");
   await run(npx, ["tsx", "src/scripts/migrate.ts"], { cwd: SERVER, env });
 
+  /**
+   * The catalogue, because since Phase 7 the recommendation screen reads it
+   * over HTTP.
+   *
+   * Authentication needs no data and this used to run against empty tables.
+   * A recommendation needs a product, its listings, its offers and their
+   * observations, and stubbing any of that would leave the one flow this
+   * phase changed untested end to end. It costs about a minute, which is the
+   * price of the test being real.
+   */
+  step("seeding the catalogue (the recommendation flow needs real products)");
+  await run(npx, ["tsx", "src/scripts/seed.ts"], { cwd: SERVER, env });
+
   step(`starting the API on ${BASE}`);
   const log = createWriteStream(logPath, { flags: "w" });
   api = spawn(npx, ["tsx", "src/server.ts"], {

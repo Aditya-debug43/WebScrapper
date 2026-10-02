@@ -277,7 +277,20 @@ export type ScoredCompetitor = {
   specifications: Record<string, unknown> | null;
 };
 
-export type ExcludedCompetitor = ScoredCompetitor & { reason: string };
+/**
+ * Why a candidate was refused, as a code plus the figures behind it.
+ *
+ * The `reason` string stays — the coverage shortfall classifies on it, and an
+ * API that returns only a code makes every caller build a phrasebook. The
+ * structured half is what lets a client say "priced at ₹296, above this
+ * product's MRP of ₹115" instead of repeating the code back at the reader.
+ */
+export type ExclusionDetail =
+  | { code: "no_shared_marketplace"; marketplaceIds: string[]; targetMarketplaceIds: string[] }
+  | { code: "above_mrp"; priceMinor: number; mrpMinor: number }
+  | { code: "same_model_family"; keptProductId: string; keptCanonicalName: string };
+
+export type ExcludedCompetitor = ScoredCompetitor & { reason: string; exclusion: ExclusionDetail };
 
 export type CompetitiveSet = {
   members: ScoredCompetitor[];
@@ -440,11 +453,25 @@ export class CompetitorService {
     const survivors: ScoredCompetitor[] = [];
     for (const c of scored) {
       if (targetMarketplaces.size > 0 && c.sharedMarketplaces === 0) {
-        excluded.push({ ...c, tier: "excluded", reason: "no marketplace in common with this product" });
+        excluded.push({
+          ...c,
+          tier: "excluded",
+          reason: "no marketplace in common with this product",
+          exclusion: {
+            code: "no_shared_marketplace",
+            marketplaceIds: c.marketplaceIds,
+            targetMarketplaceIds: [...targetMarketplaces],
+          },
+        });
         continue;
       }
       if (mrpMinor && c.currentPriceMinor > mrpMinor * 1.15) {
-        excluded.push({ ...c, tier: "excluded", reason: "priced above this product's applicable MRP" });
+        excluded.push({
+          ...c,
+          tier: "excluded",
+          reason: "priced above this product's applicable MRP",
+          exclusion: { code: "above_mrp", priceMinor: c.currentPriceMinor, mrpMinor },
+        });
         continue;
       }
       survivors.push(c);
@@ -496,6 +523,7 @@ export class CompetitorService {
         ...drop,
         tier: "excluded",
         reason: `another variant of the same model (${keep.canonicalName}) is already in the set — one slot per model family`,
+        exclusion: { code: "same_model_family", keptProductId: keep.productId, keptCanonicalName: keep.canonicalName },
       });
     }
     const deduped = [...byIdentity.values()];

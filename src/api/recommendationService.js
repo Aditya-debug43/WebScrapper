@@ -1,77 +1,64 @@
-import { mockDelay } from "./client";
-import { buildRecommendation } from "../utils/pricingEngine";
 import { apiRequest } from "./http";
+import { presentRecommendation } from "../utils/recommendationPresenter";
 
 /**
- * The recommendation, from either source.
+ * THE RECOMMENDATION COMES FROM THE BACKEND.
  *
- * Phase 6 moved the pricing engine to the backend and proved it computes the
- * same numbers — 77 parity assertions over twelve products chosen to exercise
- * every branch. What has NOT moved is this screen: the backend returns
- * structured factors and deliberately generates no prose, while
- * `RecommendationPanel` renders sentences, drivers, viability notes and
- * sanity checks that the engine composes. Swapping the source would mean
- * redesigning the panel, which is a separate piece of work.
+ * Phase 7 made `GET /api/v1/products/:id/recommendation` the source of truth.
+ * The browser no longer decides a price: it asks, and it presents the answer.
  *
- * So the local engine remains what the page renders and what the backend is
- * measured against, and the backend call below exists so the page can consume
- * it, compare against it, and show whether the two agree. The engine is the
- * oracle until the panel is ready to read structured factors instead.
+ * ── What changed, and why it matters ───────────────────────────────────
+ * Until Phase 7 this module called `buildRecommendation()` and the browser ran
+ * the whole pricing engine — anchor, constraints, hedonic regression, the
+ * strategies — against an in-memory copy of the catalogue. The backend ran the
+ * same logic and the two were asserted to agree. Two implementations that
+ * agree today are still two implementations, and the Phase 7 integration found
+ * what that costs: the backend's product-strength weights had been wrong since
+ * Phase 5 (0.2/0.3 where the engine uses 0.15/0.35) and nothing noticed,
+ * because no price depended on them and the screen was reading its own copy.
+ *
+ * There is now one pricing decision in this system, and it is made server-side.
+ *
+ * ── The engine is test-only now ────────────────────────────────────────
+ * `src/utils/pricingEngine.js` is NOT imported here, or anywhere else on the
+ * runtime path. It survives as the oracle the backend is measured against —
+ * see `tests/recommendation-presenter.test.js`, which asserts the screen reads
+ * identically either way, and `tests/no-runtime-pricing-engine.test.js`, which
+ * fails if the engine ever creeps back into the bundle.
  */
-
-/** GET /api/products/:id/recommendation — the local engine. The oracle. */
-export async function getRecommendation(productId) {
-  await mockDelay(180);
-  return buildRecommendation(productId);
-}
 
 /**
- * GET /api/v1/products/:id/recommendation — the backend.
+ * GET /api/v1/products/:id/recommendation
  *
- * Authenticated, like every other pricing endpoint: a recommendation is the
- * product, not the public marketplace data underneath it. `model` selects the
- * recommendation model and defaults server-side to `baseline-v1`; passing
- * `hedonic-cv-v2` asks for the cross-validated attribute model instead.
+ * Returns the presented recommendation — the backend's figures, with the
+ * sentences the panel renders composed from them. Throws `ApiError` for
+ * anything that goes wrong, including an unreachable server, so a caller never
+ * has to distinguish "the server said no" from "fetch threw".
+ *
+ * `model` selects the recommendation model and is omitted by default, which
+ * lets the SERVER decide the default (`baseline-v1`). Hard-coding it here would
+ * mean a backend change needed a frontend release to take effect.
  */
-export async function getBackendRecommendation(productId, { token, model, marketplace, signal } = {}) {
+export async function getRecommendation(productId, { token, model, marketplace, signal } = {}) {
   const query = new URLSearchParams();
   if (model) query.set("model", model);
   if (marketplace) query.set("marketplace", marketplace);
   const suffix = query.toString() ? `?${query}` : "";
-  return apiRequest(`/products/${encodeURIComponent(productId)}/recommendation${suffix}`, { token, signal });
-}
 
-/** A field both sources carry, and how to read it from each. */
-const COMPARED = [
-  ["status", (l) => (l.insufficientData ? "insufficient_evidence" : "recommended"), (b) => b.status],
-  ["fast sale", (l) => priceOf(l, "fast_sale"), (b) => backendPrice(b, "fast_sale")],
-  ["balanced", (l) => priceOf(l, "balanced"), (b) => backendPrice(b, "balanced")],
-  ["premium", (l) => priceOf(l, "premium"), (b) => backendPrice(b, "premium")],
-  ["anchor", (l) => l.anchor?.minor ?? null, (b) => b.anchor?.minor ?? null],
-  ["floor", (l) => l.constraints?.floorMinor ?? null, (b) => b.floorMinor ?? null],
-  ["ceiling", (l) => l.constraints?.ceilingMinor ?? null, (b) => b.ceilingMinor ?? null],
-  ["attribute model", (l) => l.wtp?.trusted ?? null, (b) => b.wtp?.trusted ?? null],
-  ["evidence level", (l) => l.evidence?.level ?? null, (b) => b.evidence?.level ?? null],
-];
+  const payload = await apiRequest(`/products/${encodeURIComponent(productId)}/recommendation${suffix}`, {
+    token,
+    signal,
+  });
 
-const priceOf = (rec, key) => rec.strategies?.find((s) => s.key === key)?.priceMinor ?? null;
-const backendPrice = (data, key) => data.strategies?.find((s) => s.key === key)?.priceMinor ?? null;
-
-/**
- * Compare the two sources on the values they both express.
- *
- * Structured fields only, never a rendered sentence: prose can differ by a
- * word and mean the same thing, and can read identically while the number
- * behind it moved. Returns the fields that differ, so "they agree" is
- * something the screen can show rather than something we assert.
- */
-export function compareRecommendations(local, backend) {
-  if (!local || !backend) return null;
-  const differences = [];
-  for (const [label, readLocal, readBackend] of COMPARED) {
-    const a = readLocal(local) ?? null;
-    const b = readBackend(backend) ?? null;
-    if (a !== b) differences.push({ field: label, local: a, backend: b });
+  /**
+   * A response that parsed but is not a recommendation is a contract failure,
+   * not something to work around. Presenting a half-answer would put a
+   * confident-looking screen in front of data that does not support it, which
+   * is the failure this whole design exists to prevent.
+   */
+  if (!payload?.data?.status) {
+    throw new Error("The recommendation service returned a response without a status.");
   }
-  return { agrees: differences.length === 0, comparedCount: COMPARED.length, differences };
+
+  return presentRecommendation(payload);
 }

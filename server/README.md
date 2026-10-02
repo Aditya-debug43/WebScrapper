@@ -687,6 +687,32 @@ Structured factors — `competitive_position`, `historical_position`,
 minor units where one exists, and its evidence. The backend composes no
 sentences. A sentence cannot be checked against the database; a number can.
 
+#### What the response carries, since Phase 7
+
+The recommendation screen reads this endpoint and nothing else, so the response
+has to carry everything that screen states. Added in Phase 7, all of it derived
+where the price is rather than in the browser:
+
+| field | what it is |
+|---|---|
+| `marketContext.zones` | the competitive pool as named bands, with its composition |
+| `marketContext.competition` | offers, sellers and listings on this product |
+| `marketContext.currentPriceLayers` | the cheapest offer's full ladder, MRP to effective |
+| `strategies[].position` | where that price would sit among the prices a buyer chooses between |
+| `strategies[].margins` | what it earns on each marketplace, net of fees and GST |
+| `commercial` | seller cost, fee rule and break-even per marketplace |
+| `viability` | whether the market will pay what the seller needs |
+| `sanityChecks` | the checks that run before a number is shown, with their figures |
+| `strength` | how this product compares on the attributes the market prices |
+| `competitorContext.excluded` / `.reference` / `.diversity` / `.method` | what was screened out and why, and how the set was built |
+| `policy` | the policy figures a caller may need to quote, so it keeps no copy |
+| `marketplaces` | named platforms, on both the recommended and refused paths |
+
+An excluded competitor carries a structured `exclusion` — `above_mrp` with the
+price and the MRP, `no_shared_marketplace` with both marketplace sets,
+`same_model_family` with the variant that kept the slot — because "why is this
+not a benchmark?" deserves the figures, and the client composes the sentence.
+
 #### Performance
 
 Measured over all 1,172 products with

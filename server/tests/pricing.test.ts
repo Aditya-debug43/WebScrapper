@@ -3,7 +3,7 @@ import { after, before, describe, it } from "node:test";
 import assert from "node:assert/strict";
 import { sql } from "drizzle-orm";
 import { createAnalysisTestApp, signIn, bearer, type Harness, type Json } from "./helpers/harness.js";
-import { PRICING_POLICY, RECOMMENDATION_MODEL_VERSION } from "../src/modules/pricing/pricing.service.js";
+import { PRICING_POLICY, RECOMMENDATION_MODEL_VERSION, snapWithin } from "../src/modules/pricing/pricing.service.js";
 
 /**
  * CON-01…07, STRAT-01…05, SPARSE-01…06 — the recommendation's INVARIANTS.
@@ -160,6 +160,33 @@ describe("CON — the hard constraints hold, whatever the arithmetic wants", () 
       }
     }
     assert.ok(snappedCount > 0, "no price was actually snapped — the test proved nothing");
+  });
+
+  it("CON-05: snapping steps back inside the floor however far below the price starts", () => {
+    /**
+     * Mutation M11 turned the step-up loop into a single `if` and nothing
+     * failed. The reason is worth recording: every caller clamps into
+     * `[floor, ceiling]` first, and snapping moves a price down by strictly
+     * less than one step, so from a clamped input one step always suffices
+     * and the loop cannot iterate twice.
+     *
+     * The loop is what makes the function correct for an input that was NOT
+     * clamped, so this feeds it one — a price hundreds of steps below its
+     * floor. With `if` in place of `while` it returns ₹10.09 against a ₹50
+     * floor.
+     */
+    const farBelow = snapWithin(1000, 500000, 900000);
+    assert.ok(farBelow >= 500000, `snapping returned ${farBelow}, below the floor of 500000`);
+    assert.ok(farBelow <= 900000, `snapping returned ${farBelow}, above the ceiling of 900000`);
+
+    // The ordinary clamped case still lands on a credible ending.
+    const normal = snapWithin(61234, 50000, 90000);
+    assert.equal(normal % 100, 0, "a price came back with stray paise");
+    assert.equal((normal / 100) % 10, 9, `${normal} is not a credible ending`);
+
+    // Colliding bounds sit exactly on the ceiling rather than break it.
+    const collided = snapWithin(70000, 69990, 70010);
+    assert.ok(collided >= 69990 && collided <= 70010, `${collided} escaped a two-rupee band`);
   });
 
   it("CON-06: no price, bound or premium figure is ever negative", () => {

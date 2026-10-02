@@ -31,6 +31,13 @@ export type FeeRuleRow = {
 
 export type MrpFacts = { maxMrpMinor: number | null };
 
+export type MarketplaceIdentity = {
+  id: string;
+  name: string;
+  marketplaceType: string | null;
+  brandColor: string | null;
+};
+
 export type MatchQualityRow = {
   total: number;
   withConfidence: number;
@@ -73,10 +80,41 @@ export class PricingRepository {
     );
   }
 
-  /** Every marketplace, so the break-even scan covers the same set the engine does. */
+  /**
+   * Every marketplace, so the break-even scan covers the same set the engine
+   * does.
+   *
+   * Ordered by NAME, which matters because the per-marketplace margin rows are
+   * rendered in this order. The browser engine listed them in the order its
+   * seed array happened to be written in — not reproducible from the database,
+   * which has no ordering column, and not meaningful to a reader. Alphabetical
+   * is deterministic and scannable; it is the one visible difference Phase 7
+   * introduces, and it is a presentation order rather than a pricing one.
+   */
   async allMarketplaceIds(): Promise<string[]> {
-    const found = await rows<{ id: string }>(this.db, sql`select id from marketplaces order by id`);
+    const found = await rows<{ id: string }>(this.db, sql`select id from marketplaces order by name`);
     return found.map((r) => r.id);
+  }
+
+  /**
+   * Every marketplace with the identity a caller needs to NAME it.
+   *
+   * The per-marketplace margin table covers all marketplaces, including the
+   * ones this product is not listed on — a seller deciding where to list needs
+   * the fee position everywhere, not only where they already are. Returning
+   * the name and brand colour here is what lets the client render a labelled
+   * row instead of an opaque id.
+   */
+  async marketplaces(): Promise<MarketplaceIdentity[]> {
+    return rows<MarketplaceIdentity>(
+      this.db,
+      sql`select id,
+                 name,
+                 marketplace_type as "marketplaceType",
+                 brand_color      as "brandColor"
+            from marketplaces
+           order by name`
+    );
   }
 
   async sellerCost(productId: string): Promise<{ costPriceMinor: number } | null> {

@@ -1,9 +1,10 @@
 import { render } from "@testing-library/react";
-import { MemoryRouter, Navigate, Route, Routes } from "react-router-dom";
+import { MemoryRouter, Navigate, Outlet, Route, Routes, useParams } from "react-router-dom";
 import AccountMenu from "../../src/components/auth/AccountMenu";
 import { RedirectIfAuthenticated, RequireAuth } from "../../src/components/auth/RouteGuards";
 import { AuthProvider } from "../../src/state/AuthContext";
 import { ThemeProvider } from "../../src/state/ThemeContext";
+import PricingRecommendation from "../../src/pages/PricingRecommendation";
 import SignIn from "../../src/pages/auth/SignIn";
 import CreateAccount from "../../src/pages/auth/CreateAccount";
 import VerifyEmail from "../../src/pages/auth/VerifyEmail";
@@ -36,6 +37,18 @@ export function renderAuthApp({ route = "/sign-in" } = {}) {
             <Route element={<RequireAuth />}>
               <Route path="/" element={<ProtectedDesk />} />
               <Route path="/catalogue" element={<ProtectedDesk name="Catalogue" />} />
+              {/*
+                The REAL recommendation page, behind the real guard.
+
+                Since Phase 7 it reads the price from the API, so the only way
+                to prove the journey is to mount the shipped component and let
+                it make the request. The product workspace layout is stood in
+                for — it supplies the product id through outlet context and
+                nothing else this page needs.
+              */}
+              <Route path="/products/:productId" element={<ProductWorkspaceStub />}>
+                <Route path="recommendation" element={<PricingRecommendation />} />
+              </Route>
             </Route>
 
             <Route path="*" element={<Navigate to="/" replace />} />
@@ -56,6 +69,20 @@ function ProtectedDesk({ name = "Dashboard" }) {
     <div data-testid="desk">
       <AccountMenu />
       Pricing desk: {name}
+    </div>
+  );
+}
+
+/**
+ * The product workspace, reduced to the one thing the recommendation page
+ * takes from it: the product id, through outlet context. The page itself is
+ * the shipped component, and it fetches over the shipped API client.
+ */
+function ProductWorkspaceStub() {
+  const { productId } = useParams();
+  return (
+    <div data-testid="workspace">
+      <Outlet context={{ productId }} />
     </div>
   );
 }

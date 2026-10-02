@@ -102,11 +102,26 @@ Roughly, in order:
 The statistical component can only ever argue for a *premium offset*, never
 set a price. The constraint layer sits outside it.
 
-This whole pipeline now also exists on the backend at
-`GET /api/v1/products/:id/recommendation`, and the two agree: 77 parity
-assertions over twelve products chosen to exercise every branch, comparing
-structured values rather than rendered sentences. The browser engine remains
-the oracle the backend is measured against.
+**This pipeline runs on the backend, and the screen reads it from there.**
+`GET /api/v1/products/:id/recommendation` is the source of truth; the browser
+performs no pricing calculation. What the page does is ask, and present:
+
+```
+PricingRecommendation → recommendationService → GET …/recommendation → PricingService → PostgreSQL
+                      → recommendationPresenter → RecommendationPanel
+```
+
+The API returns figures and composes no prose; the presenter turns them into
+the sentences the panel renders, and decides nothing. The browser engine
+survives as the oracle — a test runs both over twelve golden products and
+compares every field the panel reads, prose included, and another walks the
+import graph to prove nothing on the runtime path can reach the engine.
+
+Keeping both and comparing them is what caught a real bug: the backend's
+product-strength weights had been wrong since the analysis migration, and no
+price depended on them, so a whole phase of parity testing passed over it. It
+surfaced the moment the screen started reading the value instead of computing
+its own.
 
 ### Two model versions, and what they are honest about
 
@@ -296,12 +311,12 @@ Being explicit, because the screens look more finished than the system is:
   at seed time with the right shape for each platform. They are the right
   field to build a "View on Amazon" link against once real ingestion exists,
   and they do not resolve today.
-- **The recommendation page still renders the browser engine.** The backend
-  recommendation API exists, is authenticated, and is proven to agree with the
-  engine across 77 assertions — but the backend returns structured factors
-  where the page renders composed prose, so switching the source outright
-  would mean redesigning the panel. The page calls the API alongside the
-  engine and shows whether the two agree; repointing it is the next phase.
+- **The analysis screens still read the browser's copy.** The competitor engine
+  and cross-marketplace analysis exist server-side with 115 parity assertions
+  behind them, but those pages have not been repointed — and the
+  cross-marketplace analysis is now the only place in the browser that still
+  calls `buildRecommendation`. A test names it explicitly so a second caller
+  cannot appear unnoticed. Repointing it is the next migration.
 - **No trained ML model, deliberately.** The willingness-to-pay component is a
   small regression fitted per request over one product's comparables — 5 to 32
   rows — not a trained artefact, and there is nothing to store between

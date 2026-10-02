@@ -359,5 +359,11 @@ that fails.
   default; `hedonic-cv-v2` is a measured alternative trusted on out-of-sample
   error. The methodology research and the decision not to build a demand model
   are in `PRICING_MODEL_RESEARCH.md`.
-- **Phases 7–8** — not yet specified by the brief. Expected shape: ingestion
-  and deployment, plus repointing the remaining frontend screens at the API.
+- **Phase 7 — the recommendation screen reads the backend.** Complete. The
+  page calls `GET /api/v1/products/:id/recommendation` and renders what comes
+  back; the browser performs no pricing calculation. The engine survives as the
+  oracle, with a test comparing every field the panel reads — prose included —
+  and another walking the import graph to keep it off the runtime path.
+- **Phase 8** — not yet specified by the brief. Expected shape: ingestion and
+  deployment, plus repointing the remaining frontend screens (catalogue,
+  product, price history and cross-marketplace analysis) at the API.
