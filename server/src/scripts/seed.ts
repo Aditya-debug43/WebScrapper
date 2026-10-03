@@ -332,8 +332,25 @@ async function loadTable(db: Db, loader: (typeof LOADERS)[number]) {
 async function main() {
   const manifestRaw = await readFile(join(SEED_DIR, "manifest.json"), "utf8").catch(() => null);
   if (!manifestRaw) {
+    /**
+     * `seed-data/` is gitignored — it is 137 MB of generated NDJSON, and a
+     * clone deliberately does not carry it. So on a fresh machine this is the
+     * FIRST thing that goes wrong, and silence here costs hours: the
+     * migrations succeed, the server starts, /health is green, and only the
+     * product pages fail with "no product with id …".
+     *
+     * Two ways out, and on a small box the second is the right one: the
+     * exporter needs Vite and the frontend's dependencies, and it builds the
+     * whole catalogue in memory.
+     */
     throw new Error(
-      `No manifest at ${SEED_DIR}. Run \`node scripts/export-dataset.mjs\` from the repository root first.`
+      `No dataset at ${SEED_DIR} — the database will migrate cleanly and then have no products in it.\n\n` +
+        `  Either generate it (needs the frontend's dependencies and ~1 GB of free memory):\n` +
+        `      node scripts/export-dataset.mjs        # from the repository root\n\n` +
+        `  Or copy it from a machine that already has it (137 MB, ~5 MB compressed):\n` +
+        `      tar -czf seed-data.tar.gz -C server seed-data\n` +
+        `      scp seed-data.tar.gz <host>:/path/to/server/\n` +
+        `      tar -xzf seed-data.tar.gz               # in server/\n`
     );
   }
   const manifest = JSON.parse(manifestRaw) as { counts: Record<string, number>; exportedAt: string };

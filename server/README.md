@@ -1054,7 +1054,43 @@ would race. Run them as a one-off:
 npm run db:migrate:prod     # node dist/scripts/migrate.js, no tsx needed
 ```
 
-`trustProxy` is on, so `request.ip` is the caller rather than Railway's load
+### Migrating is not the same as having data
+
+**A migrated database is an empty one.** `seed-data/` is gitignored — 137 MB of
+generated NDJSON that a clone deliberately does not carry — so a fresh deploy
+reaches a state that looks entirely healthy and is not:
+
+| | |
+|---|---|
+| migrations | 4 applied, 25 tables |
+| `GET /health` | `{"status":"ok"}` |
+| sign-up, OTP, login, password reset | all working — auth needs no catalogue |
+| **any product page** | **"No product with id prod_…"** |
+
+The product pages are the only ones that need the catalogue, so this failure
+appears long after everything else looks right. Load the data:
+
+```bash
+# On a machine that already has seed-data/ — 137 MB, about 5 MB compressed:
+tar -czf seed-data.tar.gz -C server seed-data
+scp -i key.pem seed-data.tar.gz ubuntu@<host>:~/WebScrapper/server/
+
+# On the server:
+cd ~/WebScrapper/server && tar -xzf seed-data.tar.gz && rm seed-data.tar.gz
+npm run db:seed:prod        # node dist/scripts/seed.js, no tsx needed
+npm run db:verify:prod      # 37 integrity checks, non-zero exit on failure
+```
+
+Generating the dataset **on** the server with `node scripts/export-dataset.mjs`
+also works, but it needs Vite and the frontend's dependencies installed there
+and builds the whole catalogue in memory — on a 1 GB instance, copy it instead.
+
+`npm run db:seed` and `db:verify` use `tsx`, which is a devDependency; the
+`:prod` variants run the compiled `dist/` output, so they work after
+`npm ci --omit=dev`. Note that `db:verify` reads `seed-data/manifest.json` to
+compare row counts, so it needs the dataset present too.
+
+`trustProxy` is on, so `request.ip` is the caller rather than the load
 balancer; without it every per-IP limit would be shared by the entire internet.
 
 ---
@@ -1072,6 +1108,8 @@ balancer; without it every per-IP limit would be shared by the entire internet.
 | `npm run db:migrate` | apply outstanding migrations (`-- --reset` to drop first) |
 | `npm run db:migrate:prod` | same, from `dist/`, without devDependencies |
 | `npm run db:seed` | truncate the seeded tables and load from `seed-data/` |
+| `npm run db:seed:prod` | same, from `dist/`, without devDependencies |
+| `npm run db:verify:prod` | same, from `dist/`, without devDependencies |
 | `npm run db:verify` | 37 integrity checks; non-zero exit on failure |
 | `npm run email:check -- you@example.com` | verify the transport and send one real test message |
 
