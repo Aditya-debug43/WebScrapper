@@ -22,6 +22,8 @@ import { registerAnalysisRoutes } from "./modules/analysis/analysis.routes.js";
 import { PricingRepository } from "./modules/pricing/pricing.repository.js";
 import { PricingService } from "./modules/pricing/pricing.service.js";
 import { registerPricingRoutes } from "./modules/pricing/pricing.routes.js";
+import { IngestionService } from "./ingestion/ingestion.service.js";
+import { registerIngestionRoutes } from "./modules/ingestion/ingestion.routes.js";
 
 export type BuiltApp = {
   app: FastifyInstance;
@@ -166,6 +168,10 @@ export async function buildApp(
     analysisService
   );
 
+  // Market data. Holds a MarketOfferProvider chosen by one environment
+  // variable; nothing above this line knows which provider that is.
+  const ingestionService = new IngestionService(db);
+
   /**
    * Liveness only. No version, no commit, no database host, no dependency
    * detail — a health endpoint is unauthenticated by necessity and is the
@@ -180,6 +186,7 @@ export async function buildApp(
       registerMarketplaceRoutes(v1, marketplaceService);
       registerAnalysisRoutes(v1, analysisService);
       registerPricingRoutes(v1, pricingService);
+      registerIngestionRoutes(v1, ingestionService);
     },
     { prefix: "/api/v1" }
   );

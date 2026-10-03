@@ -118,6 +118,52 @@ const schema = z
     /* ---------------------------------------------------------- migration */
     SEED_DATA_DIR: z.string().default("./seed-data"),
     SEED_BATCH_SIZE: z.coerce.number().int().positive().default(2000),
+
+    /* -------------------------------------------------- market data (ingestion) */
+    /**
+     * Where live offer data comes from. Same shape as EMAIL_ADAPTER above:
+     * one variable, one factory, and callers that hold the port rather than
+     * the implementation.
+     *
+     *   serpapi  live Google Shopping results via SerpApi
+     *   fixture  recorded responses from disk — tests, and development
+     *            without spending metered requests
+     *   none     ingestion is switched off; the endpoint refuses rather
+     *            than pretending. The default, because a deployment that
+     *            has not been given a key should not look like one that
+     *            found no offers.
+     */
+    MARKET_DATA_PROVIDER: z.enum(["serpapi", "fixture", "none"]).default("none"),
+
+    /**
+     * Server-side only, and never sent to a client. The frontend calls our
+     * ingestion route; our route calls the provider. The key exists on this
+     * process and in the deployment's secret store, nowhere else.
+     */
+    SERPAPI_KEY: z.string().min(1).optional(),
+
+    MARKET_DATA_TIMEOUT_MS: z.coerce.number().int().positive().default(15_000),
+    MARKET_DATA_COUNTRY: z.string().length(2).default("in"),
+    MARKET_DATA_CURRENCY: z.string().length(3).default("INR"),
+    MARKET_DATA_FIXTURE_DIR: z.string().default("./fixtures/market-data"),
+
+    /**
+     * How long a capture stays good enough to reuse.
+     *
+     * Every provider request costs money on a metered plan, and prices do not
+     * move minute to minute. A request for a query captured inside this window
+     * returns the stored observations instead of fetching again; the caller
+     * can override with an explicit refresh. Six hours is roughly the interval
+     * at which marketplace repricing becomes visible, and it keeps a page
+     * refresh from being an expense.
+     */
+    MARKET_DATA_TTL_SECONDS: z.coerce.number().int().positive().default(21_600),
+
+    /**
+     * Upper bound on results requested per query, so a caller cannot turn one
+     * API call into a hundred by asking for more.
+     */
+    MARKET_DATA_MAX_RESULTS: z.coerce.number().int().positive().max(100).default(40),
   })
   .superRefine((v, ctx) => {
     const fail = (path: string, message: string) => ctx.addIssue({ code: "custom", path: [path], message });
@@ -127,6 +173,10 @@ const schema = z
     }
     if (v.EMAIL_ADAPTER === "http" && (!v.EMAIL_API_URL || !v.EMAIL_API_KEY)) {
       fail("EMAIL_API_URL", "EMAIL_API_URL and EMAIL_API_KEY are required when EMAIL_ADAPTER=http.");
+    }
+
+    if (v.MARKET_DATA_PROVIDER === "serpapi" && !v.SERPAPI_KEY) {
+      fail("SERPAPI_KEY", "SERPAPI_KEY is required when MARKET_DATA_PROVIDER=serpapi.");
     }
 
     if (v.EMAIL_ADAPTER === "smtp") {
@@ -189,6 +239,15 @@ const schema = z
       }
       if (v.CORS_ORIGINS.some((o) => o.startsWith("http://") && !o.startsWith("http://localhost"))) {
         fail("CORS_ORIGINS", "Production origins must be https.");
+      }
+      /**
+       * Recorded responses are real data, but they are data from whenever
+       * they were recorded. Replaying them in production would present
+       * month-old prices as the current market — the one failure mode this
+       * pipeline exists to avoid. `none` is allowed: it refuses honestly.
+       */
+      if (v.MARKET_DATA_PROVIDER === "fixture") {
+        fail("MARKET_DATA_PROVIDER", "Recorded fixtures must not serve production; use serpapi, or none to disable ingestion.");
       }
     }
   });

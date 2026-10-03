@@ -1,0 +1,44 @@
+{
+  "search_metadata": { "id": "fixture-galaxy-s24", "status": "Success" },
+  "search_parameters": { "engine": "google_shopping", "q": "Samsung Galaxy S24 256GB", "gl": "in", "hl": "en" },
+  "shopping_results": [
+    {
+      "position": 1,
+      "title": "Samsung Galaxy S24 5G (8GB RAM, 256GB) - Onyx Black",
+      "product_id": "fx_s24_8_256_black",
+      "product_link": "https://example-fixture.invalid/flipkart/galaxy-s24-256",
+      "source": "Flipkart",
+      "price": "₹64,999.00",
+      "extracted_price": 64999,
+      "old_price": "₹79,999.00",
+      "extracted_old_price": 79999,
+      "rating": 4.5,
+      "reviews": 5120,
+      "delivery": "Free delivery"
+    },
+    {
+      "position": 2,
+      "product_id": "fx_broken_no_title",
+      "source": "Amazon.in",
+      "price": "₹65,999.00",
+      "extracted_price": 65999,
+      "delivery": "Free delivery"
+    },
+    {
+      "position": 3,
+      "title": "Samsung Galaxy S24 256GB - Marble Grey",
+      "product_id": "fx_broken_no_price",
+      "source": "Croma",
+      "price": "Check in store",
+      "delivery": "Free delivery"
+    },
+    {
+      "position": 4,
+      "title": "Samsung Galaxy S24 Ultra 256GB - Titanium Grey",
+      "product_id": "fx_broken_no_source",
+      "price": "₹1,21,999.00",
+      "extracted_price": 121999,
+      "delivery": "Free delivery"
+    }
+  ]
+}

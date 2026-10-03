@@ -1,0 +1,42 @@
+{
+  "search_metadata": { "id": "fixture-poco-x6-pro", "status": "Success" },
+  "search_parameters": { "engine": "google_shopping", "q": "POCO X6 Pro 8GB 256GB", "gl": "in", "hl": "en" },
+  "shopping_results": [
+    {
+      "position": 1,
+      "title": "POCO X6 Pro 5G (8GB RAM, 256GB) - Racing Grey",
+      "product_id": "fx_poco_x6_pro_8_256_grey",
+      "product_link": "https://example-fixture.invalid/flipkart/poco-x6-pro-8-256",
+      "source": "Flipkart",
+      "price": "₹23,499.00",
+      "extracted_price": 23499,
+      "old_price": "₹29,999.00",
+      "extracted_old_price": 29999,
+      "rating": 4.3,
+      "reviews": 26110,
+      "delivery": "Free delivery"
+    },
+    {
+      "position": 2,
+      "title": "Xiaomi POCO X6 Pro 5G 8GB 256GB Yellow",
+      "product_id": "fx_poco_x6_pro_8_256_yellow",
+      "product_link": "https://example-fixture.invalid/amazon/poco-x6-pro-8-256",
+      "source": "Amazon.in",
+      "price": "₹23,999.00",
+      "extracted_price": 23999,
+      "rating": 4.2,
+      "reviews": 11200,
+      "delivery": "Free delivery"
+    },
+    {
+      "position": 3,
+      "title": "POCO X6 Pro 5G (12GB RAM, 512GB) - Black",
+      "product_id": "fx_poco_x6_pro_12_512",
+      "product_link": "https://example-fixture.invalid/flipkart/poco-x6-pro-12-512",
+      "source": "Flipkart",
+      "price": "₹27,999.00",
+      "extracted_price": 27999,
+      "delivery": "Free delivery"
+    }
+  ]
+}

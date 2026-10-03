@@ -114,6 +114,16 @@ export const marketplaceTypeEnum = pgEnum("marketplace_type", [
   "value_horizontal",
   "fashion_vertical",
   "beauty_vertical",
+  /**
+   * A store discovered inside a data provider's response rather than modelled
+   * in advance — Croma, Vijay Sales, a brand's own site.
+   *
+   * Added because none of the four above is TRUE of such a store, and this
+   * column is displayed. Calling Croma "horizontal" would put a wrong fact on
+   * screen to avoid one additive enum value, which is the worse trade. Every
+   * existing row keeps its value; nothing branches on this column.
+   */
+  "unclassified",
 ]);
 export const mappedByEnum = pgEnum("mapped_by", ["rule", "model", "human"]);
 export const attributeDataTypeEnum = pgEnum("attribute_data_type", ["integer", "decimal", "boolean", "text"]);
@@ -410,6 +420,23 @@ export const marketplaces = pgTable("marketplaces", {
   // chroma from which platforms carry a product.
   brandColor: text("brand_color"),
   marketplaceType: marketplaceTypeEnum("marketplace_type").notNull(),
+  /**
+   * True for a store this system learned about from a data provider rather
+   * than one it was built around.
+   *
+   * The six curated marketplaces have category affinities, fee rules and
+   * brand colours; a store that arrives inside a Google Shopping response —
+   * Croma, Vijay Sales, a seller's own site — has none of that, and treating
+   * the two as equivalent would quietly corrupt every screen that assumes the
+   * curated set. Defaulting to false means every existing row and every
+   * existing query keeps its present meaning, and a caller opts in to
+   * discovered stores deliberately.
+   *
+   * They are still worth having: a competitor selling below you on Croma is
+   * real competitive evidence, and dropping it on the floor because the store
+   * was not on a list written in advance would lose genuine market signal.
+   */
+  isDiscovered: boolean("is_discovered").notNull().default(false),
   // Which departments this platform actually carries — a beauty vertical does
   // not sell refrigerators, and pretending otherwise distorts coverage.
   categoryAffinity: jsonb("category_affinity").$type<string[]>().notNull().default([]),
@@ -738,9 +765,21 @@ export const captureRuns = pgTable(
   "capture_runs",
   {
     id: text("id").primaryKey(),
-    marketplaceId: text("marketplace_id")
-      .notNull()
-      .references(() => marketplaces.id),
+    /**
+     * Nullable since the market-data providers landed.
+     *
+     * It was NOT NULL under one assumption: a run is a crawler pointed at one
+     * platform. That holds for a Flipkart scraper and fails for an aggregator
+     * — a single Google Shopping response carries Flipkart, Croma and Vijay
+     * Sales together, and there is no honest single value to put here.
+     * Marketplace is a property of each observation, which is where it is
+     * actually recorded. A per-marketplace run still sets it.
+     */
+    marketplaceId: text("marketplace_id").references(() => marketplaces.id),
+    /** Which adapter produced this run: `serpapi`, `fixture`, a scraper name. */
+    provider: text("provider"),
+    /** The query that was asked, for a provider that takes one. */
+    sourceQuery: text("source_query"),
     startedAt: timestamp("started_at", { withTimezone: true }).notNull(),
     finishedAt: timestamp("finished_at", { withTimezone: true }),
     runStatus: runStatusEnum("run_status").notNull(),
@@ -749,7 +788,11 @@ export const captureRuns = pgTable(
     pagesSucceeded: integer("pages_succeeded"),
     notes: text("notes"),
   },
-  (t) => [index("capture_runs_marketplace_idx").on(t.marketplaceId, t.startedAt.desc())]
+  (t) => [
+    index("capture_runs_marketplace_idx").on(t.marketplaceId, t.startedAt.desc()),
+    // Freshness lookup: "has this query been captured recently enough to reuse?"
+    index("capture_runs_provider_query_idx").on(t.provider, t.sourceQuery, t.startedAt.desc()),
+  ]
 );
 
 export const rawDocuments = pgTable(

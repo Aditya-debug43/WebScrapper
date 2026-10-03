@@ -941,6 +941,138 @@ id. An email is the least trustworthy place a system's internals can end up.
 
 ---
 
+## Market data ingestion
+
+Live competitor offers enter through a **port**, the same shape as the email
+adapter: one interface, one factory, one environment variable. SerpApi is the
+first implementation of it — a data source, not a dependency the architecture
+is built around.
+
+```
+MarketOfferProvider (the port)         src/ingestion/types.ts
+  ├── SerpApiProvider                  src/ingestion/providers/serpapi.provider.ts
+  └── FixtureProvider                  src/ingestion/providers/fixture.provider.ts
+createMarketOfferProvider()            src/ingestion/index.ts
+IngestionService                       src/ingestion/ingestion.service.ts
+matchProduct()                         src/ingestion/matching.ts
+POST /api/v1/ingestion/search          src/modules/ingestion/ingestion.routes.ts
+```
+
+### The containment rule
+
+**No provider's field names may appear outside its own adapter.** The whole
+backend sees `MarketOffer`; exactly one file knows how any particular vendor
+spells its price field.
+
+This is enforced rather than requested. `tests/ingestion.test.ts` reads
+`src/` and fails if a provider's vocabulary appears anywhere else, if a
+concrete provider is constructed outside the factory, or if a pricing,
+analysis or catalogue module imports an adapter. Replacing the provider means
+deleting one file and adding another.
+
+### What it will not do
+
+| | |
+|---|---|
+| **A provider failure never becomes an empty result** | "nobody sells this" and "we could not look" produce very different recommendations. A failure is a `failed` capture run and a 503, never a 200 with an empty list. |
+| **An uncertain match is refused** | A wrong match silently prices a product against a different product's market. The matcher gates on variant attributes first, so a 256 GB offer can never land on a 128 GB product however similar the titles. |
+| **Unmatched offers are kept, not dropped** | They go to `rejected_records` with the matcher's reason — including whether the catalogue holds the same model in a different configuration. |
+| **An unstated shipping fee is not zero** | "Free delivery" is a real zero; "Delivery by Tue" says nothing about cost and travels as null. |
+| **Fixtures cannot serve production** | Replaying a recording would present old prices as the current market. The environment schema refuses to start. |
+
+### Matching
+
+Titles are not scored for similarity. Similarity is actively misleading here:
+`POCO X6 Pro 8GB 256GB` and `POCO X6 Pro 12GB 512GB` differ by two tokens out
+of eight and are different products.
+
+So the matcher extracts the attributes that distinguish variants — RAM,
+storage, model tokens, colour — from `products.specifications`,
+`products.variant_axes` and the canonical name, and treats a disagreement on
+any of them as disqualifying. Brand is checked against `brands.alias_names`,
+which the schema introduced for exactly this purpose (stores write "Poco",
+not "Xiaomi"). What survives is scored, and accepted only above
+`MATCH_CONFIDENCE_FLOOR` **and** clearly ahead of the runner-up: two
+candidates scoring alike means the title does not distinguish them, which is
+when guessing costs most.
+
+The result is written to `listings.match_status` and
+`listings.match_confidence`, which already feed the evidence score — so a weak
+match visibly weakens the recommendation built on it. A `human_confirmed`
+listing is never overwritten by a later auto-match.
+
+### Where the data lands
+
+Into tables that already existed and had no producer:
+
+| Table | Written with |
+|---|---|
+| `capture_runs` | one provider call: provider, query, status, counts, coverage |
+| `raw_documents` | the provider's own response, content-hashed. **The recorded URL has the API key removed** — a credential in a provenance record is a credential in a backup |
+| `rejected_records` | everything received and not used, with its reason |
+| `listings` / `offers` / `price_observations` | the normal entity chain |
+
+Ingestion is **idempotent within a day**: identifiers are derived from the
+data rather than generated, and `price_observations` is unique on
+`(offer, observed_at)`, so a repeat writes nothing.
+
+### Schema changes this required
+
+Three places where the existing schema and an aggregating provider genuinely
+disagreed (migration `0004_market_data_ingestion.sql`, all additive or
+constraint-relaxing):
+
+- **`capture_runs.marketplace_id` is now nullable**, plus `provider` and
+  `source_query`. It was NOT NULL under the assumption that a run is a
+  crawler pointed at one platform. One Google Shopping response carries
+  Flipkart, Croma and Vijay Sales together, and there is no honest single
+  value. Marketplace belongs to the observation, which is where it is recorded.
+- **`marketplaces.is_discovered`**, default false. A store that arrives inside
+  a provider response has no fee rules, category affinities or brand colour.
+  The curated six keep their present meaning and every existing query is
+  unchanged; discovered stores are opt-in. They are still kept — a competitor
+  undercutting you on Croma is real evidence.
+- **`marketplace_type` gained `unclassified`**, because none of the four
+  existing values is *true* of such a store and the column is displayed.
+
+Google Shopping reports a store and a price, not a seller and an offer. Each
+store therefore gets one seller recorded explicitly as `(storefront)` — the
+limitation of the source written into the data rather than hidden behind a
+plausible invented seller.
+
+### Configuration
+
+```bash
+MARKET_DATA_PROVIDER=serpapi     # none (default) | serpapi | fixture
+SERPAPI_KEY=...                  # server-side only; never reaches the browser
+MARKET_DATA_TTL_SECONDS=21600    # reuse a capture for 6h instead of re-fetching
+MARKET_DATA_MAX_RESULTS=40
+```
+
+`MARKET_DATA_PROVIDER=serpapi` without `SERPAPI_KEY` refuses to start, naming
+the variable. With `none`, the endpoint answers 503 rather than pretending it
+looked.
+
+The browser never holds the key. It calls `POST /api/v1/ingestion/search`
+(authenticated, rate-limited to 10/min because each call can spend a metered
+request) and this process calls the provider.
+
+### Running it
+
+```bash
+# Offline, no key, no quota — recorded responses through the production parser
+MARKET_DATA_PROVIDER=fixture npm test
+
+# Prove the tests would catch a regression
+node ../scripts/mutate-ingestion.mjs
+```
+
+`server/fixtures/market-data/` holds recorded responses. They are
+**hand-authored, not real captures**, and that directory's README says so — no
+price in them is a real observed price.
+
+---
+
 ## CORS and logging
 
 CORS origins come from `CORS_ORIGINS` (comma separated). Production refuses a
