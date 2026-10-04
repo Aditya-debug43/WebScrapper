@@ -49,8 +49,37 @@ type SerpShoppingResult = {
 type SerpResponse = {
   shopping_results?: SerpShoppingResult[];
   error?: string;
-  search_metadata?: { status?: string; id?: string };
+  search_metadata?: Record<string, unknown>;
 };
+
+/**
+ * Metadata fields that carry a capability token, stripped before the response
+ * is stored.
+ *
+ * Verified against a real capture: the provider does NOT echo the API key
+ * back — it is absent from `search_parameters`. But the metadata links to the
+ * stored copy of this search, and each of those URLs embeds a token granting
+ * access to it. The whole response goes into `raw_documents` and from there
+ * into every backup, so these would outlive the search by years while
+ * contributing nothing: re-parsing needs the results, not the links back to
+ * the vendor's copy of them.
+ */
+const CREDENTIAL_BEARING_METADATA = ["json_endpoint", "markdown_endpoint", "raw_html_file"];
+
+/** The response as it should be persisted — results intact, tokens gone. */
+function redactForStorage(body: unknown): unknown {
+  if (!body || typeof body !== "object") return body;
+  const clone = { ...(body as Record<string, unknown>) };
+  const metadata = clone["search_metadata"];
+  if (metadata && typeof metadata === "object") {
+    const scrubbed = { ...(metadata as Record<string, unknown>) };
+    for (const field of CREDENTIAL_BEARING_METADATA) {
+      if (field in scrubbed) scrubbed[field] = "[redacted]";
+    }
+    clone["search_metadata"] = scrubbed;
+  }
+  return clone;
+}
 
 /** Rupees (or any major unit) to integer minor units. */
 function toMinor(major: number | null | undefined): number | null {
@@ -244,5 +273,5 @@ export function normaliseSerpResponse(
     });
   }
 
-  return { provider, query, offers, raw: body, requestUrl, fetchedAt, skipped };
+  return { provider, query, offers, raw: redactForStorage(body), requestUrl, fetchedAt, skipped };
 }

@@ -71,14 +71,91 @@ describe("REG — Phase 2 baseline is undisturbed", () => {
     );
   });
 
-  it("REG-11: every seeded table still holds exactly the Phase 2 row count", async (t) => {
+  /**
+   * Rows that exist ONLY because a live provider put them there.
+   *
+   * Since market-data ingestion landed, this database holds two kinds of
+   * row in the same tables, and the Phase 2 guarantee has to be stated
+   * against the seeded kind rather than against the table as a whole. A
+   * frozen total would now fail the moment the system did its job, which
+   * would make the test an obstacle rather than a guard.
+   *
+   * No provenance column was needed for this — the existing fields already
+   * separate the two exactly:
+   *
+   *   observations   `parser_version` ('market-data-v1' vs the seeded
+   *                  dataset's 'catalogue-parser-v1.2', 'fk-parser-v2.1', …),
+   *                  and `raw_document_id` resolves to the capture run and
+   *                  its provider
+   *   marketplaces   `is_discovered`
+   *   sellers        the `storefront` external id ingestion assigns
+   *   listings       has live observations and no seeded ones. A listing
+   *   offers         ingestion REUSES rather than creates still fails that
+   *                  test, which is right: it is a seeded row.
+   */
+  const LIVE = "market-data-v1";
+  const liveOnly: Record<string, string> = {
+    marketplaces: `select count(*)::int n from marketplaces where is_discovered`,
+    sellers: `select count(*)::int n from sellers where external_seller_id = 'storefront'`,
+    price_observations: `select count(*)::int n from price_observations where parser_version = '${LIVE}'`,
+    listings: `select count(*)::int n from listings l
+       where exists (select 1 from offers o join price_observations po on po.offer_id = o.id
+                     where o.listing_id = l.id and po.parser_version = '${LIVE}')
+         and not exists (select 1 from offers o join price_observations po on po.offer_id = o.id
+                         where o.listing_id = l.id and po.parser_version is distinct from '${LIVE}')`,
+    offers: `select count(*)::int n from offers o
+       where exists (select 1 from price_observations po where po.offer_id = o.id and po.parser_version = '${LIVE}')
+         and not exists (select 1 from price_observations po where po.offer_id = o.id and po.parser_version is distinct from '${LIVE}')`,
+  };
+
+  it("REG-11: the Phase 2 baseline is intact, and any growth is live-ingested", async (t) => {
     if (!available) return t.skip("development database not seeded");
     const drift: string[] = [];
+
     for (const [table, expected] of Object.entries(BASELINE_COUNTS)) {
       const actual = await count(table);
-      if (actual !== expected) drift.push(`${table}: expected ${expected}, found ${actual}`);
+      if (actual === expected) continue;
+
+      /**
+       * Shrinking is always wrong — the seeded dataset is never deleted
+       * from. Growth is only acceptable when every extra row is one a live
+       * capture created, counted independently rather than inferred from
+       * the difference.
+       */
+      if (actual < expected) {
+        drift.push(`${table}: SHRANK — expected ${expected}, found ${actual}`);
+        continue;
+      }
+
+      const probe = liveOnly[table];
+      if (!probe) {
+        drift.push(`${table}: grew to ${actual} from ${expected}, and ingestion does not write this table`);
+        continue;
+      }
+      const live = (await db!.query<{ n: number }>(probe)).rows[0]!.n;
+      if (actual - expected !== live) {
+        drift.push(
+          `${table}: expected ${expected} + ${live} live = ${expected + live}, found ${actual} — ` +
+            `${actual - expected - live} row(s) unaccounted for`
+        );
+      }
     }
+
     assert.deepEqual(drift, [], `baseline counts drifted:\n${drift.join("\n")}`);
+  });
+
+  it("REG-11c: seeded observations are untouched by ingestion", async (t) => {
+    if (!available) return t.skip("development database not seeded");
+    const seeded = (
+      await db!.query<{ n: number }>(
+        `select count(*)::int n from price_observations where parser_version is distinct from '${LIVE}'`
+      )
+    ).rows[0]!.n;
+    assert.equal(
+      seeded,
+      BASELINE_COUNTS["price_observations"],
+      "ingestion must add observations, never rewrite the seeded ones"
+    );
   });
 
   it("REG-11b: the entity chain still resolves — no orphans anywhere", async (t) => {
@@ -131,9 +208,45 @@ describe("REG — Phase 2 baseline is undisturbed", () => {
          (select min(po.selling_price_minor + po.shipping_fee_minor)::int from price_observations po
             join offers o on o.id=po.offer_id join listings l on l.id=o.listing_id
             where l.product_id='prod_dove_hair_fall' and po.is_in_stock
-              and po.observed_at=(select max(observed_at) from price_observations)) as cheapest`
+              and po.observed_at=(select max(observed_at) from price_observations
+                                   where parser_version is distinct from '${LIVE}')) as cheapest`
     );
     assert.deepEqual(r.rows[0], { listings: 6, offers: 30, cheapest: 56900 });
+  });
+
+  /**
+   * The reason the qualifier above exists, pinned so it cannot regress
+   * silently.
+   *
+   * `max(observed_at)` over the whole table is the seeded dataset's last day
+   * only while the table holds nothing else. One live observation dated now
+   * moves it weeks forward, past the end of the seeded timeline, and every
+   * seeded product then has nothing on "the latest date" — this check
+   * returned null for the golden record before it was anchored on the seed's
+   * own clock.
+   *
+   * This is not merely a test concern. `referenceDate()` in the analysis and
+   * marketplace repositories uses the same global maximum to anchor every
+   * window, so short windows over seeded products lose their basis once live
+   * data arrives. Measured, reported, and deliberately NOT worked around
+   * here — that is analysis behaviour, and changing it is a product decision
+   * rather than a test fix.
+   */
+  it("REG-12d: the seeded timeline and the live timeline are far apart", async (t) => {
+    if (!available) return t.skip("development database not seeded");
+    const r = await db!.query<{ seeded: string | null; live: string | null }>(
+      `select max(observed_at) filter (where parser_version is distinct from '${LIVE}')::text as seeded,
+              max(observed_at) filter (where parser_version = '${LIVE}')::text as live
+       from price_observations`
+    );
+    const { seeded, live } = r.rows[0]!;
+    assert.ok(seeded, "the seeded dataset must still have a timeline");
+    if (!live) return; // no live data in this database — nothing to compare
+    assert.ok(
+      live > seeded,
+      "live observations are dated now; the seed ends in the past. If this ever inverts, " +
+        "the reference-date assumptions in analysis need revisiting."
+    );
   });
 
   it("the authentication tables exist, and the seed does not own them", async (t) => {

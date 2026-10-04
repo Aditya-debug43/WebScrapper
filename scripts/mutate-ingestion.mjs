@@ -60,6 +60,25 @@ const MUTATIONS = [
   { id: "ING-M12", why: "same-day duplicate observations allowed through",
     file: "src/ingestion/ingestion.repository.ts",
     find: ".onConflictDoNothing({ target: [priceObservations.offerId, priceObservations.observedAt] })", to: "" },
+  { id: "ING-M13", why: "model numbers stripped as capacities again (iPhone 13 == iPhone 15)",
+    file: "src/ingestion/matching.ts",
+    find: '.filter((t) => t.length > 1 && !STOPWORDS.has(t) && !COLOURS.includes(t));',
+    // `\\d` in source so a single backslash reaches the file. Written as `\d`
+    // the string parses to a literal "d", the regex never matches a number,
+    // and the mutant silently does nothing — which is how it first "survived".
+    to: '.filter((t) => t.length > 1 && !STOPWORDS.has(t) && !COLOURS.includes(t) && !/^\\d+(gb|tb)?$/.test(t));' },
+  { id: "ING-M14", why: "missing-capacity penalty removed — a bare title matches a specific variant",
+    file: "src/ingestion/matching.ts",
+    find: 'if (storage != null && incoming.storageGb == null) score -= 0.25;',
+    to: 'if (false) score -= 0.25;' },
+  { id: "ING-M15", why: "colour counted twice again — a correct match refused over cosmetics",
+    file: "src/ingestion/matching.ts",
+    find: ' && !COLOURS.includes(t));',
+    to: ');' },
+  { id: "ING-M16", why: "colour disagreement no longer costs confidence",
+    file: "src/ingestion/matching.ts",
+    find: 'if (colourVerdict === \"differs\") score -= 0.15;',
+    to: 'if (false) score -= 0.15;' },
 ];
 
 const results = [];

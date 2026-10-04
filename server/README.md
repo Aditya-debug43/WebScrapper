@@ -1001,6 +1001,33 @@ The result is written to `listings.match_status` and
 match visibly weakens the recommendation built on it. A `human_confirmed`
 listing is never overwritten by a later auto-match.
 
+#### Two rules the live data forced
+
+Real titles found defects that engineered fixtures could not, because both
+needed a catalogue neighbour to expose them.
+
+**Model numbers are identity, not capacity.** The token filter dropped any
+number with an optional `gb`/`tb` suffix, which also ate the model number:
+"Apple iPhone 13 (128GB) — Midnight" and "Apple iPhone 15 (128GB) — Blue"
+both reduced to `[apple, iphone]` and scored identically. They were only ever
+told apart because their colour words differed — a cosmetic token standing in
+for the most distinguishing one. Capacities are now removed as whole
+expressions before tokenising, so `13`, `15`, `S24` and `M14` survive. The
+effect is large: "Apple iPhone 16" against the iPhone 15 row fell from 0.67
+to 0.25.
+
+**Silence about capacity is not agreement about capacity.** A missing
+attribute is neutral for colour and wrong for storage. `desertcart —
+"Apple iPhone 15"` shares every model token with the 128GB row and states no
+capacity at all; scoring that as a perfect match would file an
+unknown-capacity offer under a specific variant. When the catalogue states a
+capacity and the title does not, the missing evidence now costs confidence —
+storage only, since RAM is routinely omitted (Apple never prints it) and
+penalising its absence would discard good data over a convention.
+
+Neither change touched the floor or the variant gates. Both are pinned by
+tests built from the real captures.
+
 ### Where the data lands
 
 Into tables that already existed and had no producer:
@@ -1049,6 +1076,19 @@ MARKET_DATA_TTL_SECONDS=21600    # reuse a capture for 6h instead of re-fetching
 MARKET_DATA_MAX_RESULTS=40
 ```
 
+Put the real key in `server/.env`, which is gitignored, or in the
+deployment's secret store. `.env.example` carries a placeholder and must
+never carry a value. The key is read in exactly one file (`config/env.ts`)
+and used in exactly one other (the SerpApi adapter).
+
+It is also kept out of everything the system writes down. The URL recorded in
+`raw_documents.source_url` has `api_key=REDACTED` substituted before storage,
+and the adapter strips `json_endpoint`, `markdown_endpoint` and
+`raw_html_file` from the stored response — the provider does not echo the key
+back, but each of those URLs embeds an access token for the vendor's stored
+copy of that search, and a token in a provenance record is a token in every
+backup.
+
 `MARKET_DATA_PROVIDER=serpapi` without `SERPAPI_KEY` refuses to start, naming
 the variable. With `none`, the endpoint answers 503 rather than pretending it
 looked.
@@ -1067,9 +1107,103 @@ MARKET_DATA_PROVIDER=fixture npm test
 node ../scripts/mutate-ingestion.mjs
 ```
 
-`server/fixtures/market-data/` holds recorded responses. They are
-**hand-authored, not real captures**, and that directory's README says so — no
-price in them is a real observed price.
+`server/fixtures/market-data/` holds two kinds of file, and its README spells
+out which is which: three **real captures** from live SerpApi (genuine
+responses, recorded once, not current data) and three **hand-authored**
+fixtures covering edge cases the real responses happen not to contain.
+
+### A controlled live ingestion
+
+```bash
+# One query, one provider request. `force` skips the freshness window.
+MARKET_DATA_PROVIDER=serpapi SERPAPI_KEY=... \
+  npx tsx -e 'import("./src/ingestion/ingestion.service.js")' # or POST the route:
+
+curl -X POST http://localhost:4000/api/v1/ingestion/search \
+  -H "authorization: Bearer <session token>" \
+  -H "content-type: application/json" \
+  -d '{"query":"iPhone 15 128GB","force":true}'
+```
+
+The response is a summary, never raw provider data: counts received, matched,
+written, unmatched and unreadable, the stores discovered, and the coverage
+actually observed. A provider failure answers 503 with a `retryable` flag.
+
+Start small. Every call that is not served from the freshness window spends a
+metered request, and the route is rate-limited to 10/min for that reason.
+
+### What a live run actually looks like
+
+Measured, not projected — three real queries against the Indian market:
+
+| query | received | matched | unmatched | unreadable |
+|---|---|---|---|---|
+| `iPhone 15 128GB` | 40 | **1** | 39 | 0 |
+| `Samsung Galaxy S24 256GB` | 38 | 0 | 38 | 2 |
+| `POCO X6 Pro 8GB 256GB` | 17 | 0 | 17 | 0 |
+
+**One match in 95 offers is the correct answer, not a failure.** This
+catalogue holds no POCO X6 Pro and no Galaxy S24 at all, and most of what
+came back was a different model — the S24 query returned mostly S25 Ultra and
+S26; the iPhone query returned iPhone 16, 15 Plus, 15 Pro and 15 Pro Max. The
+single match was a genuine iPhone 15 128GB.
+
+Two things that surprise people, both worth knowing before reading a match
+rate as a quality signal:
+
+- **The major marketplaces are often missing.** `iPhone 15 128GB` returned no
+  Amazon.in, no Flipkart and no Croma — it returned myG, Cashify (14 of 40
+  results), ubuy and desertcart.com.sa. `POCO X6 Pro` did reach Amazon.in and
+  Flipkart. Coverage varies sharply by query, and Google Shopping is not a
+  marketplace feed.
+- **No list price and no stock marker.** Real responses carried no
+  `old_price`, no `extensions` and no `snippet`, so MRP and availability are
+  simply unavailable from this source and travel as null. Each capture run
+  records the coverage it actually observed, so the gap is measured rather
+  than hidden.
+
+### Live data and seeded data in one database
+
+Both live in the same tables. They are told apart by fields that already
+existed — no provenance column was added:
+
+| | seeded | live |
+|---|---|---|
+| `price_observations.parser_version` | `catalogue-parser-v1.2`, `fk-parser-v2.1`, … | `market-data-v1` |
+| `marketplaces.is_discovered` | false | true |
+| `sellers.external_seller_id` | the platform's own id | `storefront` |
+| provenance | — | `raw_document_id` → `capture_runs.provider` |
+
+`npm run db:verify` counts **seeded** rows rather than table totals for this
+reason, and reports live rows separately; `REG-11` asserts the Phase 2
+baseline is intact and that every extra row is attributable to a live
+capture.
+
+> **Known interaction — reference dates.** The seeded dataset's timeline ends
+> in the past, while live observations are dated now. `referenceDate()` in
+> the analysis and marketplace repositories is `max(observed_at)` across the
+> whole table, so one live observation moves the anchor for every window.
+> Measured on this dataset: with the anchor at the seeded maximum the 7d
+> window covers 25,545 seeded observations; with one live row present it
+> covers 0. Current prices and marketplace rows are unaffected — those
+> resolve per listing — but short-window history over seeded products loses
+> its basis. This is analysis behaviour, deliberately left alone rather than
+> worked around in a test.
+
+### What is and is not real
+
+| | |
+|---|---|
+| Real SerpApi Google Shopping ingestion | **yes** |
+| Real observations stored with provenance | **yes** |
+| Direct Amazon scraping | no |
+| Direct Flipkart scraping | no |
+| Direct Meesho scraping | no |
+| A full live marketplace catalogue | no |
+
+What exists is controlled, query-by-query ingestion through one aggregator,
+feeding the pricing intelligence that already existed. Nothing here scrapes a
+marketplace, and nothing claims to have captured one.
 
 ---
 

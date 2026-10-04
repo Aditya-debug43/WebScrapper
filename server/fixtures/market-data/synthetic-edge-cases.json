@@ -1,0 +1,78 @@
+{
+  "search_metadata": { "id": "fixture-iphone-15-128gb", "status": "Success" },
+  "search_parameters": { "engine": "google_shopping", "q": "iPhone 15 128GB", "gl": "in", "hl": "en" },
+  "shopping_results": [
+    {
+      "position": 1,
+      "title": "Apple iPhone 15 (128 GB) - Blue",
+      "product_id": "fx_apple_15_128_blue_fk",
+      "product_link": "https://example-fixture.invalid/flipkart/iphone-15-128-blue",
+      "source": "Flipkart",
+      "price": "₹65,999.00",
+      "extracted_price": 65999,
+      "old_price": "₹79,900.00",
+      "extracted_old_price": 79900,
+      "rating": 4.6,
+      "reviews": 18422,
+      "delivery": "Free delivery",
+      "extensions": ["In stock"]
+    },
+    {
+      "position": 2,
+      "title": "Apple iPhone 15 128GB Blue",
+      "product_id": "fx_apple_15_128_blue_az",
+      "product_link": "https://example-fixture.invalid/amazon/iphone-15-128-blue",
+      "source": "Amazon.in",
+      "price": "₹66,490.00",
+      "extracted_price": 66490,
+      "rating": 4.5,
+      "reviews": 9103,
+      "delivery": "₹49 delivery"
+    },
+    {
+      "position": 3,
+      "title": "Apple iPhone 15 (128GB) Blue Smartphone",
+      "product_id": "fx_apple_15_128_blue_croma",
+      "product_link": "https://example-fixture.invalid/croma/iphone-15-128-blue",
+      "source": "Croma",
+      "price": "₹67,900.00",
+      "extracted_price": 67900,
+      "delivery": "Delivery by Tue, 14 Oct"
+    },
+    {
+      "position": 4,
+      "title": "Apple iPhone 15 (256 GB) - Black",
+      "product_id": "fx_apple_15_256_black_fk",
+      "product_link": "https://example-fixture.invalid/flipkart/iphone-15-256-black",
+      "source": "Flipkart",
+      "price": "₹75,999.00",
+      "extracted_price": 75999,
+      "rating": 4.6,
+      "reviews": 7781,
+      "delivery": "Free delivery"
+    },
+    {
+      "position": 5,
+      "title": "Apple iPhone 15 128GB (Renewed) - Blue",
+      "product_id": "fx_apple_15_128_renewed",
+      "product_link": "https://example-fixture.invalid/amazon/iphone-15-128-renewed",
+      "source": "Amazon.in",
+      "price": "₹54,999.00",
+      "extracted_price": 54999,
+      "second_hand_condition": "Refurbished",
+      "delivery": "Free delivery",
+      "extensions": ["Refurbished", "In stock"]
+    },
+    {
+      "position": 6,
+      "title": "Apple iPhone 15 (128GB) - Blue",
+      "product_id": "fx_apple_15_128_oos",
+      "product_link": "https://example-fixture.invalid/vijaysales/iphone-15-128-blue",
+      "source": "Vijay Sales",
+      "price": "₹64,990.00",
+      "extracted_price": 64990,
+      "snippet": "Currently out of stock",
+      "delivery": "Free delivery"
+    }
+  ]
+}

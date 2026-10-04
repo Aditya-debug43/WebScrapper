@@ -44,9 +44,66 @@ async function main() {
 
   try {
     /* ---------------------------------------------------------- 1. counts */
+    /**
+     * COUNTS ARE OF SEEDED ROWS, NOT OF TABLES.
+     *
+     * This script verifies that the seed loaded correctly. Once live market
+     * data shares these tables, a raw total answers a different question —
+     * and would fail the moment ingestion did its job, which would train
+     * everyone to ignore it.
+     *
+     * No provenance column was added for this. The existing fields already
+     * separate the two exactly: `parser_version` on observations (the seed
+     * carries 'catalogue-parser-v1.2', 'fk-parser-v2.1' and friends, live
+     * captures carry 'market-data-v1'), `is_discovered` on marketplaces, the
+     * `storefront` external id on sellers, and for listings and offers,
+     * having live observations and no seeded ones. A listing that ingestion
+     * REUSED is still a seeded listing and is still counted here, which is
+     * correct — the seed created it.
+     *
+     * Tables ingestion legitimately appends to without a per-row marker —
+     * capture_runs, raw_documents, rejected_records — are checked as "at
+     * least the seeded count", since the seed's own rows are still there and
+     * a live run adding more is the system working.
+     */
+    const LIVE = "market-data-v1";
+    const seededOnly: Record<string, string> = {
+      marketplaces: `select count(*)::int n from marketplaces where not is_discovered`,
+      sellers: `select count(*)::int n from sellers where external_seller_id <> 'storefront'`,
+      price_observations: `select count(*)::int n from price_observations where parser_version is distinct from '${LIVE}'`,
+      listings: `select count(*)::int n from listings l
+         where not (exists (select 1 from offers o join price_observations po on po.offer_id = o.id
+                            where o.listing_id = l.id and po.parser_version = '${LIVE}')
+               and not exists (select 1 from offers o join price_observations po on po.offer_id = o.id
+                               where o.listing_id = l.id and po.parser_version is distinct from '${LIVE}'))`,
+      offers: `select count(*)::int n from offers o
+         where not (exists (select 1 from price_observations po where po.offer_id = o.id and po.parser_version = '${LIVE}')
+               and not exists (select 1 from price_observations po where po.offer_id = o.id and po.parser_version is distinct from '${LIVE}'))`,
+    };
+    /** Append-only provenance tables: the seed's rows must survive, not be the total. */
+    const appendOnly = new Set(["capture_runs", "raw_documents", "rejected_records"]);
+
     for (const [table, expected] of Object.entries(manifest.counts)) {
-      const actual = await scalar(`select count(*)::int as n from "${table}"`);
-      add(`count ${table}`, actual === expected, `expected ${expected}, found ${actual}`);
+      const total = await scalar(`select count(*)::int as n from "${table}"`);
+
+      if (appendOnly.has(table)) {
+        const extra = total - expected;
+        add(
+          `count ${table}`,
+          total >= expected,
+          `expected at least ${expected}, found ${total}${extra > 0 ? ` (+${extra} from live captures)` : ""}`
+        );
+        continue;
+      }
+
+      const probe = seededOnly[table];
+      const seeded = probe ? await scalar(probe) : total;
+      const live = total - seeded;
+      add(
+        `count ${table}`,
+        seeded === expected,
+        `expected ${expected} seeded, found ${seeded}${live > 0 ? ` (+${live} live-ingested)` : ""}`
+      );
     }
 
     /* -------------------------------------------------------- 2. structure */
@@ -153,8 +210,17 @@ async function main() {
          (select min(po.selling_price_minor + po.shipping_fee_minor)::int from price_observations po
             join offers o on o.id=po.offer_id join listings l on l.id=o.listing_id
             where l.product_id='prod_dove_hair_fall' and po.is_in_stock
-              and po.observed_at = (select max(observed_at) from price_observations)) as cheapest`
+              and po.observed_at = (select max(observed_at) from price_observations
+                                     where parser_version is distinct from 'market-data-v1')) as cheapest`
     );
+    /**
+     * "Today" here means the seed's own last day, not the newest row in the
+     * table. A single live observation dated now moves the global maximum
+     * weeks past the end of the seeded timeline, and every seeded product
+     * then has nothing on that date — this check reported ₹0 for exactly
+     * that reason before the qualifier above was added. The seed is being
+     * verified, so the seed's clock is the right one.
+     */
     const g = golden[0];
     add(
       "golden record — Dove Hair Fall Rescue Shampoo",

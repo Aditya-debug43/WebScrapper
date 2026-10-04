@@ -81,7 +81,7 @@ describe("provider isolation", () => {
 
   test("the normalised offer carries no provider field names", async () => {
     const provider = new FixtureProvider("./fixtures/market-data");
-    const batch = await provider.search({ query: "iPhone 15 128GB", currency: "INR" });
+    const batch = await provider.search({ query: "synthetic edge cases", currency: "INR" });
 
     const [offer] = batch.offers;
     assert.ok(offer);
@@ -99,14 +99,14 @@ describe("provider isolation", () => {
   });
 
   test("prices arrive as integer minor units", async () => {
-    const batch = await new FixtureProvider("./fixtures/market-data").search({ query: "iPhone 15 128GB" });
+    const batch = await new FixtureProvider("./fixtures/market-data").search({ query: "synthetic edge cases" });
     const flipkart = batch.offers.find((o) => o.sourceName === "Flipkart");
     assert.equal(flipkart?.priceMinor, 6_599_900, "₹65,999.00 is 6599900 paise");
     assert.equal(flipkart?.mrpMinor, 7_990_000);
   });
 
   test("delivery: free is zero, a figure is that figure, a promise is unknown", async () => {
-    const batch = await new FixtureProvider("./fixtures/market-data").search({ query: "iPhone 15 128GB" });
+    const batch = await new FixtureProvider("./fixtures/market-data").search({ query: "synthetic edge cases" });
     const by = (source: string) => batch.offers.find((o) => o.sourceName === source);
 
     assert.equal(by("Flipkart")?.shippingFeeMinor, 0, '"Free delivery" is a stated zero');
@@ -119,14 +119,14 @@ describe("provider isolation", () => {
   });
 
   test("stock and condition are read only where the source is explicit", async () => {
-    const batch = await new FixtureProvider("./fixtures/market-data").search({ query: "iPhone 15 128GB" });
+    const batch = await new FixtureProvider("./fixtures/market-data").search({ query: "synthetic edge cases" });
     assert.equal(batch.offers.find((o) => o.sourceName === "Vijay Sales")?.inStock, false);
     assert.equal(batch.offers.find((o) => o.sourceName === "Croma")?.inStock, null, "unstated is not false");
     assert.equal(batch.offers.find((o) => o.externalId === "fx_apple_15_128_renewed")?.condition, "refurbished");
   });
 
   test("unreadable results are reported, not dropped", async () => {
-    const batch = await new FixtureProvider("./fixtures/market-data").search({ query: "Samsung Galaxy S24 256GB" });
+    const batch = await new FixtureProvider("./fixtures/market-data").search({ query: "synthetic malformed results" });
     assert.equal(batch.offers.length, 1, "only one of the four results is usable");
     assert.equal(batch.skipped.length, 3);
     assert.deepEqual(
@@ -156,7 +156,7 @@ describe("provider isolation", () => {
 
     try {
       const secret = "test-only-not-a-real-key-000";
-      const batch = await new SerpApiProvider(secret, 5000).search({ query: "iPhone 15 128GB" });
+      const batch = await new SerpApiProvider(secret, 5000).search({ query: "synthetic edge cases" });
 
       assert.ok(seen[0]?.includes(`api_key=${secret}`), "the real request must carry the key");
       assert.ok(
@@ -320,7 +320,7 @@ describe("matching refuses rather than guesses", () => {
 
 describe("ingestion end to end", () => {
   test("a known product is matched, persisted, and traceable", async () => {
-    const summary = await service().ingestQuery("iPhone 15 128GB", { force: true });
+    const summary = await service().ingestQuery("synthetic edge cases", { force: true });
 
     assert.equal(summary.provider, "fixture");
     assert.equal(summary.offersReceived, 6);
@@ -364,7 +364,7 @@ describe("ingestion end to end", () => {
     const [run] = await h.db
       .select()
       .from(captureRuns)
-      .where(eq(captureRuns.sourceQuery, "iPhone 15 128GB"))
+      .where(eq(captureRuns.sourceQuery, "synthetic edge cases"))
       .orderBy(sql`${captureRuns.startedAt} desc`)
       .limit(1);
 
@@ -409,7 +409,7 @@ describe("ingestion end to end", () => {
       observations: Number((await h.db.select({ n: sql<number>`count(*)` }).from(priceObservations))[0]!.n),
     };
 
-    const summary = await service().ingestQuery("iPhone 15 128GB", { force: true });
+    const summary = await service().ingestQuery("synthetic edge cases", { force: true });
     assert.equal(summary.observationsWritten, 0, "one observation per offer per day; a repeat is a no-op");
 
     const after = {
@@ -421,7 +421,7 @@ describe("ingestion end to end", () => {
   });
 
   test("the freshness window prevents a second provider call", async () => {
-    const summary = await service().ingestQuery("iPhone 15 128GB");
+    const summary = await service().ingestQuery("synthetic edge cases");
     assert.equal(summary.status, "reused");
     assert.equal(summary.source, "cache");
     assert.equal(summary.offersReceived, 0, "nothing was fetched");
@@ -431,7 +431,7 @@ describe("ingestion end to end", () => {
   test("a product absent from the catalogue produces no listings at all", async () => {
     const listingsBefore = Number((await h.db.select({ n: sql<number>`count(*)` }).from(listings))[0]!.n);
 
-    const summary = await service().ingestQuery("POCO X6 Pro 8GB 256GB", { force: true });
+    const summary = await service().ingestQuery("synthetic absent product", { force: true });
 
     assert.equal(summary.offersReceived, 3);
     assert.equal(summary.offersMatched, 0, "the POCO X6 Pro is not in this catalogue — nothing may be guessed");
@@ -487,7 +487,7 @@ describe("ingestion end to end", () => {
       .set({ matchStatus: "human_confirmed", matchConfidence: 1, rawTitle: "CONFIRMED BY A PERSON" })
       .where(eq(listings.id, listing.id));
 
-    await service().ingestQuery("iPhone 15 128GB", { force: true });
+    await service().ingestQuery("synthetic edge cases", { force: true });
 
     const [after] = await h.db
       .select({ status: listings.matchStatus, title: listings.rawTitle })
@@ -507,7 +507,7 @@ describe("the ingestion route", () => {
     const res = await h.app.inject({
       method: "POST",
       url: "/api/v1/ingestion/search",
-      payload: { query: "iPhone 15 128GB" },
+      payload: { query: "synthetic edge cases" },
     });
     assert.equal(res.statusCode, 401, "every call can spend a metered request");
   });
@@ -636,5 +636,228 @@ describe("SerpApi stays inside its adapter", () => {
         `${module} must read observations from the database, not from a provider`
       );
     }
+  });
+});
+
+/* ========================================================================= */
+/* Real captured responses                                                    */
+/* ========================================================================= */
+
+/**
+ * RECORDED FROM LIVE SERPAPI, NOT HAND-WRITTEN.
+ *
+ * The synthetic fixtures above are engineered: every edge case is there
+ * because someone put it there. These three are what Google Shopping actually
+ * returned for three real Indian-market queries, and they are a different
+ * kind of evidence — nobody chose what is in them.
+ *
+ * They immediately found two defects the engineered fixtures could not,
+ * because both needed a catalogue neighbour to expose them:
+ *
+ *   1. Model numbers were being stripped as if they were capacities, so
+ *      "iPhone 13" and "iPhone 15" tokenised identically. Colour words were
+ *      accidentally doing the model number's job.
+ *   2. A title stating no capacity scored as a perfect match against a
+ *      product that states one, so "Apple iPhone 15" would have been filed
+ *      under the 128GB row despite possibly being the 256GB or 512GB.
+ *
+ * Both are pinned below. The capability tokens in `search_metadata` are
+ * redacted in these files exactly as the adapter redacts them before storage.
+ */
+describe("real SerpApi captures", () => {
+  /**
+   * The real catalogue, loaded the way ingestion loads it. Matching real
+   * titles against hand-written candidates would test the candidates.
+   */
+  let realCandidates: MatchCandidate[] = [];
+
+  before(async () => {
+    realCandidates = await new (await import("../src/ingestion/ingestion.repository.js")).IngestionRepository(
+      h.db
+    ).loadMatchCandidates();
+  });
+
+  test("the adapter parses a real response without losing results", async () => {
+    const batch = await new FixtureProvider("./fixtures/market-data").search({ query: "iPhone 15 128GB" });
+    assert.equal(batch.offers.length, 40, "all 40 real results normalise");
+    assert.equal(batch.skipped.length, 0);
+    assert.ok(batch.offers.every((o) => o.priceMinor && o.priceMinor > 0));
+    assert.ok(batch.offers.every((o) => o.rawTitle.length > 0 && o.sourceName.length > 0));
+  });
+
+  /**
+   * Real responses carried no `old_price`, no `extensions` and no `snippet`,
+   * so MRP and stock are simply absent. Asserted rather than glossed over:
+   * the adapter must report that honestly as null instead of inventing a
+   * figure, and the capture-run coverage is what makes the gap visible.
+   */
+  test("absent fields are absent, not invented", async () => {
+    const batch = await new FixtureProvider("./fixtures/market-data").search({ query: "iPhone 15 128GB" });
+    assert.equal(batch.offers.filter((o) => o.mrpMinor != null).length, 0, "Google Shopping gave no list price");
+    assert.equal(batch.offers.filter((o) => o.inStock != null).length, 0, "no stock marker in the real response");
+    assert.ok(
+      batch.offers.some((o) => o.shippingFeeMinor === null),
+      "some results state no delivery terms, and that must survive as null"
+    );
+    assert.ok(batch.offers.some((o) => o.condition === "refurbished" || o.condition === "used"));
+  });
+
+  test("the capability tokens are redacted in what gets stored", async () => {
+    const batch = await new FixtureProvider("./fixtures/market-data").search({ query: "iPhone 15 128GB" });
+    const stored = JSON.stringify(batch.raw);
+
+    /**
+     * The three endpoint fields embed an ACCESS TOKEN, in the path shape
+     * `/searches/<token>/<id>.json`, and each grants a reader the stored copy
+     * of this search. Those are the ones that must not reach the database.
+     *
+     * Result-level `source_icon` and `serpapi_thumbnail` URLs also point at
+     * serpapi.com, but their shape is `/searches/<search-id>/images/...` —
+     * the search id, not the token. They are image assets and grant nothing,
+     * so they stay. Asserting on the domain alone would conflate the two and
+     * force the fixture to be mangled for no security gain.
+     */
+    for (const field of ["json_endpoint", "markdown_endpoint", "raw_html_file"]) {
+      assert.match(stored, new RegExp(`"${field}":\\s*"\\[redacted\\]"`), `${field} must be scrubbed`);
+    }
+    assert.ok(
+      !/serpapi\.com\/searches\/[A-Za-z0-9_-]{30,}\//.test(stored),
+      "no long access token in any stored URL"
+    );
+    assert.ok(!/api_key/.test(stored), "the provider does not echo the key, and nothing adds it");
+  });
+
+  /** REGRESSION 1 — model numbers must survive tokenising. */
+  test("iPhone 13 and iPhone 15 are not the same product", () => {
+    const thirteen = extractVariant("Apple iPhone 13 (128GB) — Midnight").modelTokens;
+    const fifteen = extractVariant("Apple iPhone 15 (128GB) — Blue").modelTokens;
+    assert.ok(thirteen.includes("13"), "the model number is identity, not a capacity");
+    assert.ok(fifteen.includes("15"));
+    assert.notDeepEqual(thirteen, fifteen);
+
+    const v = matchProduct("Apple iPhone 15 | 128GB | Black", realCandidates);
+    assert.equal(v.status, "auto_matched", "a real listing agreeing on model and storage must match");
+    assert.equal(v.productId, "prod_iphone_15_128");
+    assert.ok(v.confidence < 1, "the colour differs from the catalogue row, and that should show");
+  });
+
+  /** REGRESSION 2 — silence about capacity is not agreement about capacity. */
+  test("a title stating no capacity does not match a product that states one", () => {
+    const v = matchProduct("Apple iPhone 15", realCandidates);
+    assert.equal(v.status, "unmatched", "this could equally be the 256GB or the 512GB");
+    assert.match(v.reason, /states no capacity/);
+  });
+
+  test("conservative on real titles: near-misses are all refused", () => {
+    const mustNotMatch = [
+      "Apple iPhone 15 Plus",
+      "Apple iPhone 15 Pro Max 1TB",
+      "Apple iPhone 16",
+      "Refurbished Apple iPhone 15 Plus Blue by Cashify",
+      "Samsung Galaxy S24 Fe 5g (128 Gb) (8 Gb Ram)",
+      "Samsung Galaxy S26 5G (Black, 256 GB) (12 GB RAM)",
+      "Poco X7 Pro 5g (obsidian Black, 256 Gb, 6550 Mah)",
+      "Poco X8 Pro (black, 256 Gb, 6500 Mah)",
+      "POCO X6 Pro 12GB RAM, 512GB Storage (Any Color)",
+    ];
+    for (const title of mustNotMatch) {
+      const v = matchProduct(title, realCandidates);
+      assert.equal(v.status, "unmatched", `"${title}" matched ${JSON.stringify(v)}`);
+    }
+  });
+
+  /**
+   * The honest headline from the live run: of 95 real offers across three
+   * queries, exactly one corresponds to a product this catalogue carries.
+   * That is the correct answer — the catalogue holds no POCO X6 Pro and no
+   * Galaxy S24 at all — and pinning it means a future change that starts
+   * matching more has to justify itself rather than look like progress.
+   */
+  test("95 real offers yield exactly one match against this catalogue", async () => {
+    const provider = new FixtureProvider("./fixtures/market-data");
+    let total = 0;
+    let matched = 0;
+    const hits: string[] = [];
+    for (const query of ["iPhone 15 128GB", "Samsung Galaxy S24 256GB", "POCO X6 Pro 8GB 256GB"]) {
+      const batch = await provider.search({ query });
+      total += batch.offers.length;
+      for (const offer of batch.offers) {
+        const v = matchProduct(offer.rawTitle, realCandidates);
+        if (v.status === "auto_matched") {
+          matched += 1;
+          hits.push(`${offer.sourceName}: ${offer.rawTitle} -> ${v.productId}`);
+        }
+      }
+    }
+    assert.equal(total, 95);
+    assert.deepEqual(hits, ["myG: Apple iPhone 15 | 128GB | Black -> prod_iphone_15_128"]);
+    assert.equal(matched, 1);
+  });
+});
+
+/* ========================================================================= */
+/* The blast radius of a provider outage                                      */
+/* ========================================================================= */
+
+/**
+ * SERPAPI GOING DOWN MUST NOT TAKE THE PRODUCT WITH IT.
+ *
+ * Market data is an input to the pricing intelligence, not a dependency of
+ * it: every number the application serves is computed from observations
+ * already in the database. A provider outage should therefore cost exactly
+ * one thing — the ability to add NEW observations — and nothing else.
+ *
+ * Worth asserting rather than assuming, because the failure mode is quiet.
+ * An ingestion call wired too deeply into a request path would turn a vendor
+ * incident into an outage, and nobody discovers that until the vendor has
+ * one.
+ */
+describe("the backend survives a dead provider", () => {
+  test("every read endpoint still answers while ingestion is failing", async () => {
+    const dead = new IngestionService(h.db, {
+      name: "serpapi",
+      async search() {
+        throw new ProviderError("serpapi", "connect ETIMEDOUT", "timeout", true);
+      },
+    });
+
+    await assert.rejects(() => dead.ingestQuery("anything at all", { force: true }), ProviderError);
+
+    for (const url of [
+      "/api/v1/products/prod_iphone_15_128",
+      "/api/v1/products/prod_iphone_15_128/marketplaces",
+      "/api/v1/products/prod_iphone_15_128/price-history?window=7d",
+      "/api/v1/marketplaces",
+      "/health",
+    ]) {
+      const res = await h.app.inject({ method: "GET", url });
+      assert.ok(
+        res.statusCode < 500,
+        `${url} returned ${res.statusCode} while the market-data provider was down`
+      );
+    }
+  });
+
+  test("an authenticated ingestion request answers 503, not a fabricated empty result", async () => {
+    const token = (await signIn(h, "seller@mulya.test")).token;
+    const res = await h.app.inject({
+      method: "POST",
+      url: "/api/v1/ingestion/search",
+      headers: bearer(token),
+      payload: { query: "a query with no provider configured" },
+    });
+
+    /**
+     * The harness runs with MARKET_DATA_PROVIDER=fixture, so this exercises
+     * the "no recording" path — which is deliberately an `unavailable`
+     * ProviderError rather than zero offers, for exactly the reason the 503
+     * exists: a caller must be able to tell "we could not look" from
+     * "nobody sells this".
+     */
+    assert.equal(res.statusCode, 503);
+    const body = res.json();
+    assert.equal(body.error, "market_data_unavailable");
+    assert.equal(typeof body.retryable, "boolean");
+    assert.ok(!("offers" in body), "a failure must not be dressed up as a result");
   });
 });

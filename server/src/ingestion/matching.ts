@@ -117,10 +117,38 @@ export function extractVariant(title: string): VariantAttributes {
 
   const colour = COLOURS.find((c) => new RegExp(`\\b${c}\\b`).test(text)) ?? null;
 
-  const modelTokens = text
+  /**
+   * Colour words are deliberately EXCLUDED from the model tokens.
+   *
+   * Colour is already extracted into its own field, so leaving it here would
+   * count it twice — and the two readings pull in opposite directions. Real
+   * capture: `myG — "Apple iPhone 15 | 128GB | Black"` against the catalogue's
+   * "Apple iPhone 15 (128GB) — Blue" scored 0.60 and was refused, because one
+   * cosmetic token out of five dragged the overlap down far enough to fail a
+   * match that agreed on model AND storage. Colour barely moves price; storage
+   * does. It is scored below, once, where it can be weighed properly.
+   */
+  /**
+   * CAPACITIES ARE REMOVED AS EXPRESSIONS, BEFORE TOKENISING.
+   *
+   * The earlier filter dropped any token matching a number with an OPTIONAL
+   * gb/tb suffix — which silently ate the model number too. "Apple iPhone 13
+   * (128GB) — Midnight" and "Apple iPhone 15 (128GB) — Blue" both reduced to
+   * [apple, iphone], scored identically against a real listing, and were only
+   * ever told apart by their colour words happening to differ. The single
+   * most distinguishing token in the name was being discarded, and a cosmetic
+   * one was standing in for it.
+   *
+   * Stripping "128GB" as a phrase keeps "13" and "15" — and "S24", "Note 13",
+   * "M14" — where they belong, as model identity.
+   */
+  const withoutCapacities = text
     .replace(/\(.*?\)/g, " ")
+    .replace(/\d+(?:\.\d+)?\s*(?:gb|tb)\b/g, " ");
+
+  const modelTokens = withoutCapacities
     .split(/[^a-z0-9+]+/)
-    .filter((t) => t.length > 1 && !STOPWORDS.has(t) && !/^\d+(gb|tb)?$/.test(t));
+    .filter((t) => t.length > 1 && !STOPWORDS.has(t) && !COLOURS.includes(t));
 
   return { storageGb, ramGb, modelTokens, colour: colour === "gray" ? "grey" : colour };
 }
@@ -226,15 +254,53 @@ export function matchProduct(rawTitle: string, candidates: MatchCandidate[]): Ma
     // Positive agreement on a distinguishing attribute is real evidence.
     if (storage != null && incoming.storageGb === storage) score += 0.1;
     if (ram != null && incoming.ramGb === ram) score += 0.06;
+
+    /**
+     * SILENCE ABOUT STORAGE IS NOT AGREEMENT.
+     *
+     * The gates above treat an attribute missing on one side as neutral,
+     * which is right for colour and wrong for storage. A real capture makes
+     * the point: `desertcart — "Apple iPhone 15"` shares every model token
+     * with the catalogue's 128GB row and states no capacity at all. Scoring
+     * that as a perfect match would file an unknown-capacity offer — it could
+     * equally be the 256GB or 512GB — under the 128GB product, which is
+     * precisely the wrong-variant error this matcher exists to prevent.
+     *
+     * So when the catalogue states a capacity and the title does not, the
+     * missing evidence costs confidence. Storage only: it is the headline
+     * attribute and is advertised whenever it is known, whereas RAM is
+     * routinely omitted (Apple never prints it), and penalising its absence
+     * would discard good data for a convention rather than a fact.
+     */
+    if (storage != null && incoming.storageGb == null) score -= 0.25;
+
+    /**
+     * Colour, scored once and properly.
+     *
+     * Agreement is worth more than the ambiguity threshold (0.05) so that it
+     * can separate two candidates differing ONLY by colour. A stated
+     * disagreement costs slightly more than agreement earns, so a
+     * colour-mismatched match stays visibly below a clean one rather than
+     * being waved through at full confidence.
+     */
     const candidateColour = (axes.colour ?? axes.color)?.toLowerCase() ?? candidateVariant.colour;
-    if (incoming.colour && candidateColour?.includes(incoming.colour)) score += 0.02;
+    const colourVerdict =
+      incoming.colour && candidateColour
+        ? candidateColour.includes(incoming.colour)
+          ? "agrees"
+          : "differs"
+        : "unstated";
+    if (colourVerdict === "agrees") score += 0.08;
+    if (colourVerdict === "differs") score -= 0.15;
 
     scored.push({
       candidate,
       score: Math.max(0, Math.min(1, score)),
-      note: `tokens ${tokenScore.toFixed(2)}${
-        brandForms.length ? (brandPresent ? ", brand present" : ", brand absent from title") : ""
-      }`,
+      note:
+        `tokens ${tokenScore.toFixed(2)}` +
+        (brandForms.length ? (brandPresent ? ", brand present" : ", brand absent from title") : "") +
+        (storage != null && incoming.storageGb == null ? ", title states no capacity" : "") +
+        (colourVerdict === "differs" ? `, colour ${incoming.colour}≠${candidateColour}` : ""),
     });
   }
 
