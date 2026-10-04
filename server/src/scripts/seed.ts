@@ -34,11 +34,18 @@ const ts = (v: unknown) => (v == null ? null : new Date(String(v)));
  * Table load order is foreign-key order. Each entry names the Drizzle table
  * and the transform from an exported row to an insertable one.
  */
-const LOADERS: Array<{ file: string; table: any; map: (r: Row) => Row }> = [
+/**
+ * `index` is the row's position in its file.
+ *
+ * Only one loader uses it — attribute definitions, whose order in the source
+ * registry is editorial and has to survive the load. Passing it to every
+ * mapper costs nothing and avoids a second loader shape.
+ */
+const LOADERS: Array<{ file: string; table: any; map: (r: Row, index: number) => Row }> = [
   {
     file: "categories",
     table: t.categories,
-    map: (r) => ({ id: r.id, parentId: r.parentId ?? null, level: r.level, name: r.name, path: r.path }),
+    map: (r, index) => ({ id: r.id, parentId: r.parentId ?? null, level: r.level, name: r.name, path: r.path, displayOrder: index }),
   },
   {
     file: "product_types",
@@ -59,7 +66,7 @@ const LOADERS: Array<{ file: string; table: any; map: (r: Row) => Row }> = [
   {
     file: "attribute_definitions",
     table: t.attributeDefinitions,
-    map: (r) => ({
+    map: (r, index) => ({
       id: r.id,
       productTypeId: r.productTypeId,
       schemaVersion: r.schemaVersion,
@@ -73,6 +80,8 @@ const LOADERS: Array<{ file: string; table: any; map: (r: Row) => Row }> = [
       filterType: r.filterType ?? null,
       buckets: r.buckets ?? null,
       higherIsBetter: r.higherIsBetter ?? null,
+      // The registry order the sidebar reads in. See the column comment.
+      displayOrder: index,
     }),
   },
   {
@@ -98,7 +107,7 @@ const LOADERS: Array<{ file: string; table: any; map: (r: Row) => Row }> = [
   {
     file: "marketplaces",
     table: t.marketplaces,
-    map: (r) => ({
+    map: (r, index) => ({
       id: r.id,
       name: r.name,
       countryCode: r.countryCode,
@@ -108,6 +117,8 @@ const LOADERS: Array<{ file: string; table: any; map: (r: Row) => Row }> = [
       brandColor: r.brandColor ?? null,
       marketplaceType: r.marketplaceType,
       categoryAffinity: r.categoryAffinity ?? [],
+      // The curated presentation order. Discovered stores get none.
+      displayOrder: index,
     }),
   },
   {
@@ -320,9 +331,11 @@ async function loadTable(db: Db, loader: (typeof LOADERS)[number]) {
     batch = [];
   };
 
+  let index = 0;
   for await (const line of rl) {
     if (!line.trim()) continue;
-    batch.push(loader.map(JSON.parse(line)));
+    batch.push(loader.map(JSON.parse(line), index));
+    index += 1;
     if (batch.length >= BATCH) await flush();
   }
   await flush();

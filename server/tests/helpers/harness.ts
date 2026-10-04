@@ -41,6 +41,19 @@ export type SeedOptions = {
    * assertion would pass for the wrong reason.
    */
   includeProductTypePeers?: boolean;
+  /**
+   * THE WHOLE DATASET, observations included — roughly 390,000 rows.
+   *
+   * Expensive, and used by exactly one suite: catalogue facet parity. Facet
+   * counts are computed over the entire catalogue, and a price facet needs
+   * every product's price, so a scoped fixture cannot answer the question —
+   * every count would be wrong and every assertion would pass for the wrong
+   * reason.
+   *
+   * Nothing else should ask for this. `seedCatalogue` skips observations on
+   * purpose, and that remains the right default.
+   */
+  seedEverything?: boolean;
 };
 
 export async function createTestApp(opts: SeedOptions = {}): Promise<Harness> {
@@ -107,7 +120,8 @@ async function bootstrap(email: EmailAdapter, opts: SeedOptions): Promise<BuiltA
     }
   }
 
-  if (opts.seedCatalogue) await seedCatalogue(db);
+  if (opts.seedEverything) await seedEverything(db);
+  else if (opts.seedCatalogue) await seedCatalogue(db);
   if (opts.marketplaceProducts?.length) {
     await seedMarketplaceGraph(db, opts.marketplaceProducts, opts.includeProductTypePeers ?? false);
   }
@@ -133,8 +147,8 @@ function requireDataset() {
 }
 
 /** Column maps, one per table, shared by both seeders. */
-const MAP = {
-  categories: (r: any) => ({ id: r.id, parentId: r.parentId ?? null, level: r.level, name: r.name, path: r.path }),
+const MAP: Record<string, (r: any, index: number) => any> = {
+  categories: (r: any, index = 0) => ({ id: r.id, parentId: r.parentId ?? null, level: r.level, name: r.name, path: r.path, displayOrder: index }),
   productTypes: (r: any) => ({ id: r.id, categoryId: r.categoryId, name: r.name, schemaVersion: r.schemaVersion }),
   brands: (r: any) => ({
     id: r.id, name: r.name, tier: r.tier, parentCompany: r.parentCompany ?? null, aliasNames: r.aliasNames ?? [],
@@ -147,22 +161,24 @@ const MAP = {
     identifiers: r.identifiers ?? null, lifecycleStatus: r.lifecycleStatus ?? "active",
     firstSeenAt: r.firstSeenAt ?? null,
   }),
-  marketplaces: (r: any) => ({
+  marketplaces: (r: any, index = 0) => ({
     id: r.id, name: r.name, countryCode: r.countryCode, defaultCurrency: r.defaultCurrency,
     websiteDomain: r.websiteDomain, isActive: r.isActive ?? true, brandColor: r.brandColor ?? null,
     marketplaceType: r.marketplaceType, categoryAffinity: r.categoryAffinity ?? [],
+    displayOrder: index,
   }),
   marketplaceCategories: (r: any) => ({
     id: r.id, marketplaceId: r.marketplaceId, externalNodeId: r.externalNodeId, rawPath: r.rawPath,
     mappedCategoryId: r.mappedCategoryId ?? null, mappingConfidence: r.mappingConfidence ?? null,
     mappedBy: r.mappedBy ?? null,
   }),
-  attributeDefinitions: (r: any) => ({
+  attributeDefinitions: (r: any, index = 0) => ({
     id: r.id, productTypeId: r.productTypeId, schemaVersion: r.schemaVersion,
     attributeKey: r.attributeKey, displayName: r.displayName, dataType: r.dataType, unit: r.unit ?? null,
     isRequired: r.isRequired ?? false, isPricingRelevant: r.isPricingRelevant ?? false,
     isFilterable: r.isFilterable ?? false, filterType: r.filterType ?? null,
     buckets: r.buckets ?? null, higherIsBetter: r.higherIsBetter ?? null,
+    displayOrder: index,
   }),
   feeRules: (r: any) => ({
     id: r.id, marketplaceId: r.marketplaceId, categoryId: r.categoryId ?? null,
@@ -228,7 +244,9 @@ async function load(
   db: ReturnType<typeof drizzle>,
   file: string,
   table: unknown,
-  map: (r: any) => any,
+  // `index` is the row's position in the file, which attribute definitions
+  // need: their registry order is editorial and has to survive the load.
+  map: (r: any, index: number) => any,
   opts: { batchSize?: number; keep?: (r: any) => boolean; prefilter?: (line: string) => boolean } = {}
 ) {
   const batchSize = opts.batchSize ?? 2000;
@@ -237,6 +255,7 @@ async function load(
     crlfDelay: Infinity,
   });
   let batch: any[] = [];
+  let index = 0;
   const flush = async () => {
     if (!batch.length) return;
     await (db as any).insert(table).values(batch);
@@ -246,8 +265,13 @@ async function load(
     if (!line.trim()) continue;
     if (opts.prefilter && !opts.prefilter(line)) continue;
     const row = JSON.parse(line);
+    // Counted BEFORE `keep`, so a scoped load gives a row the same ordinal a
+    // full load would. Numbering only the kept rows would make the order
+    // depend on the filter.
+    const position = index;
+    index += 1;
     if (opts.keep && !opts.keep(row)) continue;
-    batch.push(map(row));
+    batch.push(map(row, position));
     if (batch.length >= batchSize) await flush();
   }
   await flush();
@@ -288,6 +312,37 @@ async function seedCatalogue(db: ReturnType<typeof drizzle>) {
 }
 
 /** The complete entity graph for a set of products. See createMarketplaceTestApp. */
+/**
+ * Every table, unfiltered.
+ *
+ * The same files and the same column maps as the scoped seeders — only the
+ * `keep` predicates are gone. Written as its own function rather than as a
+ * flag threaded through `seedMarketplaceGraph`, because that function's whole
+ * structure is the derivation of a scope (listing ids, then offer ids, then
+ * seller ids) and there is nothing to derive here.
+ */
+async function seedEverything(db: ReturnType<typeof drizzle>) {
+  requireDataset();
+  await load(db, "categories", t.categories, MAP.categories);
+  await load(db, "product_types", t.productTypes, MAP.productTypes);
+  await load(db, "brands", t.brands, MAP.brands);
+  await load(db, "products", t.products, MAP.products);
+  await load(db, "marketplaces", t.marketplaces, MAP.marketplaces);
+  await load(db, "marketplace_categories", t.marketplaceCategories, MAP.marketplaceCategories);
+  await load(db, "attribute_definitions", t.attributeDefinitions, MAP.attributeDefinitions);
+  await load(db, "fee_rules", t.feeRules, MAP.feeRules);
+  await load(db, "seller_cost_inputs", t.sellerCostInputs, MAP.sellerCostInputs);
+  await load(db, "listings", t.listings, MAP.listings);
+  await load(db, "sellers", t.sellers, MAP.sellers);
+  await load(db, "seller_rating_snapshots", t.sellerRatingSnapshots, MAP.sellerRatingSnapshots);
+  await load(db, "offers", t.offers, MAP.offers);
+  // 13 columns per row against PostgreSQL's 65,535-parameter statement limit;
+  // see the note in the scoped seeder.
+  await load(db, "price_observations", t.priceObservations, MAP.priceObservations, { batchSize: 1000 });
+  await load(db, "review_snapshots", t.reviewSnapshots, MAP.reviewSnapshots);
+  await load(db, "promotions", t.promotions, MAP.promotions);
+}
+
 async function seedMarketplaceGraph(
   db: ReturnType<typeof drizzle>,
   productIds: string[],

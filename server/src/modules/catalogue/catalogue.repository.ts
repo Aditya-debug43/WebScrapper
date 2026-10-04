@@ -1,7 +1,16 @@
 import { and, asc, desc, eq, ilike, inArray, or, sql, type SQL } from "drizzle-orm";
 import type { Db } from "../../db/client.js";
-import { brands, categories, listings, marketplaces, productTypes, products } from "../../db/schema.js";
+import {
+  attributeDefinitions,
+  brands,
+  categories,
+  listings,
+  marketplaces,
+  productTypes,
+  products,
+} from "../../db/schema.js";
 import { offsetFor } from "../../lib/pagination.js";
+import { UNIVERSAL_EFFECTIVE_MINOR } from "../../lib/priceLadder.js";
 
 /**
  * Qualified column reference for use inside a correlated subquery.
@@ -185,7 +194,7 @@ export class CatalogueRepository {
       })
       .from(categories)
       .where(clauses.length === 0 ? undefined : clauses.length === 1 ? clauses[0] : and(...clauses))
-      .orderBy(asc(categories.level), asc(categories.name));
+      .orderBy(asc(categories.level), sql`${categories.displayOrder} asc nulls last`, asc(categories.name));
   }
 
   async findCategory(id: string) {
@@ -204,18 +213,44 @@ export class CatalogueRepository {
     return rows[0] ?? null;
   }
 
+  /**
+   * The breadcrumb for a category: its ancestors, then itself.
+   *
+   * `path` is a materialised SLUG path — "electronics/mobiles-accessories/
+   * smartphones" — so the ancestors are exactly the categories whose path is a
+   * prefix of it. One query, no tree walk.
+   *
+   * This previously split on " > " and resolved the pieces by NAME, which the
+   * data has never looked like: the split produced a single segment, no row
+   * matched it by name, and `/categories/:id` returned an empty `ancestors`
+   * array for every category. Nothing read it until the catalogue needed a
+   * breadcrumb, so the bug was invisible.
+   *
+   * Matching on path prefixes rather than names is also the sturdier rule —
+   * two categories may share a name under different parents ("Accessories"),
+   * and a name lookup cannot tell them apart.
+   */
   async findCategoryAncestors(path: string) {
-    // `path` is the materialised ancestry ("Beauty > Hair Care > Shampoo");
-    // resolving names to rows keeps breadcrumbs one query rather than a walk.
-    const names = path.split(" > ").map((s) => s.trim()).filter(Boolean);
-    if (names.length === 0) return [];
+    const segments = path.split("/").filter(Boolean);
+    if (segments.length === 0) return [];
+    const prefixes = segments.map((_, i) => segments.slice(0, i + 1).join("/"));
+
     const rows = await this.db
-      .select({ id: categories.id, name: categories.name, level: categories.level })
+      .select({
+        id: categories.id,
+        name: categories.name,
+        level: categories.level,
+        path: categories.path,
+      })
       .from(categories)
-      .where(inArray(categories.name, names));
-    return names
-      .map((n) => rows.find((r) => r.name === n))
-      .filter((r): r is { id: string; name: string; level: number } => Boolean(r));
+      .where(inArray(categories.path, prefixes));
+
+    // Ordered by depth, so the breadcrumb reads root-first regardless of the
+    // order the rows came back in.
+    return prefixes
+      .map((p) => rows.find((r) => r.path === p))
+      .filter((r): r is { id: string; name: string; level: number; path: string } => Boolean(r))
+      .map(({ id, name, level }) => ({ id, name, level }));
   }
 
   async findChildCategories(parentId: string) {
@@ -223,7 +258,7 @@ export class CatalogueRepository {
       .select({ id: categories.id, name: categories.name, level: categories.level })
       .from(categories)
       .where(eq(categories.parentId, parentId))
-      .orderBy(asc(categories.name));
+      .orderBy(sql`${categories.displayOrder} asc nulls last`, asc(categories.name));
   }
 
   async listProductTypes(categoryId?: string) {
@@ -267,7 +302,202 @@ export class CatalogueRepository {
         listingCount: sql<number>`(select count(*)::int from ${listings} l where l.marketplace_id = ${outer("marketplaces", "id")})`,
       })
       .from(marketplaces)
-      .orderBy(asc(marketplaces.name));
+      // Curated order first, discovered stores after it by name.
+      .orderBy(sql`${marketplaces.displayOrder} asc nulls last`, asc(marketplaces.name));
+  }
+
+  /* ------------------------------------------------- the catalogue screen */
+
+  /**
+   * A category and everything beneath it.
+   *
+   * Products hang off LEAF categories, so an exact-match filter on a
+   * department returns nothing — selecting "Electronics" would show an empty
+   * catalogue while claiming hundreds of products exist. `categories.path` is
+   * a materialised slug path ("electronics/mobiles-accessories/smartphones"),
+   * so the subtree is a `path/%` prefix match plus the node itself.
+   *
+   * The separator matters: a `" > "` pattern (which an out-of-date comment on
+   * `findCategoryAncestors` suggested) matches nothing, and the query would
+   * then quietly return just the node — correct for a leaf, and wrong for
+   * every department, which is the case the subtree exists for.
+   */
+  async categorySubtreeIds(categoryId: string): Promise<string[]> {
+    const node = await this.findCategory(categoryId);
+    if (!node) return [];
+    const rows = await this.db
+      .select({ id: categories.id })
+      .from(categories)
+      .where(or(eq(categories.id, node.id), sql`${categories.path} like ${`${node.path}/%`}`));
+    return rows.map((r) => r.id);
+  }
+
+  /**
+   * The product rows in scope for a catalogue query, with the aggregates every
+   * facet and sort needs.
+   *
+   * Scope is category subtree, product type and search — NOT the facet groups,
+   * whose counts have to be computed from the scope with each group's own
+   * selection excluded.
+   *
+   * One query, and deliberately unpaginated: the facet counts are over the
+   * whole scope, not over a page, so the scope has to be resolved in full.
+   * It is bounded by construction — the largest department in this catalogue
+   * holds a few hundred products out of 1,172 — and returns identity plus
+   * numbers, no nested rows.
+   *
+   * Prices are the CHEAPEST and DEAREST in-stock universal-effective price,
+   * taken from the latest observation per offer. Same basis, same rung and
+   * same `distinct on` shape as `AnalysisRepository.currentPrices`, so a price
+   * in the catalogue cannot disagree with the price on the product page.
+   */
+  async scopedSummaries(scope: { categoryIds?: string[]; productTypeId?: string; search?: string }) {
+    const clauses: SQL[] = [eq(products.isPurchasable, true)];
+
+    if (scope.categoryIds) {
+      if (scope.categoryIds.length === 0) return [];
+      clauses.push(inArray(products.categoryId, scope.categoryIds));
+    }
+    if (scope.productTypeId) clauses.push(eq(products.productTypeId, scope.productTypeId));
+    if (scope.search) {
+      const pattern = `%${escapeLike(scope.search)}%`;
+      const match = or(ilike(products.canonicalName, pattern), ilike(products.modelName, pattern));
+      if (match) clauses.push(match);
+    }
+
+    return this.db
+      .select({
+        productId: products.id,
+        canonicalName: products.canonicalName,
+        modelName: products.modelName,
+        firstSeenAt: products.firstSeenAt,
+        lifecycleStatus: products.lifecycleStatus,
+        brandId: products.brandId,
+        categoryId: products.categoryId,
+        productTypeId: products.productTypeId,
+        specifications: products.specifications,
+        variantAxes: products.variantAxes,
+        listingCount: sql<number>`(select count(*)::int from ${listings} l
+                                    where l.product_id = ${outer("products", "id")})`,
+        offerCount: sql<number>`(select count(*)::int from ${listings} l
+                                   join offers o on o.listing_id = l.id
+                                  where l.product_id = ${outer("products", "id")})`,
+        marketplaceIds: sql<string[]>`(select coalesce(array_agg(distinct l.marketplace_id), '{}')
+                                        from ${listings} l
+                                       where l.product_id = ${outer("products", "id")})`,
+        minPriceMinor: sql<number | null>`(
+          select min(x.eff)::int from (
+            select distinct on (po.offer_id) ${UNIVERSAL_EFFECTIVE_MINOR} as eff, po.is_in_stock
+              from price_observations po
+              join offers o   on o.id = po.offer_id
+              join listings l on l.id = o.listing_id
+             where l.product_id = ${outer("products", "id")}
+             order by po.offer_id, po.observed_at desc
+          ) x where x.is_in_stock)`,
+        maxPriceMinor: sql<number | null>`(
+          select max(x.eff)::int from (
+            select distinct on (po.offer_id) ${UNIVERSAL_EFFECTIVE_MINOR} as eff, po.is_in_stock
+              from price_observations po
+              join offers o   on o.id = po.offer_id
+              join listings l on l.id = o.listing_id
+             where l.product_id = ${outer("products", "id")}
+             order by po.offer_id, po.observed_at desc
+          ) x where x.is_in_stock)`,
+        inStock: sql<boolean>`exists (
+          select 1 from (
+            select distinct on (po.offer_id) po.is_in_stock
+              from price_observations po
+              join offers o   on o.id = po.offer_id
+              join listings l on l.id = o.listing_id
+             where l.product_id = ${outer("products", "id")}
+             order by po.offer_id, po.observed_at desc
+          ) y where y.is_in_stock)`,
+      })
+      .from(products)
+      .where(and(...clauses));
+  }
+
+  /**
+   * Identity for the rows on ONE page.
+   *
+   * The facets are computed over the whole scope, but only a page is rendered,
+   * so names, brands and category paths are hydrated for that page alone.
+   * Loading all 1,172 to display 24 would be waste the facet pass does not
+   * require.
+   */
+  async productIdentity(productIds: string[]) {
+    if (productIds.length === 0) return [];
+    return this.db
+      .select({
+        id: products.id,
+        canonicalName: products.canonicalName,
+        modelName: products.modelName,
+        isPurchasable: products.isPurchasable,
+        lifecycleStatus: products.lifecycleStatus,
+        firstSeenAt: products.firstSeenAt,
+        variantAxes: products.variantAxes,
+        brandId: brands.id,
+        brandName: brands.name,
+        brandTier: brands.tier,
+        categoryId: categories.id,
+        categoryName: categories.name,
+        categoryPath: categories.path,
+        productTypeId: productTypes.id,
+        productTypeName: productTypes.name,
+      })
+      .from(products)
+      .innerJoin(brands, eq(brands.id, products.brandId))
+      .innerJoin(categories, eq(categories.id, products.categoryId))
+      .innerJoin(productTypes, eq(productTypes.id, products.productTypeId))
+      .where(inArray(products.id, productIds));
+  }
+
+  /**
+   * The attributes this product type turns into filter facets.
+   *
+   * `is_filterable`, exactly as the browser registry selects them, and in
+   * `display_order` — the registry's own editorial sequence, so the sidebar
+   * still opens with RAM and Storage rather than alphabetically with Battery
+   * and Charging. `attribute_key` is the tiebreak, not the primary order.
+   */
+  async filterableAttributes(productTypeId: string) {
+    return this.db
+      .select({
+        attributeKey: attributeDefinitions.attributeKey,
+        displayName: attributeDefinitions.displayName,
+        filterType: attributeDefinitions.filterType,
+        dataType: attributeDefinitions.dataType,
+        unit: attributeDefinitions.unit,
+        buckets: attributeDefinitions.buckets,
+      })
+      .from(attributeDefinitions)
+      .where(and(eq(attributeDefinitions.productTypeId, productTypeId), eq(attributeDefinitions.isFilterable, true)))
+      .orderBy(sql`${attributeDefinitions.displayOrder} asc nulls last`, asc(attributeDefinitions.attributeKey));
+  }
+
+  /**
+   * The latest review snapshot per listing, for a batch of products.
+   *
+   * Per LISTING, not per product, because that is how reviews are captured —
+   * two marketplaces draw on different customer populations. Aggregating them
+   * into one product rating is a rule (`aggregateReviews`) applied in the
+   * service, and reusing that one rule is what keeps the catalogue's rating
+   * identical to the product page's.
+   */
+  async latestReviewsFor(productIds: string[]) {
+    if (productIds.length === 0) return [];
+    const result = (await this.db.execute(sql`
+      select distinct on (rs.listing_id)
+             l.product_id      as "productId",
+             rs.average_rating as "averageRating",
+             rs.review_count   as "reviewCount"
+        from review_snapshots rs
+        join listings l on l.id = rs.listing_id
+       where l.product_id in (${sql.join(productIds.map((id) => sql`${id}`), sql`, `)})
+       order by rs.listing_id, rs.captured_at desc`)) as unknown as {
+      rows: Array<{ productId: string; averageRating: number | null; reviewCount: number | null }>;
+    };
+    return result.rows;
   }
 
   /* --------------------------------------------- existence, for 400 vs 404 */

@@ -268,6 +268,15 @@ export const sessions = pgTable(
 /* Taxonomy                                                                    */
 /* ========================================================================== */
 
+/**
+ * `displayOrder` carries the taxonomy's own sequence.
+ *
+ * Departments are listed in a merchandising order — Electronics, Home &
+ * Kitchen, Fashion, Beauty — not alphabetically, and that order was previously
+ * implicit in the source file's line order. A database does not preserve it and
+ * `order by name` would replace it with something nobody chose. Nullable, and
+ * those rows sort last.
+ */
 export const categories = pgTable(
   "categories",
   {
@@ -277,10 +286,20 @@ export const categories = pgTable(
     parentId: text("parent_id").references((): AnyPgColumn => categories.id),
     level: smallint("level").notNull(),
     name: text("name").notNull(),
-    // Materialised ancestry ("Beauty > Hair Care > Shampoo"). Denormalised on
-    // purpose: breadcrumbs are rendered on every catalogue request and a
-    // recursive CTE per request buys nothing here.
+    /**
+     * Materialised ancestry as a SLUG path, `/`-separated:
+     * "beauty-personal-care/hair-care/shampoo". Denormalised on purpose —
+     * breadcrumbs are rendered on every catalogue request and a recursive CTE
+     * per request buys nothing here.
+     *
+     * The format is load-bearing, and this comment used to describe a
+     * different one (`"Beauty > Hair Care > Shampoo"`). Code written against
+     * the comment rather than the data split on " > ", matched nothing, and
+     * returned empty breadcrumbs without failing.
+     */
     path: text("path").notNull(),
+    /** Taxonomy order, not alphabetical. See the note above the table. */
+    displayOrder: integer("display_order"),
   },
   (t) => [index("categories_parent_idx").on(t.parentId), index("categories_level_idx").on(t.level)]
 );
@@ -331,6 +350,17 @@ export const attributeDefinitions = pgTable(
     isPricingRelevant: boolean("is_pricing_relevant").notNull().default(false),
     isFilterable: boolean("is_filterable").notNull().default(false),
     filterType: filterTypeEnum("filter_type"),
+    /**
+     * Where this attribute sits in its product type's registry.
+     *
+     * Editorial, not alphabetical: a phone's filters read RAM, Storage,
+     * Battery, Display — most decisive first — and sorting them by key would
+     * open with Battery and Charging. The order was previously implicit in the
+     * source file's line order, which a database does not preserve and
+     * `order by` cannot recover, so it is recorded. Nullable because a row
+     * loaded without one still has to be orderable; those sort last.
+     */
+    displayOrder: integer("display_order"),
     // Facet buckets: [{ label, min, max }] for ranges, or value lists for enums.
     buckets: jsonb("buckets").$type<unknown[]>(),
     // Direction of goodness, so "more RAM is better" but "more weight" is not.
@@ -420,6 +450,16 @@ export const marketplaces = pgTable("marketplaces", {
   // chroma from which platforms carry a product.
   brandColor: text("brand_color"),
   marketplaceType: marketplaceTypeEnum("marketplace_type").notNull(),
+  /**
+   * Presentation order for the curated marketplaces.
+   *
+   * The two horizontals lead, then the verticals — a deliberate order that was
+   * implicit in the source file's line order and is not alphabetical. Left NULL
+   * for discovered stores, which sort after the curated set by name: a store
+   * that arrived from a provider has no editorial position, and inventing one
+   * would rank it against platforms it was never compared with.
+   */
+  displayOrder: integer("display_order"),
   /**
    * True for a store this system learned about from a data provider rather
    * than one it was built around.

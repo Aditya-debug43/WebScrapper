@@ -1,0 +1,1 @@
+ALTER TABLE "marketplaces" ADD COLUMN "display_order" integer;

@@ -77,7 +77,7 @@ const MUTATIONS = [
     to: ');' },
   { id: "ING-M16", why: "colour disagreement no longer costs confidence",
     file: "src/ingestion/matching.ts",
-    find: 'if (colourVerdict === \"differs\") score -= 0.15;',
+    find: 'if (colourVerdict === "differs") score -= 0.15;',
     to: 'if (false) score -= 0.15;' },
 ];
 

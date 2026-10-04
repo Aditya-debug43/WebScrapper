@@ -1,5 +1,14 @@
 import { AppError } from "../../lib/errors.js";
 import { pageMeta } from "../../lib/pagination.js";
+import { aggregateReviews } from "../analysis/competitor.service.js";
+import {
+  buildPriceBuckets,
+  computeFacets,
+  sortSummaries,
+  type CatalogueSort,
+  type CatalogueSummary,
+  type AttributeBucket,
+} from "./facets.js";
 import type { CatalogueRepository, ProductListFilters } from "./catalogue.repository.js";
 
 /**
@@ -66,6 +75,179 @@ export class CatalogueService {
     };
   }
 
+  /**
+   * THE CATALOGUE SCREEN, in one call.
+   *
+   * A composite rather than a resource: the page needs the matching products,
+   * the facet counts to render the sidebar, and the navigation context, and
+   * all three are derived from the same scope. Split across three endpoints
+   * the client would make three round trips and still have to trust that they
+   * saw a consistent scope between them.
+   *
+   * `/products` stays as the plain resource list — this does not replace it,
+   * and nothing here is a second source of truth: both read the same tables.
+   *
+   * Scope (category subtree, product type, search) is applied in SQL. Facet
+   * groups are applied over the scoped set, because their counts have to be
+   * computed with each group's own selection excluded. See `facets.ts`.
+   */
+  async catalogue(input: {
+    categoryId?: string | null;
+    productTypeId?: string | null;
+    search?: string;
+    brandIds: string[];
+    priceBucketIds: string[];
+    ratingId?: string | null;
+    marketplaceIds: string[];
+    inStockOnly: boolean;
+    specFilters: Record<string, string[]>;
+    sort: CatalogueSort;
+    page: number;
+    pageSize: number;
+  }) {
+    // Referential validation first, so an empty result always means "nothing
+    // matched" and never "you filtered on something imaginary".
+    for (const [kind, id] of [
+      ["category", input.categoryId],
+      ["productType", input.productTypeId],
+    ] as const) {
+      if (id && !(await this.repo.exists(kind, id))) {
+        throw new AppError("VALIDATION_FAILED", `Unknown ${kind}: ${id}`, {
+          details: [{ field: kind, message: "does not exist" }],
+        });
+      }
+    }
+
+    const categoryIds = input.categoryId ? await this.repo.categorySubtreeIds(input.categoryId) : undefined;
+
+    const scopedRows = await this.repo.scopedSummaries({
+      categoryIds,
+      productTypeId: input.productTypeId ?? undefined,
+      search: input.search,
+    });
+
+    /**
+     * Spec facets need ONE product type in scope. "RAM" is meaningless across
+     * a set containing both shoes and refrigerators, and offering it would
+     * invite a filter that silently excludes everything without the key.
+     */
+    const typesInScope = new Set(scopedRows.map((r) => r.productTypeId));
+    const resolvedProductType =
+      input.productTypeId ?? (typesInScope.size === 1 ? [...typesInScope][0]! : null);
+
+    const [reviewRows, specDefs, brandRows, marketplaceRows] = await Promise.all([
+      this.repo.latestReviewsFor(scopedRows.map((r) => r.productId)),
+      resolvedProductType ? this.repo.filterableAttributes(resolvedProductType) : Promise.resolve([]),
+      this.repo.listBrands({ page: 1, pageSize: 1000 }),
+      this.repo.listMarketplaces(),
+    ]);
+
+    /**
+     * One rating rule for the whole system. `aggregateReviews` is the same
+     * function the analysis and competitor layers call — review-count-weighted
+     * mean of each listing's latest rating, with the counts summed. The
+     * catalogue once used "take the maximum" and disagreed with the product
+     * page on 80 of 89 products; sharing the function is what prevents that
+     * returning.
+     */
+    const reviewsByProduct = new Map<string, Array<{ averageRating: number | null; reviewCount: number | null }>>();
+    for (const r of reviewRows) {
+      const list = reviewsByProduct.get(r.productId) ?? [];
+      list.push({ averageRating: r.averageRating, reviewCount: r.reviewCount });
+      reviewsByProduct.set(r.productId, list);
+    }
+
+    const scoped: CatalogueSummary[] = scopedRows.map((r) => {
+      const review = aggregateReviews(reviewsByProduct.get(r.productId) ?? []);
+      return {
+        productId: r.productId,
+        brandId: r.brandId,
+        categoryId: r.categoryId,
+        productTypeId: r.productTypeId,
+        minPriceMinor: r.minPriceMinor ?? null,
+        maxPriceMinor: r.maxPriceMinor ?? null,
+        marketplaceIds: r.marketplaceIds ?? [],
+        listingCount: r.listingCount,
+        offerCount: r.offerCount,
+        rating: review.rating,
+        reviewCount: review.reviewCount ?? 0,
+        inStock: r.inStock,
+        firstSeenAt: r.firstSeenAt,
+        canonicalName: r.canonicalName,
+        specifications: (r.specifications ?? {}) as Record<string, unknown>,
+      };
+    });
+
+    const buckets = buildPriceBuckets(scoped);
+    const { results, facets } = computeFacets({
+      scoped,
+      selection: {
+        brandIds: input.brandIds,
+        priceBucketIds: input.priceBucketIds,
+        ratingId: input.ratingId ?? null,
+        marketplaceIds: input.marketplaceIds,
+        inStockOnly: input.inStockOnly,
+        specFilters: input.specFilters,
+      },
+      buckets,
+      specDefs: specDefs.map((d) => ({
+        attributeKey: d.attributeKey,
+        displayName: d.displayName,
+        filterType: (d.filterType ?? "enum") as "range" | "enum" | "boolean",
+        dataType: d.dataType,
+        unit: d.unit,
+        buckets: (d.buckets ?? null) as AttributeBucket[] | null,
+      })),
+      brandsById: new Map(brandRows.rows.map((b) => [b.id, b.name])),
+      marketplacesById: new Map(marketplaceRows.map((m) => [m.id, m.name])),
+    });
+
+    const ordered = sortSummaries(results, input.sort);
+    const offset = (input.page - 1) * input.pageSize;
+    const pageRows = ordered.slice(offset, offset + input.pageSize);
+
+    // Identity for the page's rows only — the facet counts already carry the
+    // numbers, and hydrating 1,172 products to render 24 would be waste.
+    const detail = await this.repo.productIdentity(pageRows.map((r) => r.productId));
+    const detailById = new Map(detail.map((d) => [d.id, d]));
+
+    const navigation = await this.navigationFor(input.categoryId ?? null);
+
+    return {
+      data: pageRows.map((r) => ({
+        ...shapeCatalogueRow(r, detailById.get(r.productId)),
+      })),
+      pagination: pageMeta(input.page, input.pageSize, ordered.length),
+      facets,
+      priceBuckets: buckets,
+      meta: {
+        scopeTotal: scoped.length,
+        resolvedProductTypeId: resolvedProductType,
+        sort: input.sort,
+        ...navigation,
+      },
+    };
+  }
+
+  /** Breadcrumb, sibling categories and the product types a scope offers. */
+  private async navigationFor(categoryId: string | null) {
+    if (!categoryId) {
+      return {
+        breadcrumb: [] as Array<{ id: string; name: string; level: number }>,
+        childCategories: await this.repo.listCategories({ parentId: null }),
+        productTypesInScope: [] as Array<{ id: string; categoryId: string; name: string }>,
+      };
+    }
+    const category = await this.repo.findCategory(categoryId);
+    if (!category) return { breadcrumb: [], childCategories: [], productTypesInScope: [] };
+    const [breadcrumb, childCategories, productTypesInScope] = await Promise.all([
+      this.repo.findCategoryAncestors(category.path),
+      this.repo.findChildCategories(category.id),
+      this.repo.listProductTypes(category.id),
+    ]);
+    return { breadcrumb, childCategories, productTypesInScope };
+  }
+
   async listCategories(opts: { parentId?: string | null; level?: number }) {
     return { data: await this.repo.listCategories(opts) };
   }
@@ -89,6 +271,63 @@ export class CatalogueService {
   async listMarketplaces() {
     return { data: await this.repo.listMarketplaces() };
   }
+}
+
+/**
+ * One catalogue row: identity, plus the numbers the card shows.
+ *
+ * `rating`, `reviewCount` and the prices are NULLABLE and stay null when the
+ * data is absent. A card that prints "4.0★" for a product with no review
+ * snapshot, or "₹0" for one with no in-stock offer, is inventing evidence —
+ * and with live provider data those gaps are now common rather than
+ * theoretical.
+ */
+function shapeCatalogueRow(
+  s: CatalogueSummary,
+  d:
+    | {
+        id: string;
+        canonicalName: string;
+        modelName: string;
+        isPurchasable: boolean;
+        lifecycleStatus: string;
+        firstSeenAt: string | null;
+        variantAxes: Record<string, string> | null;
+        brandId: string;
+        brandName: string;
+        brandTier: string;
+        categoryId: string;
+        categoryName: string;
+        categoryPath: string;
+        productTypeId: string;
+        productTypeName: string;
+      }
+    | undefined
+) {
+  return {
+    product: d
+      ? {
+          id: d.id,
+          canonicalName: d.canonicalName,
+          modelName: d.modelName,
+          isPurchasable: d.isPurchasable,
+          lifecycleStatus: d.lifecycleStatus,
+          firstSeenAt: d.firstSeenAt,
+          variantAxes: d.variantAxes ?? null,
+          brand: { id: d.brandId, name: d.brandName, tier: d.brandTier },
+          category: { id: d.categoryId, name: d.categoryName, path: d.categoryPath },
+          productType: { id: d.productTypeId, name: d.productTypeName },
+        }
+      : { id: s.productId, canonicalName: s.canonicalName },
+    minPriceMinor: s.minPriceMinor,
+    maxPriceMinor: s.maxPriceMinor,
+    marketplaceIds: s.marketplaceIds,
+    listingCount: s.listingCount,
+    offerCount: s.offerCount,
+    rating: s.rating,
+    reviewCount: s.reviewCount,
+    inStock: s.inStock,
+  };
 }
 
 /** The one place that decides which product columns leave the server. */

@@ -20,7 +20,9 @@
     "db:seed:prod": "node dist/scripts/seed.js",
     "db:verify:prod": "node dist/scripts/verify.js",
     "start:migrate": "node dist/scripts/migrate.js && node dist/server.js",
-    "email:check": "tsx src/scripts/email-check.ts"
+    "email:check": "tsx src/scripts/email-check.ts",
+    "db:backfill:order": "tsx src/scripts/backfill-display-order.ts",
+    "db:backfill:order:prod": "node dist/scripts/backfill-display-order.js"
   },
   "dependencies": {
     "@fastify/cors": "^11.3.0",
