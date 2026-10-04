@@ -331,7 +331,7 @@ export class AnalysisService {
     if (!target) throw new AppError("NOT_FOUND", `No product with id ${productId}.`);
     await this.requireMarketplace(opts.marketplaceId);
 
-    const referenceDate = await this.repo.referenceDate();
+    const referenceDate = await this.repo.referenceDate(productId);
     if (!referenceDate) throw new AppError("NOT_FOUND", "No price observations have been captured.");
 
     /**

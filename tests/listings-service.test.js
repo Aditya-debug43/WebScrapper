@@ -15,6 +15,7 @@ vi.mock("../src/api/http", () => ({ apiRequest: mocks.apiRequest }));
 const { getMarketplaceComparison, presentMarketplaceComparison, getListingDetail, presentListingDetail } =
   await import("../src/api/listingsService");
 const { getWorkspaceContext } = await import("../src/api/workspaceService");
+const { getPriceHistoryForListing, presentPriceHistory } = await import("../src/api/priceHistoryService");
 const { getMarketplaceDirectory, resetMarketplaceDirectory } = await import("../src/api/marketplacesService");
 
 /** A curated platform and a discovered one, side by side. */
@@ -284,5 +285,75 @@ describe("the marketplace directory", () => {
     const dir = await getMarketplaceDirectory();
     expect(dir.get("mp_flipkart").name).toBe("Flipkart");
     expect(mocks.apiRequest).toHaveBeenCalledTimes(2);
+  });
+});
+
+describe("the price history", () => {
+  const body = {
+    data: {
+      listing: { id: "lst_az", rawTitle: "Apple iPhone 15 (128 GB) - Blue" },
+      product: { id: "prod_a", canonicalName: "Apple iPhone 15 (128GB) — Blue" },
+      marketplace: { id: "mp_amazon_in", name: "Amazon.in" },
+      offers: [
+        {
+          offerId: "off_1",
+          sellerId: "s1",
+          sellerName: "Appario Retail Pvt Ltd",
+          observations: [
+            { observationId: "o1", observedAt: "2026-07-07", isInStock: true, sellingPriceMinor: 7115000, shippingFeeMinor: 0, landedMinor: 7115000, universalEffectiveMinor: 7115000, conditionalBestMinor: 7115000, mrpMinor: 7990000 },
+            { observationId: "o2", observedAt: "2026-08-13", isInStock: true, sellingPriceMinor: 7446000, shippingFeeMinor: 0, landedMinor: 7446000, universalEffectiveMinor: 7446000, conditionalBestMinor: 7446000, mrpMinor: 7990000 },
+          ],
+        },
+      ],
+    },
+    summary: { n: 2 },
+    meta: {
+      listingId: "lst_az",
+      range: { from: "2026-07-07", to: "2026-10-04" },
+      window: { key: "3m" },
+      observationCount: 2,
+      priceBasis: { basis: "universalEffective" },
+    },
+  };
+
+  it("asks the listing's own history endpoint", async () => {
+    mocks.apiRequest.mockImplementation(async () => body);
+    await getPriceHistoryForListing("lst_az", { window: "3m" });
+    expect(mocks.apiRequest.mock.calls[0][0]).toBe("/listings/lst_az/price-history?window=3m");
+  });
+
+  it("omits the window when none is asked for, so the server's default stands", async () => {
+    mocks.apiRequest.mockImplementation(async () => body);
+    await getPriceHistoryForListing("lst_az");
+    expect(mocks.apiRequest.mock.calls[0][0]).toBe("/listings/lst_az/price-history");
+  });
+
+  it("gives one series per seller, chronological", () => {
+    const view = presentPriceHistory(body);
+    expect(view.series).toHaveLength(1);
+    expect(view.series[0].seller.name).toBe("Appario Retail Pvt Ltd");
+    const dates = view.series[0].observations.map((o) => o.observedAt);
+    expect(dates).toEqual([...dates].sort());
+  });
+
+  /**
+   * The page reads `effectiveMinor`. It is the server's
+   * `universalEffectiveMinor` renamed, never recomputed — deriving it again
+   * is how two screens start disagreeing about one observation.
+   */
+  it("renames the effective rung without recomputing it", () => {
+    const [first] = presentPriceHistory(body).series[0].observations;
+    expect(first.effectiveMinor).toBe(7115000);
+    expect(first.landedMinor).toBe(7115000);
+  });
+
+  it("returns null for a listing the backend does not have", () => {
+    expect(presentPriceHistory(undefined)).toBeNull();
+  });
+
+  it("renders an empty chart rather than failing when nothing is in range", () => {
+    const view = presentPriceHistory({ data: { ...body.data, offers: [] }, meta: body.meta });
+    expect(view.series).toEqual([]);
+    expect(view.observationCount).toBe(2);
   });
 });

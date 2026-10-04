@@ -486,7 +486,39 @@ export class AnalysisRepository {
     return found.map((r) => r.id);
   }
 
-  async referenceDate(): Promise<string | null> {
+  /**
+   * The date this dataset considers "today", for anchoring windows.
+   *
+   * SCOPED TO A PRODUCT when one is given, and that scoping is the fix for a
+   * real defect. A global `max(observed_at)` is only meaningful while every
+   * product shares one timeline, which stopped being true the moment live
+   * provider data arrived: one product captured today moved the anchor for all
+   * 1,172, and every seeded product was then measured against a window its
+   * data ends seven weeks before. Measured on this dataset, the one-month
+   * window went from 96,149 observations to zero, and the price-history screen
+   * rendered empty for products with years of history.
+   *
+   * A product's "today" is the last day IT was observed. That answer is
+   * unchanged for a uniformly-seeded dataset, correct for a mixed one, and
+   * advances by itself as a product gets fresh captures — which is what a
+   * growing live timeline requires.
+   *
+   * Falls back to the global maximum for a product with no observations at
+   * all, so an unobserved product still resolves a window instead of failing.
+   */
+  async referenceDate(productId?: string): Promise<string | null> {
+    if (productId) {
+      const scoped = await one<{ latest: string | null }>(
+        this.db,
+        sql`select max(po.observed_at)::text as latest
+              from price_observations po
+              join offers o   on o.id = po.offer_id
+              join listings l on l.id = o.listing_id
+             where l.product_id = ${productId}`
+      );
+      if (scoped?.latest) return scoped.latest;
+    }
+
     const row = await one<{ latest: string | null }>(
       this.db,
       sql`select max(observed_at)::text as latest from price_observations`

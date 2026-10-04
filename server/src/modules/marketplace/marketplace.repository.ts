@@ -59,6 +59,8 @@ export type OfferSort = "effective_price_asc" | "effective_price_desc" | "price_
 
 export type HistoryFilters = Page & {
   marketplaceId?: string;
+  /** One listing. The price-history screen is addressed by listing. */
+  listingId?: string;
   sellerId?: string;
   offerId?: string;
   from: string;
@@ -95,18 +97,66 @@ export class MarketplaceRepository {
    * The most recent capture the data actually holds. Anchoring windows on a
    * wall clock would make every one of them empty, because this dataset ends
    * in the past; anchoring on a constant would break the moment it is
-   * regenerated. Cached for the process lifetime — the seeded data does not
-   * change under a running server.
+   * regenerated.
+   *
+   * SCOPED TO A PRODUCT when one is given. A global maximum is only
+   * meaningful while every product shares one timeline, and live provider
+   * data ended that: one product captured today moved the anchor for all
+   * 1,172, so every seeded product was measured against a window its data
+   * ends seven weeks before. The price-history screen rendered empty for
+   * listings with months of history — the default one-month window held zero
+   * of 96,149 observations.
+   *
+   * ── The cache is gone, and that is part of the same fix ─────────────────
+   * It was held for the process lifetime on the reasoning that "the seeded
+   * data does not change under a running server". Ingestion made that false:
+   * a capture taken while the server is up would have stayed invisible until
+   * a restart. The query is one indexed maximum; caching it bought very
+   * little and now costs correctness.
    */
-  private referenceDateCache: string | null = null;
-  async referenceDate(): Promise<string | null> {
-    if (this.referenceDateCache) return this.referenceDateCache;
+  /**
+   * The anchor for ONE LISTING.
+   *
+   * A finer scope than the product, and necessary for the same reason the
+   * product scope was: a product can carry fresh data on one platform and
+   * months-old data on another. `prod_iphone_15_128` is captured on myG today
+   * and was last captured on Amazon seven weeks ago, so anchoring the Amazon
+   * listing's history on the PRODUCT still produced an empty window — the
+   * right answer was simply one level down.
+   *
+   * The rule, stated once: a view is anchored on the last capture of the thing
+   * it is about. A listing view by its listing, a product view by its product,
+   * and anything unscoped by the dataset.
+   */
+  async listingReferenceDate(listingId: string): Promise<string | null> {
+    const row = await one<{ latest: string | null }>(
+      this.db,
+      sql`select max(po.observed_at)::text as latest
+            from price_observations po
+            join offers o on o.id = po.offer_id
+           where o.listing_id = ${listingId}`
+    );
+    return row?.latest ?? null;
+  }
+
+  async referenceDate(productId?: string): Promise<string | null> {
+    if (productId) {
+      const scoped = await one<{ latest: string | null }>(
+        this.db,
+        sql`select max(po.observed_at)::text as latest
+              from price_observations po
+              join offers o   on o.id = po.offer_id
+              join listings l on l.id = o.listing_id
+             where l.product_id = ${productId}`
+      );
+      if (scoped?.latest) return scoped.latest;
+    }
+
     const row = await one<{ latest: string | null }>(
       this.db,
       sql`select max(observed_at)::text as latest from price_observations`
     );
-    this.referenceDateCache = row?.latest ?? null;
-    return this.referenceDateCache;
+    return row?.latest ?? null;
   }
 
   /**
@@ -710,6 +760,7 @@ export class MarketplaceRepository {
     const clauses: SQL[] = [sql`po.observed_at >= ${f.from}`, sql`po.observed_at <= ${f.to}`];
     if (productId) clauses.push(sql`l.product_id = ${productId}`);
     if (f.marketplaceId) clauses.push(sql`l.marketplace_id = ${f.marketplaceId}`);
+    if (f.listingId) clauses.push(sql`l.id = ${f.listingId}`);
     if (f.sellerId) clauses.push(sql`o.seller_id = ${f.sellerId}`);
     if (f.offerId) clauses.push(sql`po.offer_id = ${f.offerId}`);
     return sql.join(clauses, sql` and `);

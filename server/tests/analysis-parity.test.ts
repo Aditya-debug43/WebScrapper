@@ -4,7 +4,14 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { createAnalysisTestApp, signIn, bearer, type Harness, type Json } from "./helpers/harness.js";
+import {
+  createAnalysisTestApp,
+  signIn,
+  bearer,
+  productsWithOlderOwnAnchor,
+  type Harness,
+  type Json,
+} from "./helpers/harness.js";
 
 /**
  * PARITY-01…PARITY-10 — the backend against the validated frontend engine.
@@ -63,9 +70,17 @@ const closeTo = (actual: unknown, expected: unknown, label: string) => {
   );
 };
 
+/**
+ * Products the per-product reference date resolves differently from the
+ * global one — the only ones where this fixture's global anchoring and the
+ * backend's can disagree. Computed from the seeded data, not listed.
+ */
+let olderAnchor: Set<string> = new Set();
+
 before(async () => {
   h = await createAnalysisTestApp(fixture.cases.map((c) => c.productId as string));
   ({ token } = await signIn(h, "parity@example.com"));
+  olderAnchor = await productsWithOlderOwnAnchor(h.db);
 });
 after(async () => {
   await h.close();
@@ -440,9 +455,30 @@ describe("PARITY-04b — market statistics the next phase will consume", () => {
   for (const testCase of loadCases().filter((c) => c.normalMinor != null)) {
     it(`${testCase.productId}: the 90-day normal and its distortion match`, async () => {
       const data = await fullAnalysis(testCase);
-      // A one-day error in the window boundary moves this number, which is
-      // why it is asserted rather than left implicit in a finding direction.
-      closeTo(data.normalMinor, testCase.normalMinor, "normalMinor");
+
+      /**
+       * The trailing medians anchor on the reference date, and that date is
+       * now resolved PER PRODUCT. The change is deliberate: a single live
+       * capture in one product used to move the anchor for all 1,172, and
+       * every seeded product was then measured against a window its data ends
+       * seven weeks before — the one-month window held zero of 96,149
+       * observations.
+       *
+       * The engine that produced this fixture anchors globally, so for a
+       * product captured a day before the dataset maximum the two measure
+       * ninety days from different days and the median moves by a few rupees.
+       * That is two different windows rather than a tolerance, so the
+       * anchor-derived values are compared only where the two anchors agree.
+       * `reference-date.test.ts` asserts the new rule directly.
+       *
+       * Everything else in this test — the distortion state and ratio — is
+       * still compared for every product.
+       */
+      if (!olderAnchor.has(testCase.productId as string)) {
+        // A one-day error in the window boundary moves this number, which is
+        // why it is asserted rather than left implicit in a finding direction.
+        closeTo(data.normalMinor, testCase.normalMinor, "normalMinor");
+      }
       assert.equal((data.distortion as Json).state, testCase.distortionState, "distortion state");
       closeTo(
         Math.round(((data.distortion as Json).ratio as number) * 1000) / 1000,

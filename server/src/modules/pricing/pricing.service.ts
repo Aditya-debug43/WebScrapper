@@ -258,7 +258,7 @@ export class PricingService {
     const target = await this.analysisRepo.findProduct(productId);
     if (!target) throw new AppError("NOT_FOUND", `No product with id ${productId}.`);
 
-    const referenceDate = await this.analysisRepo.referenceDate();
+    const referenceDate = await this.analysisRepo.referenceDate(productId);
     if (!referenceDate) throw new AppError("NOT_FOUND", "No price observations have been captured.");
 
     // Phase 5 does the analysis; this service does not repeat any of it.

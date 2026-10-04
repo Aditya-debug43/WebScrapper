@@ -128,6 +128,34 @@ export function registerMarketplaceRoutes(app: FastifyInstance, marketplace: Mar
     marketplace.listingDetail(id(request))
   );
 
+  /**
+   * One listing's price history, one line per competing seller.
+   *
+   * Addressed by listing like the screen that reads it, and unpaginated
+   * because a chart cannot be drawn from a page.
+   */
+  app.get(
+    "/listings/:id/price-history",
+    {
+      schema: {
+        params: idParam,
+        querystring: {
+          type: "object",
+          additionalProperties: false,
+          properties: {
+            window: { type: "string", enum: [...WINDOW_KEYS] },
+            from: { type: "string", format: "date" },
+            to: { type: "string", format: "date" },
+          },
+        },
+      },
+    },
+    async (request) => {
+      const q = request.query as { window?: WindowKey; from?: string; to?: string };
+      return marketplace.listingPriceHistory(id(request), { window: q.window, from: q.from, to: q.to });
+    }
+  );
+
   /* ------------------------------------------------------------- offers */
 
   app.get(

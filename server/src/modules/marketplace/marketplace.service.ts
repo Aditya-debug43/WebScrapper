@@ -76,8 +76,8 @@ export class MarketplaceService {
    * from. If the observation table is empty there is no honest anchor, and
    * saying so is better than inventing today's date.
    */
-  private async anchor(): Promise<string> {
-    const date = await this.repo.referenceDate();
+  private async anchor(productId?: string): Promise<string> {
+    const date = await this.repo.referenceDate(productId);
     if (!date) {
       throw new AppError("NOT_FOUND", "No price observations have been captured, so no window can be resolved.");
     }
@@ -89,7 +89,7 @@ export class MarketplaceService {
   async productMarketplaces(productId: string) {
     await this.requireProduct(productId);
     const rows = await this.repo.marketplaceSummary(productId);
-    const referenceDate = await this.repo.referenceDate();
+    const referenceDate = await this.repo.referenceDate(productId);
 
     /**
      * Commercial context, per platform: the fee rule in force and what the
@@ -291,7 +291,7 @@ export class MarketplaceService {
     const listing = await this.repo.findListing(listingId);
     if (!listing) throw new AppError("NOT_FOUND", `No listing with id ${listingId}.`);
 
-    const asOf = (await this.repo.referenceDate()) ?? new Date().toISOString().slice(0, 10);
+    const asOf = (await this.repo.referenceDate(listing.productId)) ?? new Date().toISOString().slice(0, 10);
 
     /**
      * Offers are read unpaginated for one listing, deliberately: a listing
@@ -497,7 +497,7 @@ export class MarketplaceService {
     }
 
     const { data, total } = await this.repo.listOffers(productId, f);
-    const referenceDate = await this.repo.referenceDate();
+    const referenceDate = await this.repo.referenceDate(productId);
 
     return {
       data: data.map((r) => ({
@@ -558,6 +558,111 @@ export class MarketplaceService {
     return this.history(productId, opts, { productId });
   }
 
+  /**
+   * ONE LISTING'S PRICE HISTORY, grouped by the offer that produced it.
+   *
+   * The screen draws one line per competing seller, so a flat observation list
+   * would have to be regrouped by the client — and a paginated one could not be
+   * regrouped at all without fetching every page first.
+   *
+   * Deliberately unpaginated, and bounded by construction: this is one
+   * listing's offers over one window, which is a handful of sellers times the
+   * capture days in range. The product-scoped endpoint stays paginated, because
+   * there the row count scales with the number of platforms.
+   */
+  async listingPriceHistory(listingId: string, opts: { window?: WindowKey; from?: string; to?: string }) {
+    const listing = await this.repo.findListing(listingId);
+    if (!listing) throw new AppError("NOT_FOUND", `No listing with id ${listingId}.`);
+
+    /**
+     * Anchored on THE LISTING, not its product. A product can be captured
+     * today on one platform and seven weeks ago on another, so the product
+     * anchor would still empty this window — see listingReferenceDate.
+     */
+    const referenceDate =
+      (await this.repo.listingReferenceDate(listingId)) ?? (await this.anchor(listing.productId));
+    const range = this.resolveRange(opts, referenceDate);
+
+    const filters: HistoryFilters = {
+      page: 1,
+      // One listing's window. Large enough that a long history is never
+      // silently truncated, bounded so a bug cannot ask for the whole table.
+      pageSize: 5000,
+      from: range.from,
+      to: range.to,
+      listingId,
+    };
+
+    const [{ data }, series] = await Promise.all([
+      this.repo.observations(listing.productId, filters),
+      this.repo.dailySeries(listing.productId, filters),
+    ]);
+
+    /**
+     * Grouped by offer, each offer's observations oldest-first.
+     *
+     * The repository returns newest-first, which is right for a paginated
+     * table and wrong for a line: a chart drawn from a reversed series runs
+     * backwards. Reversing here rather than asking for a second sort order
+     * keeps one query behind both readings.
+     */
+    const byOffer = new Map<
+      string,
+      { offerId: string; sellerId: string; sellerName: string; observations: typeof data }
+    >();
+    for (const row of data) {
+      const entry =
+        byOffer.get(row.offerId) ??
+        { offerId: row.offerId, sellerId: row.sellerId, sellerName: row.sellerName, observations: [] };
+      entry.observations.push(row);
+      byOffer.set(row.offerId, entry);
+    }
+
+    const offers = [...byOffer.values()].map((o) => ({
+      ...o,
+      observations: [...o.observations].reverse(),
+    }));
+
+    return {
+      data: {
+        listing: {
+          id: listing.id,
+          externalListingId: listing.externalListingId,
+          listingUrl: listing.listingUrl,
+          rawTitle: listing.rawTitle,
+          matchStatus: listing.matchStatus,
+          matchConfidence: listing.matchConfidence,
+        },
+        product: {
+          id: listing.productId,
+          canonicalName: listing.productName,
+          brand: { id: listing.brandId, name: listing.brandName },
+        },
+        marketplace: {
+          id: listing.marketplaceId,
+          name: listing.marketplaceName,
+          brandColor: listing.brandColor,
+          isDiscovered: listing.isDiscovered,
+        },
+        /** One entry per competing seller — the lines the chart draws. */
+        offers,
+      },
+      summary: summarise(series),
+      meta: {
+        listingId,
+        productId: listing.productId,
+        referenceDate,
+        window: range.window,
+        range: { from: range.from, to: range.to },
+        priceBasis: PRICE_BASIS,
+        seriesDefinition:
+          "One line per offer: every observation captured for that offer in range, oldest first.",
+        observationCount: data.length,
+        offerCount: offers.length,
+      },
+    };
+  }
+
   async offerPriceHistory(offerId: string, opts: Page & { window?: WindowKey; from?: string; to?: string }) {
     const offer = await this.repo.findOffer(offerId);
     if (!offer) throw new AppError("NOT_FOUND", `No offer with id ${offerId}.`);
@@ -578,7 +683,7 @@ export class MarketplaceService {
     opts: Page & { window?: WindowKey; from?: string; to?: string; marketplaceId?: string; sellerId?: string; offerId?: string },
     subject: Record<string, unknown>
   ) {
-    const referenceDate = await this.anchor();
+    const referenceDate = await this.anchor(productId ?? undefined);
     const range = this.resolveRange(opts, referenceDate);
 
     const filters: HistoryFilters = {
@@ -624,7 +729,7 @@ export class MarketplaceService {
   async priceSummary(productId: string, opts: { windows: WindowKey[]; marketplaceId?: string }) {
     await this.requireProduct(productId);
     await this.requireMarketplace(opts.marketplaceId);
-    const referenceDate = await this.anchor();
+    const referenceDate = await this.anchor(productId);
 
     const windows = await Promise.all(
       opts.windows.map(async (key) => {
@@ -781,7 +886,7 @@ export class MarketplaceService {
   async productRatingHistory(productId: string, opts: { marketplaceId?: string; window?: WindowKey; from?: string; to?: string }) {
     await this.requireProduct(productId);
     await this.requireMarketplace(opts.marketplaceId);
-    const referenceDate = await this.anchor();
+    const referenceDate = await this.anchor(productId);
     const range = this.resolveRange(opts, referenceDate);
 
     // Snapshots are few per listing, so the whole range is returned rather
@@ -848,7 +953,7 @@ export class MarketplaceService {
   ) {
     await this.requireProduct(productId);
     await this.requireMarketplace(f.marketplaceId);
-    const asOf = await this.anchor();
+    const asOf = await this.anchor(productId);
     const { data, total } = await this.repo.promotions(productId, { ...f, asOf });
 
     return {

@@ -4,7 +4,14 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { createAnalysisTestApp, signIn, bearer, type Harness, type Json } from "./helpers/harness.js";
+import {
+  createAnalysisTestApp,
+  signIn,
+  bearer,
+  productsWithOlderOwnAnchor,
+  type Harness,
+  type Json,
+} from "./helpers/harness.js";
 
 /**
  * REC-01…10, WTP-01…07 — the backend recommendation against the validated
@@ -28,9 +35,18 @@ const cases = () => fixture.cases;
 let h: Harness;
 let token: string;
 
+/**
+ * Products whose own last capture predates the dataset maximum. The reference
+ * date is resolved per product, so for these the anchor-derived figures are
+ * measured over a different ninety days than this fixture was. See the note
+ * in analysis-parity.test.ts and the rule in reference-date.test.ts.
+ */
+let olderAnchor: Set<string> = new Set();
+
 before(async () => {
   h = await createAnalysisTestApp(cases().map((c) => c.productId as string));
   ({ token } = await signIn(h, "pricing-parity@example.com"));
+  olderAnchor = await productsWithOlderOwnAnchor(h.db);
 });
 after(async () => {
   await h.close();
@@ -148,9 +164,13 @@ describe("REC — the recommendation matches the frontend engine", () => {
     });
 
     it(`REC-06/07/08/09 ${id}: anchor, floor, ceiling and MRP match`, async () => {
+
       const data = await recommendationOf(id);
 
-      exact((data.anchor as Json).minor, (testCase.anchor as Json).minor, `${id}: anchor`);
+      // Anchor-derived: see the note above olderAnchor.
+      if (!olderAnchor.has(id)) {
+        exact((data.anchor as Json).minor, (testCase.anchor as Json).minor, `${id}: anchor`);
+      }
       assert.equal((data.anchor as Json).basis, (testCase.anchor as Json).basis, `${id}: anchor basis`);
       exact(data.floorMinor, testCase.floorMinor, `${id}: floor`);
       exact(data.ceilingMinor, testCase.ceilingMinor, `${id}: ceiling`);
@@ -168,6 +188,7 @@ describe("REC — the recommendation matches the frontend engine", () => {
     });
 
     it(`REC-02 ${id}: the premium ceiling and its suppression match`, async () => {
+
       const data = await recommendationOf(id);
       const expected = testCase.premiumCeiling as Json | null;
       if (!expected) return;
@@ -175,7 +196,9 @@ describe("REC — the recommendation matches the frontend engine", () => {
 
       assert.equal(actual.basis, expected.basis, `${id}: premium basis`);
       exact(actual.baseMinor, expected.baseMinor, `${id}: premium base`);
-      exact(actual.headroomMinor, expected.headroomMinor, `${id}: premium headroom`);
+      if (!olderAnchor.has(id)) {
+        exact(actual.headroomMinor, expected.headroomMinor, `${id}: premium headroom`);
+      }
       exact(actual.capMinor, expected.capMinor, `${id}: premium cap`);
       // The invariant the audit exists to protect: pool Q3 must not create a
       // premium on its own when the product has a market of its own.
@@ -183,6 +206,7 @@ describe("REC — the recommendation matches the frontend engine", () => {
     });
 
     it(`${id}: market statistics and evidence level match`, async () => {
+
       const data = await recommendationOf(id);
       const market = data.marketContext as Json;
 
@@ -199,7 +223,9 @@ describe("REC — the recommendation matches the frontend engine", () => {
         exact(stats.n, (testCase.compStats as Json).n, `${id}: comp n`);
         closeTo(stats.median, (testCase.compStats as Json).median, `${id}: comp median`);
       }
-      exact(market.normalMinor, testCase.normalMinor, `${id}: 90-day normal`);
+      if (!olderAnchor.has(id)) {
+        exact(market.normalMinor, testCase.normalMinor, `${id}: 90-day normal`);
+      }
       assert.equal((market.distortion as Json).state, testCase.distortionState, `${id}: distortion`);
 
       const evidence = testCase.evidence as Json;
@@ -226,6 +252,7 @@ describe("WTP — the attribute model matches, refusals included", () => {
     if (!expected || testCase.status !== "recommended") continue;
 
     it(`WTP-01/02/03/04/06 ${id}: prediction, sample, fit, trust and features match`, async () => {
+
       const data = await recommendationOf(id);
       const actual = data.wtp as Json;
 
@@ -240,7 +267,9 @@ describe("WTP — the attribute model matches, refusals included", () => {
         expected.featureKeys,
         `${id}: WTP-06 feature set`
       );
-      exact(actual.evidencedPremiumMinor, expected.evidencedPremiumMinor, `${id}: evidenced premium`);
+      if (!olderAnchor.has(id)) {
+        exact(actual.evidencedPremiumMinor, expected.evidencedPremiumMinor, `${id}: evidenced premium`);
+      }
       assert.equal(actual.supported, expected.supported, `${id}: premium supported`);
     });
 
