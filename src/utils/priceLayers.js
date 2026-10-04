@@ -84,55 +84,13 @@ export function buildPriceLayers({ observation, offerId, categoryId, marketplace
   };
 }
 
-/** Human-readable ladder rows for the UI, skipping rungs that carry no value. */
-export function describeLadder(layers) {
-  if (!layers) return [];
-  const rows = [
-    { key: "mrp", label: "MRP", valueMinor: layers.mrpMinor, kind: "reference" },
-    { key: "selling", label: "Selling price", valueMinor: layers.sellingPriceMinor, kind: "base" },
-    {
-      key: "shipping",
-      label: "Shipping",
-      valueMinor: layers.shippingFeeMinor,
-      kind: "add",
-      alwaysShow: true,
-      zeroLabel: "Free",
-    },
-    { key: "landed", label: "Landed price", valueMinor: layers.landedMinor, kind: "subtotal" },
-  ];
-
-  if (layers.universalDiscountMinor > 0) {
-    rows.push({
-      key: "universal",
-      label: "Instant discount (everyone)",
-      valueMinor: -layers.universalDiscountMinor,
-      kind: "deduct",
-    });
-  }
-  rows.push({
-    key: "universalEffective",
-    label: "Effective price",
-    valueMinor: layers.universalEffectiveMinor,
-    kind: "total",
-    note: "what an ordinary buyer pays — used for market comparison",
-  });
-
-  if (layers.conditionalDiscountMinor > 0) {
-    rows.push({
-      key: "conditional",
-      label: "Conditional benefits",
-      valueMinor: -layers.conditionalDiscountMinor,
-      kind: "deduct-conditional",
-    });
-    rows.push({
-      key: "conditionalBest",
-      label: "Best case, if eligible",
-      valueMinor: layers.conditionalBestMinor,
-      kind: "subtotal-conditional",
-      note: "not comparable across sellers — eligibility differs",
-    });
-  }
-  return rows;
-}
+/**
+ * Re-exported from `utils/priceLadderView.js`, where it now lives.
+ *
+ * It is pure presentation and was moved out so a screen can render a ladder
+ * without importing this module — which pulls the bundled fee table and
+ * promotions in behind it. Existing callers keep working through this name.
+ */
+export { describeLadder } from "./priceLadderView";
 
 export { PROMOTION_CLASS };

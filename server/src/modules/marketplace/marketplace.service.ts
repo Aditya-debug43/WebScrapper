@@ -1,3 +1,4 @@
+import { feeRulesForCategory, netRealisationWithShipping } from "../../lib/fees.js";
 import { AppError } from "../../lib/errors.js";
 import { pageMeta } from "../../lib/pagination.js";
 import { PRICE_BASIS } from "../../lib/priceLadder.js";
@@ -90,6 +91,40 @@ export class MarketplaceService {
     const rows = await this.repo.marketplaceSummary(productId);
     const referenceDate = await this.repo.referenceDate();
 
+    /**
+     * Commercial context, per platform: the fee rule in force and what the
+     * seller banks at the platform's current price.
+     *
+     * Included here because the comparison screen's whole point is comparing
+     * platforms, and "cheapest to the buyer" and "best for the seller" are
+     * different rankings — a platform can win on price and lose on net. The
+     * browser used to compute this from a bundled fee table; the rule and the
+     * arithmetic now both come from the server.
+     *
+     * Null per row when no fee rule is captured for that platform, which is
+     * normal for a store discovered from provider data.
+     */
+    const categoryId = await this.repo.productCategoryId(productId);
+    const feeRules =
+      categoryId && referenceDate ? await feeRulesForCategory(this.repo.db, categoryId, referenceDate) : [];
+    const feeByMarketplace = new Map(feeRules.map((f) => [f.marketplaceId, f]));
+
+    const [velocities, cheapest, promotions] = await Promise.all([
+      this.repo.reviewVelocityForProduct(productId),
+      this.repo.cheapestInStockOfferPerMarketplace(productId),
+      referenceDate
+        ? this.repo.promotions(productId, { page: 1, pageSize: 500, status: "active", asOf: referenceDate })
+        : Promise.resolve({ data: [] as Awaited<ReturnType<MarketplaceRepository["promotions"]>>["data"] }),
+    ]);
+    const velocityByListing = new Map(velocities.map((v) => [v.listingId, v.velocity]));
+    const cheapestByMarketplace = new Map(cheapest.map((c) => [c.marketplaceId, c]));
+    const promotionsByOffer = new Map<string, typeof promotions.data>();
+    for (const promo of promotions.data) {
+      const list = promotionsByOffer.get(promo.offerId) ?? [];
+      list.push(promo);
+      promotionsByOffer.set(promo.offerId, list);
+    }
+
     return {
       data: rows.map((r) => ({
         marketplace: {
@@ -154,6 +189,51 @@ export class MarketplaceService {
                 reviewCount: r.reviewCount,
                 capturedAt: r.ratingCapturedAt,
               },
+        /**
+         * The offer behind `currentPrice` — who is selling at it, and what
+         * promotions are attached. Null when nothing on this platform was
+         * observed in stock, matching `currentPrice`.
+         */
+        cheapestOffer: (() => {
+          const c = cheapestByMarketplace.get(r.marketplaceId);
+          if (!c) return null;
+          return {
+            id: c.offerId,
+            effectiveMinor: c.effectiveMinor,
+            seller: {
+              id: c.sellerId,
+              name: c.sellerName,
+              type: c.sellerType,
+              fulfilment: c.fulfilmentType,
+            },
+            activePromotions: (promotionsByOffer.get(c.offerId) ?? []).map((p) => ({
+              id: p.promotionId,
+              type: p.promotionType,
+              availabilityClass: p.availabilityClass,
+              label: p.label,
+              eligibility: p.eligibility,
+              discountValueMinor: p.discountValueMinor,
+            })),
+          };
+        })(),
+        /** Reviews added per day — the demand proxy, absent sales data. */
+        reviewVelocity: velocityByListing.get(r.listingId) ?? null,
+        feeRule: feeByMarketplace.get(r.marketplaceId) ?? null,
+        /**
+         * What the seller banks at this platform's current price.
+         *
+         * Uses the comparison screen's definition, which treats shipping as a
+         * seller cost — see `lib/fees.ts` for why that differs from the
+         * recommendation's margin figure and why neither was changed here.
+         */
+        netRealisation:
+          r.currentSellingMinor == null
+            ? null
+            : netRealisationWithShipping({
+                sellingPriceMinor: r.currentSellingMinor,
+                shippingFeeMinor: r.minShippingFeeMinor ?? 0,
+                feeRule: feeByMarketplace.get(r.marketplaceId) ?? null,
+              }),
       })),
       meta: { productId, referenceDate, priceBasis: PRICE_BASIS },
     };
@@ -192,6 +272,159 @@ export class MarketplaceService {
   }
 
   /* ---------------------------------------------------------------- sellers */
+
+  /**
+   * ONE LISTING, for the listing screen.
+   *
+   * A composite, like `/catalogue` and `/products/:id/analysis`: the screen
+   * argues one thing — who competes on this listing and at what price — out of
+   * the listing, its platform, its offers, each offer's seller rating and
+   * active promotions, and the listing's own review signal. Split across
+   * endpoints that is five round trips for one page, and the client would then
+   * have to join them by id anyway.
+   *
+   * It is reached by LISTING id, so the product is resolved from the listing.
+   * That is the lookup the frontend previously did against its own bundled
+   * listing table, and the reason it needed one.
+   */
+  async listingDetail(listingId: string) {
+    const listing = await this.repo.findListing(listingId);
+    if (!listing) throw new AppError("NOT_FOUND", `No listing with id ${listingId}.`);
+
+    const asOf = (await this.repo.referenceDate()) ?? new Date().toISOString().slice(0, 10);
+
+    /**
+     * Offers are read unpaginated for one listing, deliberately: a listing
+     * carries a handful of sellers, the screen compares all of them against
+     * each other, and a page boundary through a comparison is meaningless.
+     * Sorted cheapest-first, which is the order the comparison is read in.
+     */
+    const { data: offers } = await this.repo.listOffers(listing.productId, {
+      page: 1,
+      pageSize: 200,
+      listingId,
+      sort: "effective_price_asc",
+    });
+
+    const [sellerRatings, promotions, ratings, velocity] = await Promise.all([
+      this.repo.latestSellerRatings([...new Set(offers.map((o) => o.sellerId))]),
+      this.repo.promotions(listing.productId, {
+        page: 1,
+        pageSize: 500,
+        marketplaceId: listing.marketplaceId,
+        status: "active",
+        asOf,
+      }),
+      this.repo.currentRatings(listing.productId),
+      this.repo.listingReviewVelocity(listingId),
+    ]);
+
+    const ratingBySeller = new Map(sellerRatings.map((r) => [r.sellerId, r]));
+    const promotionsByOffer = new Map<string, typeof promotions.data>();
+    for (const promo of promotions.data) {
+      const list = promotionsByOffer.get(promo.offerId) ?? [];
+      list.push(promo);
+      promotionsByOffer.set(promo.offerId, list);
+    }
+
+    const listingRating = ratings.find((r) => r.listingId === listingId) ?? null;
+
+    return {
+      data: {
+        listing: {
+          id: listing.id,
+          externalListingId: listing.externalListingId,
+          listingUrl: listing.listingUrl,
+          rawTitle: listing.rawTitle,
+          marketplaceBrandText: listing.marketplaceBrandText,
+          matchStatus: listing.matchStatus,
+          matchConfidence: listing.matchConfidence,
+          status: listing.listingStatus,
+          firstSeenAt: listing.firstSeenAt,
+          lastSeenAt: listing.lastSeenAt,
+        },
+        product: {
+          id: listing.productId,
+          canonicalName: listing.productName,
+          productTypeId: listing.productTypeId,
+          categoryId: listing.categoryId,
+          brand: { id: listing.brandId, name: listing.brandName },
+        },
+        marketplace: {
+          id: listing.marketplaceId,
+          name: listing.marketplaceName,
+          domain: listing.marketplaceDomain,
+          type: listing.marketplaceType,
+          brandColor: listing.brandColor,
+          isDiscovered: listing.isDiscovered,
+        },
+        offers: offers.map((r) => {
+          const sellerRating = ratingBySeller.get(r.sellerId) ?? null;
+          return {
+            id: r.offerId,
+            seller: {
+              id: r.sellerId,
+              name: r.sellerName,
+              type: r.sellerType,
+              tier: r.sellerTier,
+              fulfilment: r.fulfilmentType,
+              /**
+               * Null for a seller with no rating history — which includes
+               * every storefront seller created from provider data. A zero
+               * here would read as a terrible seller rather than an unrated
+               * one.
+               */
+              rating: sellerRating?.rating ?? null,
+              ratingCount: sellerRating?.ratingCount ?? null,
+            },
+            condition: r.itemCondition,
+            status: r.offerStatus,
+            isBuyboxWinner: r.isBuyboxWinner ?? false,
+            saleLabel: r.saleLabel,
+            observedAt: r.lastObservedAt,
+            isInStock: r.isInStock,
+            // Null, not zero, when the offer has never been observed.
+            price:
+              r.universalEffectiveMinor == null
+                ? null
+                : {
+                    basis: PRICE_BASIS.basis,
+                    mrpMinor: r.mrpMinor,
+                    sellingPriceMinor: r.sellingPriceMinor,
+                    shippingFeeMinor: r.shippingFeeMinor,
+                    landedMinor: r.landedMinor,
+                    universalDiscountMinor: r.universalDiscountMinor,
+                    universalEffectiveMinor: r.universalEffectiveMinor,
+                    conditionalDiscountMinor: r.conditionalDiscountMinor,
+                    conditionalBestMinor: r.conditionalBestMinor,
+                    deferredBenefitMinor: r.deferredBenefitMinor,
+                    financingBenefitMinor: r.financingBenefitMinor,
+                    currencyCode: r.currencyCode,
+                  },
+            activePromotions: (promotionsByOffer.get(r.offerId) ?? []).map((p) => ({
+              id: p.promotionId,
+              type: p.promotionType,
+              availabilityClass: p.availabilityClass,
+              label: p.label,
+              eligibility: p.eligibility,
+              discountValueMinor: p.discountValueMinor,
+            })),
+          };
+        }),
+        rating: listingRating
+          ? {
+              average: listingRating.averageRating,
+              ratingCount: listingRating.ratingCount,
+              reviewCount: listingRating.reviewCount,
+              capturedAt: listingRating.capturedAt,
+            }
+          : null,
+        /** Reviews added per day between the two most recent snapshots. */
+        reviewVelocity: velocity,
+      },
+      meta: { referenceDate: asOf, priceBasis: PRICE_BASIS },
+    };
+  }
 
   async productSellers(productId: string, f: Page & { marketplaceId?: string }) {
     await this.requireProduct(productId);

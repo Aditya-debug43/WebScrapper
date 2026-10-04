@@ -116,6 +116,18 @@ export function registerMarketplaceRoutes(app: FastifyInstance, marketplace: Mar
     }
   );
 
+  /**
+   * One listing, by listing id.
+   *
+   * The listing screen's address is the listing, not the product, so the
+   * product is resolved here rather than required from the caller. Before this
+   * existed, a frontend routed to `/listings/:id` had no way to find out which
+   * product it belonged to except by keeping its own copy of the listing table.
+   */
+  app.get("/listings/:id", { schema: { params: idParam } }, async (request) =>
+    marketplace.listingDetail(id(request))
+  );
+
   /* ------------------------------------------------------------- offers */
 
   app.get(

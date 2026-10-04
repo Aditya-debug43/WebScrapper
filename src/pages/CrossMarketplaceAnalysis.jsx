@@ -26,7 +26,7 @@ import { OBSERVATION_WINDOWS, DEFAULT_WINDOW_KEY, CAPABILITY, windowByKey } from
 import FilterControl from "../components/common/FilterControl";
 import LoadingState from "../components/common/LoadingState";
 import { formatMinor } from "../utils/money";
-import { getMarketplace } from "../data/marketplaces";
+import { getMarketplaceDirectory } from "../api/marketplacesService";
 import "./CrossMarketplaceAnalysis.css";
 
 /**
@@ -104,6 +104,29 @@ export default function CrossMarketplaceAnalysis() {
 
   const { token } = useAuth();
   const [state, setState] = useState({ status: "loading", analysis: null, error: null });
+
+  /**
+   * The marketplace directory, for the competitor rows' platform pips.
+   *
+   * Those rows carry marketplace IDS only — the analysis is about products, so
+   * repeating a platform's name and colour on every competitor would bloat the
+   * response — and the directory turns them into names and colours. Backend
+   * sourced, so a store discovered by a provider gets a label like any other
+   * instead of the blank dot a bundled six-item list gave it.
+   *
+   * Failing to load it is not worth failing the page over: the pips fall back
+   * to the id as a tooltip and a neutral swatch.
+   */
+  const [marketplaces, setMarketplaces] = useState(null);
+  useEffect(() => {
+    let live = true;
+    getMarketplaceDirectory()
+      .then((dir) => live && setMarketplaces(dir))
+      .catch(() => live && setMarketplaces(new Map()));
+    return () => {
+      live = false;
+    };
+  }, []);
   const [attempt, setAttempt] = useState(0);
   const retry = useCallback(() => setAttempt((n) => n + 1), []);
   const requestedFor = useRef(null);
@@ -197,14 +220,13 @@ export default function CrossMarketplaceAnalysis() {
 
         <div className="cma-mp-grid">
           {marketplaceRows.map((row, i) => {
-            const meta = getMarketplace(row.marketplaceId);
             const isCheapest = i === 0 && row.effectiveMinor != null;
             const promoTotal =
               row.promoCount.universal + row.promoCount.conditional + row.promoCount.deferred + row.promoCount.financing;
             return (
               <article key={row.listingId} className={`cma-mp-card${isCheapest ? " cheapest" : ""}`}>
                 <div className="cma-mp-top">
-                  <span className="cma-mp-dot" style={{ background: meta?.brandColor ?? "var(--ink-300)" }} />
+                  <span className="cma-mp-dot" style={{ background: row.brandColor ?? "var(--ink-300)" }} />
                   <strong>{row.marketplaceName}</strong>
                   {isCheapest && <span className="cma-chip accent">Cheapest effective</span>}
                   {row.allOutOfStock && <span className="cma-chip warn">All offers unavailable</span>}
@@ -453,8 +475,8 @@ export default function CrossMarketplaceAnalysis() {
                           <span
                             key={id}
                             className="cma-mp-pip"
-                            style={{ background: getMarketplace(id)?.brandColor ?? "var(--ink-300)" }}
-                            title={getMarketplace(id)?.name ?? id}
+                            style={{ background: marketplaces?.get(id)?.brandColor ?? "var(--ink-300)" }}
+                            title={marketplaces?.get(id)?.name ?? id}
                           />
                         ))}
                       </td>

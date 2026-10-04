@@ -1,10 +1,10 @@
 import { Outlet, useParams, useLocation, Link } from "react-router-dom";
 import { ArrowRight } from "lucide-react";
-import { getProduct } from "../../data/products";
-import { getListing, getListingsForProduct } from "../../data/listings";
-import { getBrand } from "../../data/brands";
+import { getWorkspaceContext } from "../../api/workspaceService";
+import { useAsyncData } from "../../utils/useAsyncData";
 import Breadcrumbs from "../common/Breadcrumbs";
 import WorkspaceTabs from "./WorkspaceTabs";
+import LoadingState from "../common/LoadingState";
 import "./ProductWorkspaceLayout.css";
 
 /**
@@ -21,13 +21,47 @@ export default function ProductWorkspaceLayout() {
   const { productId: productIdParam, listingId: listingIdParam } = useParams();
   const location = useLocation();
 
-  const activeListing = listingIdParam ? getListing(listingIdParam) : null;
-  const productId = productIdParam ?? activeListing?.productId;
-  const product = productId ? getProduct(productId) : null;
-  const brand = product ? getBrand(product.brandId) : null;
+  /**
+   * The chrome is now asynchronous, because its facts come from the database.
+   *
+   * Keyed on the two identifiers rather than the full path, so moving between
+   * this product's tabs does not refetch the masthead — only changing which
+   * product or listing is being looked at does.
+   */
+  const { data, loading, error } = useAsyncData(
+    () => getWorkspaceContext({ productId: productIdParam, listingId: listingIdParam }),
+    [productIdParam, listingIdParam]
+  );
 
-  const productListings = productId ? getListingsForProduct(productId) : [];
-  const defaultListing = activeListing ?? productListings[0] ?? null;
+  if (loading) return <LoadingState label="Loading product…" />;
+
+  const productId = data?.productId ?? null;
+  const product = data?.product ?? null;
+  const brand = data?.brand ?? null;
+  const activeListing = data?.activeListing ?? null;
+  const defaultListingId = data?.defaultListingId ?? null;
+  const listingCount = data?.listingCount ?? 0;
+
+  /**
+   * An API failure and a genuinely unknown identifier land in the same place,
+   * with different words. Both are states this page can be in and neither may
+   * fall back to bundled data: a masthead rendered from a stale bundle during
+   * an outage is how a broken deployment looks healthy.
+   */
+  if (error) {
+    return (
+      <div className="page">
+        <div className="pw-missing">
+          <span className="eyebrow">Unavailable</span>
+          <h1 className="page-title">This product could not be loaded</h1>
+          <p className="page-subtitle">{error.message}</p>
+          <Link to="/catalogue" className="btn btn-primary pw-missing-cta">
+            Browse the catalogue <ArrowRight size={14} strokeWidth={2} />
+          </Link>
+        </div>
+      </div>
+    );
+  }
 
   if (!product) {
     return (
@@ -83,7 +117,7 @@ export default function ProductWorkspaceLayout() {
               </div>
               <div>
                 <dt>Listed on</dt>
-                <dd className="tabular">{productListings.length}</dd>
+                <dd className="tabular">{listingCount}</dd>
               </div>
               <div>
                 <dt>Lifecycle</dt>
@@ -97,11 +131,11 @@ export default function ProductWorkspaceLayout() {
       <WorkspaceTabs
         tabs={[
           { label: "Overview", to: `/products/${productId}`, end: true },
-          { label: "Marketplaces", to: `/products/${productId}/marketplaces`, count: productListings.length },
-          ...(defaultListing
+          { label: "Marketplaces", to: `/products/${productId}/marketplaces`, count: listingCount },
+          ...(defaultListingId
             ? [
-                { label: "Listing", to: `/listings/${defaultListing.id}`, end: true },
-                { label: "Price History", to: `/listings/${defaultListing.id}/history` },
+                { label: "Listing", to: `/listings/${defaultListingId}`, end: true },
+                { label: "Price History", to: `/listings/${defaultListingId}/history` },
               ]
             : []),
           { label: "Analysis", to: `/products/${productId}/analysis` },
@@ -110,7 +144,7 @@ export default function ProductWorkspaceLayout() {
       />
 
       <div className="page pw-body">
-        <Outlet context={{ productId, product, brand, activeListing, defaultListing, productListings }} />
+        <Outlet context={{ productId, product, brand, activeListing, defaultListingId, listingCount }} />
       </div>
     </div>
   );

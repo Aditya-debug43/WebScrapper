@@ -298,6 +298,14 @@ export class CatalogueRepository {
         websiteDomain: marketplaces.websiteDomain,
         marketplaceType: marketplaces.marketplaceType,
         brandColor: marketplaces.brandColor,
+        /**
+         * Whether a provider discovered this store rather than the system being
+         * built around it. Exposed because the client has to be able to tell:
+         * a discovered store has no brand colour and no fee rules, and a screen
+         * that cannot distinguish it will render a blank swatch and an unknown
+         * margin without being able to explain either.
+         */
+        isDiscovered: marketplaces.isDiscovered,
         isActive: marketplaces.isActive,
         listingCount: sql<number>`(select count(*)::int from ${listings} l where l.marketplace_id = ${outer("marketplaces", "id")})`,
       })

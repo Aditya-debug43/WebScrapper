@@ -36,6 +36,15 @@ export type Page = { page: number; pageSize: number };
 
 export type OfferFilters = Page & {
   marketplaceId?: string;
+  /**
+   * One listing's offers.
+   *
+   * Equivalent today to filtering by product and marketplace — one listing per
+   * product per marketplace is an enforced invariant — but stated directly,
+   * because the listing screen asks about a LISTING and a query that answers
+   * it by coincidence is a query that breaks when the coincidence does.
+   */
+  listingId?: string;
   sellerId?: string;
   inStock?: boolean;
   fulfilment?: string;
@@ -74,7 +83,9 @@ const OFFER_ORDER: Record<OfferSort, SQL> = {
 };
 
 export class MarketplaceRepository {
-  constructor(private readonly db: Db) {}
+  // `db` is readable by the service so shared helpers in lib/ can run their
+  // own query against the same connection without a second repository.
+  constructor(readonly db: Db) {}
 
   /* -------------------------------------------------------- reference date */
 
@@ -96,6 +107,99 @@ export class MarketplaceRepository {
     );
     this.referenceDateCache = row?.latest ?? null;
     return this.referenceDateCache;
+  }
+
+  /**
+   * WHICH offer is the cheapest in-stock one on each platform.
+   *
+   * `marketplaceSummary` already computes that offer's PRICE — it takes the
+   * minimum over in-stock offers — but aggregates the offer itself away, and
+   * the comparison screen names the seller behind the price and lists the
+   * promotions attached to it.
+   *
+   * A companion query rather than surgery on that one: same source, same
+   * definition of current (latest observation per offer) and the same in-stock
+   * restriction, ordered instead of aggregated. Cheapest by EFFECTIVE price,
+   * which is the basis the screen compares on — deliberately not
+   * `is_buybox_winner`, which is cheapest by LANDED price and can name a
+   * different offer once promotions differ.
+   */
+  async cheapestInStockOfferPerMarketplace(productId: string) {
+    return rows<{
+      marketplaceId: string;
+      listingId: string;
+      offerId: string;
+      sellerId: string;
+      sellerName: string;
+      sellerType: string;
+      fulfilmentType: string;
+      effectiveMinor: number;
+    }>(
+      this.db,
+      sql`
+      with latest as (
+        select distinct on (po.offer_id)
+               po.offer_id, po.is_in_stock, l.marketplace_id, l.id as listing_id,
+               o.seller_id, s.name as seller_name, s.seller_type, s.default_fulfilment_type,
+               ${UNIVERSAL_EFFECTIVE_MINOR} as effective_minor
+          from price_observations po
+          join offers   o on o.id = po.offer_id
+          join listings l on l.id = o.listing_id
+          join sellers  s on s.id = o.seller_id
+         where l.product_id = ${productId}
+         order by po.offer_id, po.observed_at desc
+      )
+      select distinct on (marketplace_id)
+             marketplace_id             as "marketplaceId",
+             listing_id                 as "listingId",
+             offer_id                   as "offerId",
+             seller_id                  as "sellerId",
+             seller_name                as "sellerName",
+             seller_type                as "sellerType",
+             default_fulfilment_type    as "fulfilmentType",
+             effective_minor            as "effectiveMinor"
+        from latest
+       where is_in_stock
+       order by marketplace_id, effective_minor asc, offer_id asc`
+    );
+  }
+
+  /** The category a product hangs off, for the fee rule that applies to it. */
+  async productCategoryId(productId: string): Promise<string | null> {
+    const row = await one<{ categoryId: string }>(
+      this.db,
+      sql`select category_id as "categoryId" from products where id = ${productId}`
+    );
+    return row?.categoryId ?? null;
+  }
+
+  /**
+   * Review velocity for every listing of one product.
+   *
+   * Same expression as `AnalysisRepository.reviewVelocity` and
+   * `listingReviewVelocity` below — one rule, three callers, so a velocity
+   * cannot differ between the screen that shows it and the analysis that
+   * cites it.
+   */
+  async reviewVelocityForProduct(productId: string) {
+    return rows<{ listingId: string; velocity: number | null }>(
+      this.db,
+      sql`with ranked as (
+            select rs.listing_id, rs.captured_at, rs.review_count,
+                   row_number() over (partition by rs.listing_id order by rs.captured_at desc) as rn
+              from review_snapshots rs
+              join listings l on l.id = rs.listing_id
+             where l.product_id = ${productId}
+          )
+          select a.listing_id as "listingId",
+                 case when b.captured_at is null or a.captured_at = b.captured_at then null
+                      else (a.review_count - b.review_count)::float
+                           / greatest((a.captured_at - b.captured_at), 1)
+                 end as "velocity"
+            from ranked a
+            left join ranked b on b.listing_id = a.listing_id and b.rn = 2
+           where a.rn = 1`
+    );
   }
 
   async productExists(productId: string): Promise<boolean> {
@@ -333,6 +437,128 @@ export class MarketplaceRepository {
     return { data, total: total?.n ?? 0 };
   }
 
+  /**
+   * One listing, with the product and platform it belongs to.
+   *
+   * The listing screen is reached by listing id — `/listings/:id` — so the
+   * product has to be resolved FROM the listing rather than assumed. Without
+   * this, every listing route had to already know its product, which is how a
+   * frontend ends up keeping its own listing table to do the lookup.
+   */
+  async findListing(listingId: string) {
+    const row = await one<{
+      id: string;
+      productId: string;
+      productName: string;
+      productTypeId: string;
+      categoryId: string;
+      brandId: string;
+      brandName: string;
+      marketplaceId: string;
+      marketplaceName: string;
+      marketplaceDomain: string;
+      marketplaceType: string;
+      brandColor: string | null;
+      isDiscovered: boolean;
+      externalListingId: string;
+      listingUrl: string | null;
+      rawTitle: string | null;
+      marketplaceBrandText: string | null;
+      matchStatus: string;
+      matchConfidence: number | null;
+      listingStatus: string;
+      firstSeenAt: string | null;
+      lastSeenAt: string | null;
+    }>(
+      this.db,
+      sql`select l.id                      as "id",
+                 l.product_id              as "productId",
+                 p.canonical_name           as "productName",
+                 p.product_type_id          as "productTypeId",
+                 p.category_id              as "categoryId",
+                 b.id                       as "brandId",
+                 b.name                     as "brandName",
+                 m.id                       as "marketplaceId",
+                 m.name                     as "marketplaceName",
+                 m.website_domain           as "marketplaceDomain",
+                 m.marketplace_type         as "marketplaceType",
+                 m.brand_color              as "brandColor",
+                 m.is_discovered            as "isDiscovered",
+                 l.external_listing_id      as "externalListingId",
+                 l.listing_url              as "listingUrl",
+                 l.raw_title                as "rawTitle",
+                 l.marketplace_brand_text   as "marketplaceBrandText",
+                 l.match_status             as "matchStatus",
+                 l.match_confidence         as "matchConfidence",
+                 l.listing_status           as "listingStatus",
+                 l.first_seen_at::text      as "firstSeenAt",
+                 l.last_seen_at::text       as "lastSeenAt"
+            from listings l
+            join products p     on p.id = l.product_id
+            join brands b       on b.id = p.brand_id
+            join marketplaces m on m.id = l.marketplace_id
+           where l.id = ${listingId}`
+    );
+    return row;
+  }
+
+  /**
+   * The latest rating snapshot per seller, for a batch.
+   *
+   * Per seller, not per listing: the offer card shows how the SELLER is rated,
+   * which is a different number from the listing's product rating and is
+   * routinely absent — a storefront seller created from provider data has no
+   * rating history at all, and that has to arrive as null rather than zero.
+   */
+  async latestSellerRatings(sellerIds: string[]) {
+    if (sellerIds.length === 0) return [];
+    return rows<{ sellerId: string; rating: number | null; ratingCount: number | null; capturedAt: string }>(
+      this.db,
+      sql`select distinct on (srs.seller_id)
+                 srs.seller_id     as "sellerId",
+                 srs.rating        as "rating",
+                 srs.rating_count  as "ratingCount",
+                 srs.captured_at::text as "capturedAt"
+            from seller_rating_snapshots srs
+           where srs.seller_id in (${sql.join(sellerIds.map((id) => sql`${id}`), sql`, `)})
+           order by srs.seller_id, srs.captured_at desc`
+    );
+  }
+
+  /**
+   * Review velocity for one listing — reviews added per day between the two
+   * most recent snapshots. The project's demand proxy, absent sales data.
+   *
+   * Deliberately the same expression as `AnalysisRepository.reviewVelocity`,
+   * which already computes this per listing for a batch of products: one
+   * snapshot pair, ranked, with the gap floored at a day. Writing a second
+   * formula would let a listing's velocity differ between the listing screen
+   * and the analysis that cites it.
+   *
+   * `captured_at` is a DATE, so subtracting two of them yields an integer
+   * number of days. An earlier version wrapped that in `extract(day from ...)`,
+   * which only works on an interval and failed outright — dates do not need it.
+   */
+  async listingReviewVelocity(listingId: string) {
+    const row = await one<{ velocity: number | null }>(
+      this.db,
+      sql`with ranked as (
+            select rs.captured_at, rs.review_count,
+                   row_number() over (order by rs.captured_at desc) as rn
+              from review_snapshots rs
+             where rs.listing_id = ${listingId}
+          )
+          select case when b.captured_at is null or a.captured_at = b.captured_at then null
+                      else (a.review_count - b.review_count)::float
+                           / greatest((a.captured_at - b.captured_at), 1)
+                 end as "velocity"
+            from ranked a
+            left join ranked b on b.rn = 2
+           where a.rn = 1`
+    );
+    return row?.velocity ?? null;
+  }
+
   async findSeller(sellerId: string) {
     return one<{ sellerId: string; sellerName: string; marketplaceId: string; marketplaceName: string }>(
       this.db,
@@ -356,6 +582,7 @@ export class MarketplaceRepository {
   async listOffers(productId: string, f: OfferFilters) {
     const scope: SQL[] = [sql`l.product_id = ${productId}`];
     if (f.marketplaceId) scope.push(sql`l.marketplace_id = ${f.marketplaceId}`);
+    if (f.listingId) scope.push(sql`l.id = ${f.listingId}`);
     if (f.sellerId) scope.push(sql`o.seller_id = ${f.sellerId}`);
     if (f.condition) scope.push(sql`o.item_condition = ${f.condition}`);
     if (f.fulfilment) scope.push(sql`s.default_fulfilment_type = ${f.fulfilment}`);
