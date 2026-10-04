@@ -1,28 +1,19 @@
 import { Link } from "react-router-dom";
 import { Star, PackageX } from "lucide-react";
 import { formatMinor } from "../../utils/money";
-import { getFilterableAttributes } from "../../data/attributeDefinitions";
-import { marketplaces } from "../../data/marketplaces";
 import "./ProductCard.css";
 
-/** Up to three registry-defined specs worth showing on a card, per product type. */
-function keySpecsFor(product, limit = 3) {
-  if (!product.specifications || !product.productTypeId) return [];
-  const defs = getFilterableAttributes(product.productTypeId);
-  const out = [];
-  for (const def of defs) {
-    const value = product.specifications[def.attributeKey];
-    if (value === undefined || value === null) continue;
-    // Keyed by attribute, not by rendered text — two different specs can share
-    // a display value (a mixer with 3 jars and 3 speed settings both read "3").
-    if (def.dataType === "boolean") {
-      if (value === true) out.push({ key: def.attributeKey, text: def.displayName });
-    } else {
-      out.push({ key: def.attributeKey, text: def.unit ? `${value} ${def.unit}` : String(value) });
-    }
-    if (out.length >= limit) break;
-  }
-  return out;
+/**
+ * A key spec as text.
+ *
+ * WHICH specs appear is a registry rule and the backend decides it — the
+ * filterable attributes, in registry order, the first few this product has a
+ * value for. HOW one reads is presentation and stays here. A boolean prints
+ * its name alone ("5G"), because "5G: true" is not how anyone says it.
+ */
+function specText(spec) {
+  if (spec.dataType === "boolean") return spec.label;
+  return spec.unit ? `${spec.value} ${spec.unit}` : String(spec.value);
 }
 
 /**
@@ -36,8 +27,8 @@ function keySpecsFor(product, limit = 3) {
  * gives a long grid some rhythm.
  */
 export default function ProductCard({ summary }) {
-  const { product, brand, minPriceMinor, maxPriceMinor, marketplaceIds, rating, reviewCount, inStock } = summary;
-  const specs = keySpecsFor(product);
+  const { product, brand, minPriceMinor, maxPriceMinor, marketplaces, rating, reviewCount, inStock } = summary;
+  const specs = summary.keySpecs ?? [];
   const displayName = brand
     ? product.canonicalName.replace(new RegExp(`^${brand.name}\\s+`, "i"), "")
     : product.canonicalName;
@@ -50,7 +41,7 @@ export default function ProductCard({ summary }) {
       {specs.length > 0 && (
         <ul className="pcard-specs">
           {specs.map((s) => (
-            <li key={s.key}>{s.text}</li>
+            <li key={s.key}>{specText(s)}</li>
           ))}
         </ul>
       )}
@@ -75,13 +66,25 @@ export default function ProductCard({ summary }) {
       </div>
 
       <div className="pcard-foot">
+        {/*
+          Each platform comes from the response with its own name and colour,
+          rather than being looked up in a table the browser keeps. That table
+          is why a store discovered by a data provider rendered as a blank,
+          nameless pip: it was not in the list, so there was nothing to find.
+          A platform with no brand colour falls back to a neutral swatch
+          instead of an invisible one.
+        */}
         <span className="pcard-mps">
-          {marketplaceIds.map((id) => {
-            const mp = marketplaces.find((m) => m.id === id);
-            return <span key={id} className="pcard-pip" style={{ background: mp?.brandColor }} title={mp?.name} />;
-          })}
+          {marketplaces.map((mp) => (
+            <span
+              key={mp.id}
+              className="pcard-pip"
+              style={{ background: mp.brandColor || "var(--border-strong)" }}
+              title={mp.name}
+            />
+          ))}
           <em>
-            {marketplaceIds.length} marketplace{marketplaceIds.length === 1 ? "" : "s"}
+            {marketplaces.length} marketplace{marketplaces.length === 1 ? "" : "s"}
           </em>
         </span>
         {!inStock && (

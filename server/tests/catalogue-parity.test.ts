@@ -204,7 +204,25 @@ describe("catalogue parity — the backend answers what the engine answered", ()
 
       /* ---------------------------------------------------------------- facets */
 
-      for (const group of ["brand", "price", "rating", "marketplace", "availability"] as const) {
+      /**
+       * The brand facet is compared after applying the backend's tiebreak to
+       * BOTH sides.
+       *
+       * Two brands can share a display name — `brand_xiaomi` and `brand_redmi`
+       * both read "Redmi" here — so the engine's `count desc, label` comparator
+       * leaves them in an undefined order that falls out of its array layout.
+       * The backend breaks that tie by id, which is a decision the engine never
+       * made rather than a disagreement with one. Normalising both sides states
+       * exactly that: the groups agree, up to a tie the engine left open.
+       *
+       * Every other group is compared verbatim, order included.
+       */
+      const settle = (options: Array<{ id: string; label: string; count: number }>) =>
+        [...options].sort((a, b) => b.count - a.count || a.label.localeCompare(b.label) || a.id.localeCompare(b.id));
+
+      assert.deepEqual(settle(body.facets.brand), settle(c.facets.brand), "brand facet");
+
+      for (const group of ["price", "rating", "marketplace", "availability"] as const) {
         assert.deepEqual(
           body.facets[group],
           c.facets[group],

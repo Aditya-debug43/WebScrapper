@@ -350,71 +350,126 @@ export class CatalogueRepository {
    * taken from the latest observation per offer. Same basis, same rung and
    * same `distinct on` shape as `AnalysisRepository.currentPrices`, so a price
    * in the catalogue cannot disagree with the price on the product page.
+   *
+   * ── Why this is one grouped pass, not per-product subqueries ───────────
+   * The obvious shape is a correlated subquery per column: cheapest price,
+   * dearest price, any-in-stock. Written that way it took three `distinct on`
+   * passes over `price_observations` FOR EVERY PRODUCT — around 3,500 passes
+   * for an unscoped catalogue — and the request did not come back.
+   *
+   * So the latest observation per offer is resolved ONCE, in a CTE, and
+   * aggregated by product. `filter (where is_in_stock)` gives the two prices
+   * and `bool_or` the availability from that single result, and a product with
+   * no in-stock offer aggregates to NULL — which is the right answer and the
+   * reason the join is a LEFT one.
    */
   async scopedSummaries(scope: { categoryIds?: string[]; productTypeId?: string; search?: string }) {
-    const clauses: SQL[] = [eq(products.isPurchasable, true)];
+    const clauses: SQL[] = [sql`p.is_purchasable = true`];
 
     if (scope.categoryIds) {
       if (scope.categoryIds.length === 0) return [];
-      clauses.push(inArray(products.categoryId, scope.categoryIds));
+      clauses.push(sql`p.category_id in (${sql.join(scope.categoryIds.map((id) => sql`${id}`), sql`, `)})`);
     }
-    if (scope.productTypeId) clauses.push(eq(products.productTypeId, scope.productTypeId));
+    if (scope.productTypeId) clauses.push(sql`p.product_type_id = ${scope.productTypeId}`);
     if (scope.search) {
       const pattern = `%${escapeLike(scope.search)}%`;
-      const match = or(ilike(products.canonicalName, pattern), ilike(products.modelName, pattern));
-      if (match) clauses.push(match);
+      clauses.push(sql`(p.canonical_name ilike ${pattern} or p.model_name ilike ${pattern})`);
     }
 
-    return this.db
-      .select({
-        productId: products.id,
-        canonicalName: products.canonicalName,
-        modelName: products.modelName,
-        firstSeenAt: products.firstSeenAt,
-        lifecycleStatus: products.lifecycleStatus,
-        brandId: products.brandId,
-        categoryId: products.categoryId,
-        productTypeId: products.productTypeId,
-        specifications: products.specifications,
-        variantAxes: products.variantAxes,
-        listingCount: sql<number>`(select count(*)::int from ${listings} l
-                                    where l.product_id = ${outer("products", "id")})`,
-        offerCount: sql<number>`(select count(*)::int from ${listings} l
-                                   join offers o on o.listing_id = l.id
-                                  where l.product_id = ${outer("products", "id")})`,
-        marketplaceIds: sql<string[]>`(select coalesce(array_agg(distinct l.marketplace_id), '{}')
-                                        from ${listings} l
-                                       where l.product_id = ${outer("products", "id")})`,
-        minPriceMinor: sql<number | null>`(
-          select min(x.eff)::int from (
-            select distinct on (po.offer_id) ${UNIVERSAL_EFFECTIVE_MINOR} as eff, po.is_in_stock
-              from price_observations po
-              join offers o   on o.id = po.offer_id
-              join listings l on l.id = o.listing_id
-             where l.product_id = ${outer("products", "id")}
-             order by po.offer_id, po.observed_at desc
-          ) x where x.is_in_stock)`,
-        maxPriceMinor: sql<number | null>`(
-          select max(x.eff)::int from (
-            select distinct on (po.offer_id) ${UNIVERSAL_EFFECTIVE_MINOR} as eff, po.is_in_stock
-              from price_observations po
-              join offers o   on o.id = po.offer_id
-              join listings l on l.id = o.listing_id
-             where l.product_id = ${outer("products", "id")}
-             order by po.offer_id, po.observed_at desc
-          ) x where x.is_in_stock)`,
-        inStock: sql<boolean>`exists (
-          select 1 from (
-            select distinct on (po.offer_id) po.is_in_stock
-              from price_observations po
-              join offers o   on o.id = po.offer_id
-              join listings l on l.id = o.listing_id
-             where l.product_id = ${outer("products", "id")}
-             order by po.offer_id, po.observed_at desc
-          ) y where y.is_in_stock)`,
-      })
-      .from(products)
-      .where(and(...clauses));
+    const where = sql.join(clauses, sql` and `);
+
+    const result = (await this.db.execute(sql`
+      with scoped as (
+        select p.id, p.canonical_name, p.model_name, p.first_seen_at, p.lifecycle_status,
+               p.brand_id, p.category_id, p.product_type_id, p.specifications, p.variant_axes
+          from products p
+         where ${where}
+      ),
+      coverage as (
+        select l.product_id,
+               count(distinct l.id)::int             as listing_count,
+               count(o.id)::int                      as offer_count,
+               coalesce(array_agg(distinct l.marketplace_id), '{}') as marketplace_ids
+          from listings l
+          join scoped s on s.id = l.product_id
+          left join offers o on o.listing_id = l.id
+         group by l.product_id
+      ),
+      -- The latest observation per offer, carrying only the columns the
+      -- ladder needs. No arithmetic here: this step exists to THROW ROWS
+      -- AWAY, and it uses price_obs_offer_date_idx to do it.
+      latest_raw as (
+        select distinct on (po.offer_id)
+               po.offer_id, po.observed_at, po.is_in_stock,
+               po.selling_price_minor, po.shipping_fee_minor,
+               l.product_id
+          from price_observations po
+          join offers o   on o.id = po.offer_id
+          join listings l on l.id = o.listing_id
+          join scoped s   on s.id = l.product_id
+         order by po.offer_id, po.observed_at desc
+      ),
+      -- The price ladder, evaluated only on the survivors.
+      --
+      -- This split is the difference between a request that returns and one
+      -- that does not. The effective-price expression runs a correlated
+      -- subquery over promotions per row; applied inside the distinct-on
+      -- above, it was computed for all 354,940 observations and then
+      -- discarded for all but the newest of each offer, about 9,700.
+      -- Evaluating it here costs a fraction of that. The alias stays "po"
+      -- because the shared ladder SQL is written against that name.
+      latest as (
+        select po.product_id, po.is_in_stock, ${UNIVERSAL_EFFECTIVE_MINOR} as eff
+          from latest_raw po
+      ),
+      priced as (
+        select product_id,
+               min(eff) filter (where is_in_stock)::int as min_eff,
+               max(eff) filter (where is_in_stock)::int as max_eff,
+               coalesce(bool_or(is_in_stock), false)    as in_stock
+          from latest
+         group by product_id
+      )
+      select s.id                                  as "productId",
+             s.canonical_name                      as "canonicalName",
+             s.model_name                          as "modelName",
+             s.first_seen_at::text                 as "firstSeenAt",
+             s.lifecycle_status                    as "lifecycleStatus",
+             s.brand_id                            as "brandId",
+             s.category_id                         as "categoryId",
+             s.product_type_id                     as "productTypeId",
+             s.specifications                      as "specifications",
+             s.variant_axes                        as "variantAxes",
+             coalesce(c.listing_count, 0)          as "listingCount",
+             coalesce(c.offer_count, 0)            as "offerCount",
+             coalesce(c.marketplace_ids, '{}')     as "marketplaceIds",
+             pr.min_eff                            as "minPriceMinor",
+             pr.max_eff                            as "maxPriceMinor",
+             coalesce(pr.in_stock, false)          as "inStock"
+        from scoped s
+        left join coverage c on c.product_id = s.id
+        left join priced   pr on pr.product_id = s.id`)) as unknown as {
+      rows: Array<{
+        productId: string;
+        canonicalName: string;
+        modelName: string;
+        firstSeenAt: string | null;
+        lifecycleStatus: string;
+        brandId: string;
+        categoryId: string;
+        productTypeId: string;
+        specifications: Record<string, unknown> | null;
+        variantAxes: Record<string, string> | null;
+        listingCount: number;
+        offerCount: number;
+        marketplaceIds: string[];
+        minPriceMinor: number | null;
+        maxPriceMinor: number | null;
+        inStock: boolean;
+      }>;
+    };
+
+    return result.rows;
   }
 
   /**
@@ -450,6 +505,61 @@ export class CatalogueRepository {
       .innerJoin(categories, eq(categories.id, products.categoryId))
       .innerJoin(productTypes, eq(productTypes.id, products.productTypeId))
       .where(inArray(products.id, productIds));
+  }
+
+  /**
+   * Filterable attributes for several product types at once.
+   *
+   * A catalogue page can show products of many types, and each card names a
+   * few specs worth seeing. Which specs those are is a registry rule, so the
+   * server answers it — one query for the page rather than a lookup table
+   * shipped to the browser.
+   */
+  async filterableAttributesForTypes(productTypeIds: string[]) {
+    if (productTypeIds.length === 0) return [];
+    return this.db
+      .select({
+        productTypeId: attributeDefinitions.productTypeId,
+        attributeKey: attributeDefinitions.attributeKey,
+        displayName: attributeDefinitions.displayName,
+        dataType: attributeDefinitions.dataType,
+        unit: attributeDefinitions.unit,
+      })
+      .from(attributeDefinitions)
+      .where(
+        and(
+          inArray(attributeDefinitions.productTypeId, productTypeIds),
+          eq(attributeDefinitions.isFilterable, true)
+        )
+      )
+      .orderBy(sql`${attributeDefinitions.displayOrder} asc nulls last`, asc(attributeDefinitions.attributeKey));
+  }
+
+  /**
+   * The schema of one product's specification document.
+   *
+   * Filtered to the product's own `specSchemaVersion`: a product type can
+   * carry more than one, and showing a v4 field against a v3 document would
+   * render a label with nothing behind it. Ordered editorially, so the spec
+   * list reads the way the registry intended rather than alphabetically.
+   */
+  async attributeDefinitionsFor(productTypeId: string, schemaVersion: string | null) {
+    const clauses: SQL[] = [eq(attributeDefinitions.productTypeId, productTypeId)];
+    if (schemaVersion) clauses.push(eq(attributeDefinitions.schemaVersion, schemaVersion));
+    return this.db
+      .select({
+        attributeKey: attributeDefinitions.attributeKey,
+        displayName: attributeDefinitions.displayName,
+        dataType: attributeDefinitions.dataType,
+        unit: attributeDefinitions.unit,
+        isRequired: attributeDefinitions.isRequired,
+        isPricingRelevant: attributeDefinitions.isPricingRelevant,
+        higherIsBetter: attributeDefinitions.higherIsBetter,
+        schemaVersion: attributeDefinitions.schemaVersion,
+      })
+      .from(attributeDefinitions)
+      .where(and(...clauses))
+      .orderBy(sql`${attributeDefinitions.displayOrder} asc nulls last`, asc(attributeDefinitions.attributeKey));
   }
 
   /**

@@ -49,15 +49,26 @@ export class CatalogueService {
     const product = await this.repo.findProduct(id);
     if (!product) throw new AppError("NOT_FOUND", `No product with id ${id}.`);
 
-    const siblings = product.parentProductId
-      ? await this.repo.findVariantSiblings(product.parentProductId, product.id)
-      : [];
+    const [siblings, ancestors, attributes] = await Promise.all([
+      product.parentProductId
+        ? this.repo.findVariantSiblings(product.parentProductId, product.id)
+        : Promise.resolve([]),
+      this.repo.findCategoryAncestors(product.categoryPath),
+      this.repo.attributeDefinitionsFor(product.productTypeId, product.specSchemaVersion),
+    ]);
 
     /**
-     * Identity only. Prices, offers, reviews and competitors are deliberately
-     * absent — they are separate resources with their own pagination and their
-     * own cost, and folding them in here is how a detail endpoint becomes the
-     * slowest call in the system.
+     * Identity and the schema that describes it. Prices, offers, reviews and
+     * competitors are deliberately absent — they are separate resources with
+     * their own pagination and their own cost, and folding them in here is how
+     * a detail endpoint becomes the slowest call in the system.
+     *
+     * `categoryPath` and `attributeDefinitions` do belong: one is the
+     * product's own position in the taxonomy, the other is the schema of its
+     * own specification document. Both are small, fixed, and meaningless
+     * apart from this product — there is no separate resource for them to be,
+     * and making the client fetch the taxonomy to render a breadcrumb would
+     * trade a join for a round trip.
      */
     return {
       data: {
@@ -66,6 +77,8 @@ export class CatalogueService {
         variantAxes: product.variantAxes ?? null,
         specifications: product.specifications ?? {},
         specSchemaVersion: product.specSchemaVersion,
+        categoryPath: ancestors,
+        attributeDefinitions: attributes,
         variantSiblings: siblings.map((s) => ({
           id: s.id,
           canonicalName: s.canonicalName,
@@ -208,14 +221,66 @@ export class CatalogueService {
 
     // Identity for the page's rows only — the facet counts already carry the
     // numbers, and hydrating 1,172 products to render 24 would be waste.
-    const detail = await this.repo.productIdentity(pageRows.map((r) => r.productId));
+    const [detail, cardAttributes, navigation] = await Promise.all([
+      this.repo.productIdentity(pageRows.map((r) => r.productId)),
+      this.repo.filterableAttributesForTypes([...new Set(pageRows.map((r) => r.productTypeId))]),
+      this.navigationFor(input.categoryId ?? null),
+    ]);
     const detailById = new Map(detail.map((d) => [d.id, d]));
 
-    const navigation = await this.navigationFor(input.categoryId ?? null);
+    /**
+     * Which specs a card shows, decided here.
+     *
+     * The rule is registry-defined — filterable attributes, in registry order,
+     * the first few that this product actually has a value for — so it belongs
+     * with the registry rather than in the browser. The VALUES travel
+     * structured, not pre-rendered: how to write "8 GB" is presentation, and
+     * the client keeps it.
+     */
+    const attrsByType = new Map<string, typeof cardAttributes>();
+    for (const a of cardAttributes) {
+      const list = attrsByType.get(a.productTypeId) ?? [];
+      list.push(a);
+      attrsByType.set(a.productTypeId, list);
+    }
+    const keySpecsFor = (r: CatalogueSummary, limit = 3) => {
+      const out: Array<{ key: string; label: string; value: unknown; unit: string | null; dataType: string }> = [];
+      for (const def of attrsByType.get(r.productTypeId) ?? []) {
+        const value = r.specifications?.[def.attributeKey];
+        if (value === undefined || value === null) continue;
+        // A false boolean is not worth a card slot — "no 5G" is not a feature.
+        if (def.dataType === "boolean" && value !== true) continue;
+        out.push({
+          key: def.attributeKey,
+          label: def.displayName,
+          value,
+          unit: def.unit,
+          dataType: def.dataType,
+        });
+        if (out.length >= limit) break;
+      }
+      return out;
+    };
+
+    /**
+     * Marketplaces as rows, not ids.
+     *
+     * Sending ids alone forced the browser to keep its own marketplace table
+     * to resolve a name and a colour — which is the coupling this migration
+     * removes, and the reason a store discovered by a provider rendered as a
+     * blank pip with no label. The ids are still included for callers that
+     * only need identity.
+     */
+    const marketplaceById = new Map(marketplaceRows.map((m) => [m.id, m]));
 
     return {
       data: pageRows.map((r) => ({
         ...shapeCatalogueRow(r, detailById.get(r.productId)),
+        keySpecs: keySpecsFor(r),
+        marketplaces: r.marketplaceIds
+          .map((id) => marketplaceById.get(id))
+          .filter((m): m is NonNullable<typeof m> => Boolean(m))
+          .map((m) => ({ id: m.id, name: m.name, brandColor: m.brandColor })),
       })),
       pagination: pageMeta(input.page, input.pageSize, ordered.length),
       facets,

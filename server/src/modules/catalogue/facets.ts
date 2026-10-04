@@ -277,10 +277,22 @@ export function computeFacets(input: {
   const brandPool = applyAllExcept("brand");
   const brandCounts = new Map<string, number>();
   for (const s of brandPool) brandCounts.set(s.brandId, (brandCounts.get(s.brandId) ?? 0) + 1);
+  /**
+   * ---- brand
+   *
+   * By count, then label — 304 brands have no meaningful fixed order, so
+   * ranking them is the useful thing.
+   *
+   * The id is the final tiebreak, and it is load-bearing: two brands can share
+   * a DISPLAY NAME. `brand_xiaomi` and `brand_redmi` both read "Redmi" in this
+   * catalogue, so count and label together do not separate them, and without a
+   * third key their order is whatever the input happened to be. Over a
+   * paginated or cached response that is a row that moves for no reason.
+   */
   const brand = [...brandCounts]
     .map(([id, count]) => ({ id, label: brandsById.get(id) ?? id, count }))
     .filter((f) => f.count > 0)
-    .sort((a, b) => b.count - a.count || a.label.localeCompare(b.label));
+    .sort((a, b) => b.count - a.count || a.label.localeCompare(b.label) || a.id.localeCompare(b.id));
 
   // ---- price
   const pricePool = applyAllExcept("price");
