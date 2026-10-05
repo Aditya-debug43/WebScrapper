@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
-import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
-import { dirname, join, relative, resolve } from "node:path";
+import { existsSync } from "node:fs";
+import { join, relative } from "node:path";
+import { SRC, codeOf, reachableFrom, sourceFiles } from "./helpers/moduleGraph.js";
 
 /**
  * THE BROWSER NO LONGER DECIDES A PRICE — enforced, not intended.
@@ -27,64 +28,12 @@ import { dirname, join, relative, resolve } from "node:path";
  * later phase's work, not this one's.
  */
 
-const SRC = resolve(__dirname, "..", "src");
-
 /** Modules that decide a price or build the set a price is argued from. */
 const PRICING_MODULES = ["pricingEngine", "hedonicModel", "competitiveSet", "crossMarketplaceAnalysis"];
-
-/** Comments quote these names legitimately; only real code counts. */
-function codeOf(file) {
-  return readFileSync(file, "utf8")
-    .replace(/\/\*[\s\S]*?\*\//g, "")
-    .replace(/(^|[^:])\/\/.*$/gm, "$1");
-}
-
-function sourceFiles(dir) {
-  const found = [];
-  for (const entry of readdirSync(dir)) {
-    const full = join(dir, entry);
-    if (statSync(full).isDirectory()) found.push(...sourceFiles(full));
-    else if (/\.(jsx?|tsx?)$/.test(entry)) found.push(full);
-  }
-  return found;
-}
-
-/** Relative-path imports from one file, resolved to real files on disk. */
-function localImports(file) {
-  const code = codeOf(file);
-  const specifiers = [];
-  for (const pattern of [/\bfrom\s+["'](\.[^"']+)["']/g, /\bimport\s*\(\s*["'](\.[^"']+)["']\s*\)/g]) {
-    let match;
-    while ((match = pattern.exec(code)) !== null) specifiers.push(match[1]);
-  }
-
-  const resolved = [];
-  for (const specifier of specifiers) {
-    const base = resolve(dirname(file), specifier);
-    const candidate = [base, `${base}.js`, `${base}.jsx`, join(base, "index.js"), join(base, "index.jsx")].find(
-      (p) => existsSync(p) && statSync(p).isFile()
-    );
-    if (candidate) resolved.push(candidate);
-  }
-  return resolved;
-}
 
 const files = sourceFiles(SRC);
 const RECOMMENDATION_PAGE = join(SRC, "pages", "PricingRecommendation.jsx");
 const ANALYSIS_PAGE = join(SRC, "pages", "CrossMarketplaceAnalysis.jsx");
-
-/** Everything the recommendation page pulls in, transitively. */
-function reachableFrom(entry) {
-  const seen = new Set();
-  const queue = [entry];
-  while (queue.length) {
-    const file = queue.pop();
-    if (seen.has(file)) continue;
-    seen.add(file);
-    for (const next of localImports(file)) if (!seen.has(next)) queue.push(next);
-  }
-  return seen;
-}
 
 describe("the browser does not decide a price", () => {
   it("finds the source tree and the entry point it is checking", () => {
@@ -124,15 +73,26 @@ describe("the browser does not decide a price", () => {
     expect(offenders, `the analysis page reaches a pricing module: ${offenders.join(", ")}`).toEqual([]);
   });
 
-  it("neither page reaches the engine through the observation windows", () => {
+  it("the route through the observation windows is gone, not merely unused", () => {
     /**
-     * The subtle route, and the one a text search would miss:
+     * The subtle route, and the one a text search would have missed:
      * `observationWindows` imported the engine for its statistics, so any
      * screen that merely named a horizon pulled the pricing engine in behind
-     * it. The vocabulary and the statistics are separate modules now.
+     * it.
+     *
+     * Phase 9 closed it permanently. The vocabulary was split into
+     * `observationWindowDefs.js`, which is pure, and the two dataset-reading
+     * halves — `observationWindows.js` and `observationWindowStats.js` —
+     * were deleted once the backend owned the statistics. The assertion is
+     * now about ABSENCE rather than about their contents, which is a
+     * stronger claim than the one it replaces.
      */
-    const vocabulary = codeOf(join(SRC, "utils", "observationWindows.js"));
-    expect(vocabulary).not.toContain('from "./pricingEngine"');
+    expect(existsSync(join(SRC, "utils", "observationWindows.js"))).toBe(false);
+    expect(existsSync(join(SRC, "utils", "observationWindowStats.js"))).toBe(false);
+
+    const definitions = codeOf(join(SRC, "utils", "observationWindowDefs.js"));
+    expect(definitions, "the surviving vocabulary must stay pure").not.toMatch(/from\s+["']\.[^"']*\/data\//);
+    expect(definitions).not.toContain("pricingEngine");
 
     for (const entry of [RECOMMENDATION_PAGE, ANALYSIS_PAGE]) {
       const reachable = [...reachableFrom(entry)].map((f) => relative(SRC, f).replace(/\\/g, "/"));
