@@ -481,6 +481,128 @@ export class AnalysisRepository {
     );
   }
 
+  /* ------------------------------------------------- non-price signal inputs */
+
+  /**
+   * Every offer-day in a range, with whether it was buyable.
+   *
+   * `dailySeries` cannot answer this: it filters to in-stock rows because it
+   * exists to produce a price, and a price for a day nothing was buyable is
+   * not a price. Availability is the opposite question, so it needs the
+   * unfiltered rows.
+   */
+  async coverageSeries(productId: string, from: string, to: string) {
+    return rows<{ date: string; inStock: boolean }>(
+      this.db,
+      sql`select po.observed_at::text as date, po.is_in_stock as "inStock"
+            from price_observations po
+            join offers   o on o.id = po.offer_id
+            join listings l on l.id = o.listing_id
+           where l.product_id = ${productId}
+             and po.observed_at >= ${from}
+             and po.observed_at <= ${to}`
+    );
+  }
+
+  /**
+   * Who held the featured offer, per listing, across a window.
+   *
+   * `is_buybox_winner` is computed per listing per capture date as the cheapest
+   * in-stock landed price — the rule Amazon's Buy Box and Flipkart's default
+   * seller approximate — so this is an observed outcome rather than a guess.
+   *
+   * Returned PER LISTING AND SELLER, deliberately unaggregated. Pooling every
+   * platform's winners into one figure reads as a wide-open contest when it is
+   * the opposite: six platforms each with an unchallenged winner comes out as
+   * "the top seller holds 16.7%". The default position is a per-listing
+   * contest, so the listing is the unit and the summarising happens above.
+   */
+  async featuredWins(productId: string, from: string, to: string) {
+    return rows<{
+      listingId: string;
+      marketplaceId: string;
+      sellerId: string;
+      sellerName: string;
+      wins: number;
+    }>(
+      this.db,
+      sql`select l.id            as "listingId",
+                 l.marketplace_id as "marketplaceId",
+                 o.seller_id     as "sellerId",
+                 s.name          as "sellerName",
+                 count(*)::int   as "wins"
+            from price_observations po
+            join offers   o on o.id = po.offer_id
+            join listings l on l.id = o.listing_id
+            join sellers  s on s.id = o.seller_id
+           where l.product_id = ${productId}
+             and po.is_buybox_winner
+             and po.observed_at >= ${from}
+             and po.observed_at <= ${to}
+           group by l.id, l.marketplace_id, o.seller_id, s.name`
+    );
+  }
+
+  /**
+   * Active promotions per offer on a given day, for the offers of one product.
+   *
+   * Scoped to the day each offer was last observed rather than to a single
+   * date, because "is a universal discount live right now" is a question about
+   * each offer's own latest capture.
+   */
+  async activePromotionsPerOffer(productId: string) {
+    return rows<{ offerId: string; availabilityClass: string; label: string }>(
+      this.db,
+      sql`with latest as (
+            select distinct on (po.offer_id) po.offer_id, po.observed_at
+              from price_observations po
+              join offers   o on o.id = po.offer_id
+              join listings l on l.id = o.listing_id
+             where l.product_id = ${productId}
+             order by po.offer_id, po.observed_at desc
+          )
+          select pr.offer_id          as "offerId",
+                 pr.availability_class as "availabilityClass",
+                 pr.label             as "label"
+            from promotions pr
+            join latest x on x.offer_id = pr.offer_id
+           where (pr.valid_from is null or pr.valid_from <= x.observed_at)
+             and (pr.valid_to   is null or pr.valid_to   >= x.observed_at)`
+    );
+  }
+
+  /**
+   * Listing ids per product, for a batch.
+   *
+   * The demand comparison sums review velocity per product, and velocity is
+   * captured per listing — so the competitor set's listings have to be grouped
+   * back by product. One query for the whole set rather than one per rival.
+   */
+  async listingsForProducts(productIds: string[]) {
+    if (productIds.length === 0) return [];
+    return rows<{ productId: string; listingId: string }>(
+      this.db,
+      sql`select l.product_id as "productId", l.id as "listingId"
+            from listings l
+           where ${inList(sql`l.product_id`, productIds)}`
+    );
+  }
+
+  /** The latest rating snapshot per seller, for a batch. Null where unrated. */
+  async latestSellerRatings(sellerIds: string[]) {
+    if (sellerIds.length === 0) return [];
+    return rows<{ sellerId: string; rating: number | null; ratingCount: number | null }>(
+      this.db,
+      sql`select distinct on (srs.seller_id)
+                 srs.seller_id    as "sellerId",
+                 srs.rating       as "rating",
+                 srs.rating_count as "ratingCount"
+            from seller_rating_snapshots srs
+           where ${inList(sql`srs.seller_id`, sellerIds)}
+           order by srs.seller_id, srs.captured_at desc`
+    );
+  }
+
   async knownMarketplaceIds(): Promise<string[]> {
     const found = await rows<{ id: string }>(this.db, sql`select id from marketplaces order by id`);
     return found.map((r) => r.id);

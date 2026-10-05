@@ -1,4 +1,5 @@
 import { AppError } from "../../lib/errors.js";
+import { buildStoreSignals } from "./storeSignals.js";
 import { PRICE_BASIS } from "../../lib/priceLadder.js";
 import { DEFAULT_WINDOW, resolveWindow, shiftDays, type WindowKey } from "../../lib/windows.js";
 import type { AnalysisRepository, AttributeRow, OfferStateRow, ProductRow } from "./analysis.repository.js";
@@ -325,7 +326,7 @@ export class AnalysisService {
    */
   async productAnalysis(
     productId: string,
-    opts: { window?: WindowKey; from?: string; to?: string; marketplaceId?: string }
+    opts: { window?: WindowKey; from?: string; to?: string; marketplaceId?: string; signalWindow?: WindowKey }
   ) {
     const target = await this.repo.findProduct(productId);
     if (!target) throw new AppError("NOT_FOUND", `No product with id ${productId}.`);
@@ -344,22 +345,39 @@ export class AnalysisService {
       ? { key: null, label: null, days: null, from: opts.from ?? "0001-01-01", to: opts.to ?? referenceDate }
       : resolveWindow(opts.window ?? DEFAULT_WINDOW, referenceDate);
 
+    /**
+     * A SEPARATE horizon for the non-price parameters.
+     *
+     * `range` is normally the product's whole observed history, because the
+     * history section states the entire captured series. Availability share and
+     * promotional share are questions about a RECENT horizon — "is 40% of the
+     * last month promotional" means something, "is 40% of all time" barely does
+     * — and the screen has its own selector for it. Defaults to one month,
+     * matching the selector's own default.
+     */
+    const signalRange = resolveWindow(opts.signalWindow ?? DEFAULT_WINDOW, referenceDate);
+
     if (range.from > range.to) {
       throw new AppError("VALIDATION_FAILED", "`from` must not be later than `to`.", {
         details: [{ field: "from", message: "must be on or before `to`" }],
       });
     }
 
-    const [attrs, listings, offerStates, promotions, reviews, velocity, series, set] = await Promise.all([
-      this.repo.attributesFor(target.productTypeId),
-      this.repo.listingsFor(productId),
-      this.repo.offerStates(productId),
-      this.repo.activePromotions(productId, referenceDate),
-      this.repo.latestReviews([productId]),
-      this.repo.reviewVelocity([productId]),
-      this.repo.dailySeries(productId, range.from, range.to),
-      this.competitors.build(productId),
-    ]);
+    const [attrs, listings, offerStates, promotions, reviews, velocity, series, set, coverage, featuredWins, offerPromotions] =
+      await Promise.all([
+        this.repo.attributesFor(target.productTypeId),
+        this.repo.listingsFor(productId),
+        this.repo.offerStates(productId),
+        this.repo.activePromotions(productId, referenceDate),
+        this.repo.latestReviews([productId]),
+        this.repo.reviewVelocity([productId]),
+        this.repo.dailySeries(productId, range.from, range.to),
+        this.competitors.build(productId),
+        /* ---- non-price signal inputs, loaded in the same round trip ---- */
+        this.repo.coverageSeries(productId, signalRange.from, signalRange.to),
+        this.repo.featuredWins(productId, signalRange.from, signalRange.to),
+        this.repo.activePromotionsPerOffer(productId),
+      ]);
 
     const unitBasis = unitBasisFor(attrs, target.specifications);
     const marketplaceRows = buildMarketplaceRows({ listings, offerStates, promotions, reviews, velocity, marketplaceId: opts.marketplaceId });
@@ -438,6 +456,101 @@ export class AnalysisService {
       limited,
     });
 
+    /**
+     * NON-PRICE PARAMETERS.
+     *
+     * Composed here rather than in a browser, which is where it used to live
+     * over a bundled copy of the data. Every input is already loaded for the
+     * analysis — the offers, the window, the trust rating, the competitive set
+     * — so this costs three extra reads rather than a second pass.
+     *
+     * Competitor review velocity is fetched for the whole set at once: the
+     * demand comparison is against the competitive median, and loading it per
+     * rival would be one query per competitor.
+     */
+    /**
+     * The daily series over the SIGNAL window, for promotional-day share.
+     *
+     * `history` above covers the analysis range — normally all time — and
+     * "40% of all captured days were promotional" is a different and much
+     * weaker statement than "40% of the last month was".
+     */
+    const signalSeries = await this.repo.dailySeries(productId, signalRange.from, signalRange.to);
+    const signalHistory = analyseHistory(signalSeries, currentPriceMinor, referenceDate);
+
+    const compVelocity = await this.repo.reviewVelocity(set.members.map((m) => m.productId));
+
+    /**
+     * Velocity is captured per LISTING and summed per product, matching the one
+     * rule the browser applied: a product's demand signal is the sum of its
+     * listings', because a review on either listing is a review of the product.
+     */
+    const velocityFor = (rows: Array<{ listingId: string; velocity: number | null }>) => {
+      let sum = 0;
+      let any = false;
+      for (const r of rows) {
+        if (r.velocity == null) continue;
+        sum += r.velocity;
+        any = true;
+      }
+      return any ? Math.round(sum * 100) / 100 : null;
+    };
+
+    const compListings = await this.repo.listingsForProducts(set.members.map((m) => m.productId));
+    const listingsByProduct = new Map<string, string[]>();
+    for (const row of compListings) {
+      const list = listingsByProduct.get(row.productId) ?? [];
+      list.push(row.listingId);
+      listingsByProduct.set(row.productId, list);
+    }
+
+    const outOfStockRows = coverage.filter((c) => !c.inStock).length;
+    const storeSignals = buildStoreSignals({
+      offers: offerStates.map((o) => ({
+        listingId: o.listingId,
+        marketplaceId: o.marketplaceId,
+        offerId: o.offerId,
+        sellerId: o.sellerId,
+        sellerName: o.sellerName,
+        fulfilmentType: o.fulfilmentType,
+        isInStock: o.isInStock,
+        mrpMinor: o.mrpMinor,
+        sellingPriceMinor: o.sellingPriceMinor,
+        shippingFeeMinor: o.shippingFeeMinor,
+        landedMinor: o.landedMinor,
+        universalEffectiveMinor: o.universalEffectiveMinor,
+      })),
+      listingIds: [...new Set(listings.map((l) => l.listingId))],
+      ownMarketplaceIds: [...new Set(listings.map((l) => l.marketplaceId))],
+      featuredWins,
+      activePromotions: offerPromotions,
+      window: {
+        key: signalRange.key,
+        label: signalRange.label,
+        days: signalRange.days,
+        n: signalHistory?.observationCount ?? 0,
+        promoDays: signalHistory?.promoDays ?? 0,
+        promoLabels: signalHistory?.promoLabels ?? [],
+        coverage: {
+          observationRows: coverage.length,
+          outOfStockRows,
+          outOfStockShare: coverage.length ? Math.round((outOfStockRows / coverage.length) * 1000) / 10 : null,
+        },
+      },
+      trust: competitorAnalysis?.targetTrustRating ?? null,
+      rawRating: targetReview.rating,
+      reviewCount: targetReview.reviewCount,
+      velocity: velocityFor(velocity),
+      competitors: set.members.map((m) => ({
+        id: m.productId,
+        name: m.canonicalName,
+        marketplaceIds: [...m.marketplaceIds],
+        velocity: velocityFor(
+          compVelocity.filter((v) => (listingsByProduct.get(m.productId) ?? []).includes(v.listingId))
+        ),
+      })),
+    });
+
     return {
       data: {
         product: {
@@ -473,6 +586,7 @@ export class AnalysisService {
         strength,
         unitBasis,
         history,
+        storeSignals,
         normalMinor,
         distortion,
         findings,

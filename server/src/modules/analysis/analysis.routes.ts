@@ -79,17 +79,28 @@ export function registerAnalysisRoutes(app: FastifyInstance, analysis: AnalysisS
             from: { type: "string", pattern: "^\\d{4}-\\d{2}-\\d{2}$" },
             to: { type: "string", pattern: "^\\d{4}-\\d{2}-\\d{2}$" },
             marketplace: { type: "string", minLength: 1, maxLength: 80 },
+            /**
+             * The horizon the NON-PRICE PARAMETERS are measured over.
+             *
+             * Separate from `window` on purpose. The analysis itself is
+             * normally asked for the whole observed history, because the
+             * history section states the product's entire captured series —
+             * but availability and promotional share are questions about a
+             * recent horizon, and the screen has its own selector for them.
+             */
+            signalWindow: { type: "string", enum: [...WINDOW_KEYS] },
           },
         },
       },
     },
     async (request) => {
-      const q = request.query as { window: WindowKey; from?: string; to?: string; marketplace?: string };
+      const q = request.query as { window: WindowKey; from?: string; to?: string; marketplace?: string; signalWindow?: WindowKey };
       return analysis.productAnalysis(id(request), {
         window: q.window,
         from: q.from,
         to: q.to,
         marketplaceId: q.marketplace,
+        signalWindow: q.signalWindow,
       });
     }
   );

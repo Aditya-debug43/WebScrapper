@@ -350,6 +350,14 @@ export function presentAnalysis({ analysis, recommendation, horizons }) {
       : null,
 
     horizons: horizons?.data ? presentHorizons(horizons) : null,
+
+    /**
+     * Non-price parameters, computed by the backend beside the findings they
+     * sit among. Passed through untouched: the thresholds that decide what a
+     * seller is told to do are business rules, and a presenter that reshaped
+     * them would be a second place they could drift.
+     */
+    storeSignals: d.storeSignals ?? null,
   };
 }
 

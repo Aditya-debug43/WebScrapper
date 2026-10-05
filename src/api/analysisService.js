@@ -36,7 +36,7 @@ const WINDOWS = ["1d", "2d", "3d", "7d", "15d", "1m", "3m"];
  * loaded — that is the page. A failing recommendation or price summary
  * degrades the sections that need them rather than the whole screen.
  */
-export async function getCrossMarketplaceAnalysis(productId, { token, marketplace, signal } = {}) {
+export async function getCrossMarketplaceAnalysis(productId, { token, marketplace, signalWindow, signal } = {}) {
   const id = encodeURIComponent(productId);
   const scope = marketplace ? `&marketplace=${encodeURIComponent(marketplace)}` : "";
   const windows = WINDOWS.map((w) => `windows=${w}`).join("&");
@@ -54,8 +54,16 @@ export async function getCrossMarketplaceAnalysis(productId, { token, marketplac
    */
   const fullHistory = "from=0001-01-01";
 
+  /**
+   * The horizon the NON-PRICE parameters are measured over, which is the one
+   * the window selector names — not the analysis range above. Availability and
+   * promotional share are questions about a recent window; the history section
+   * is a question about the whole series.
+   */
+  const signals = signalWindow ? `&signalWindow=${encodeURIComponent(signalWindow)}` : "";
+
   const [analysis, recommendation, horizons] = await Promise.all([
-    apiRequest(`/products/${id}/analysis?${fullHistory}${scope}`, { token, signal }),
+    apiRequest(`/products/${id}/analysis?${fullHistory}${scope}${signals}`, { token, signal }),
     // Allowed to fail: a refused recommendation is a real state this screen
     // renders, and a 404 on it must not blank an analysis that loaded fine.
     apiRequest(`/products/${id}/recommendation${scope ? `?${scope.slice(1)}` : ""}`, { token, signal }).catch((error) => {

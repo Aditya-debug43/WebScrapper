@@ -43,36 +43,15 @@ import { getOffersForListing } from "../data/offers";
  * thin.
  */
 
-export const OBSERVATION_WINDOWS = [
-  { key: "d1", days: 1, label: "1 day", short: "1d" },
-  { key: "d2", days: 2, label: "2 days", short: "2d" },
-  { key: "d3", days: 3, label: "3 days", short: "3d" },
-  { key: "d7", days: 7, label: "7 days", short: "7d" },
-  { key: "d15", days: 15, label: "15 days", short: "15d" },
-  { key: "d30", days: 30, label: "1 month", short: "1m" },
-  { key: "d90", days: 90, label: "3 months", short: "3m" },
-];
+/**
+ * Re-exported from `observationWindowDefs.js`, where they now live.
+ *
+ * They are pure definitions and were moved out so a screen can read a window
+ * label without importing this module, which also loads the bundled
+ * observation table. Existing callers keep working through these names.
+ */
+export { OBSERVATION_WINDOWS, DEFAULT_WINDOW_KEY, CAPABILITY, windowByKey } from "./observationWindowDefs";
 
-export const DEFAULT_WINDOW_KEY = "d30";
-
-export const CAPABILITY = {
-  none: { rank: 0, label: "No observation", note: "Nothing was captured inside this window." },
-  snapshot: {
-    rank: 1,
-    label: "Snapshot",
-    note: "One observation. That is a price level, not a movement — nothing can be said about direction or stability at this horizon.",
-  },
-  directional: {
-    rank: 2,
-    label: "Directional",
-    note: "Enough observations to say which way the price moved and how wide it ranged, but too few for volatility to mean anything.",
-  },
-  distributional: {
-    rank: 3,
-    label: "Distributional",
-    note: "Enough observations for a median, a volatility reading and a trend.",
-  },
-};
 
 /** 2-4 points can carry a direction; 5 is where a spread becomes a distribution. */
 const DIRECTIONAL_MIN = 2;
@@ -163,6 +142,3 @@ export function coverageInWindow(productId, from, to) {
 }
 
 /** Convenience for callers that hold a key rather than a day count. */
-export function windowByKey(key) {
-  return OBSERVATION_WINDOWS.find((w) => w.key === key) ?? OBSERVATION_WINDOWS.find((w) => w.key === DEFAULT_WINDOW_KEY);
-}

@@ -105,10 +105,19 @@ describe("the browser does not decide a price", () => {
      */
     const reachable = [...reachableFrom(ANALYSIS_PAGE)].map((f) => relative(SRC, f).replace(/\\/g, "/"));
 
-    // The walk really does reach the page's own parts.
+    /**
+     * The walk really does reach the page's own parts.
+     *
+     * `utils/storeSignals.js` used to be named here. It no longer is because
+     * the page no longer reaches it: the non-price parameters are computed by
+     * the backend and arrive inside the analysis response, so the browser holds
+     * no second copy of those thresholds. The window DEFINITIONS took its place
+     * in this list — they are the page's own, and pure.
+     */
     expect(reachable).toContain("api/analysisService.js");
     expect(reachable).toContain("utils/analysisPresenter.js");
-    expect(reachable).toContain("utils/storeSignals.js");
+    expect(reachable).toContain("utils/observationWindowDefs.js");
+    expect(reachable).toContain("api/marketplacesService.js");
     expect(reachable).toContain("api/http.js");
 
     const offenders = reachable.filter((rel) => PRICING_MODULES.some((m) => rel === `utils/${m}.js`));

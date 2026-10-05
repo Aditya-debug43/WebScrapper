@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Link, useOutletContext, useSearchParams } from "react-router-dom";
 import {
   ArrowRight,
@@ -21,8 +21,7 @@ import {
 } from "lucide-react";
 import { useAuth } from "../state/AuthContext";
 import { getCrossMarketplaceAnalysis } from "../api/analysisService";
-import { buildStoreSignals } from "../utils/storeSignals";
-import { OBSERVATION_WINDOWS, DEFAULT_WINDOW_KEY, CAPABILITY, windowByKey } from "../utils/observationWindows";
+import { OBSERVATION_WINDOWS, DEFAULT_WINDOW_KEY, CAPABILITY, backendWindowKey } from "../utils/observationWindowDefs";
 import FilterControl from "../components/common/FilterControl";
 import LoadingState from "../components/common/LoadingState";
 import { formatMinor } from "../utils/money";
@@ -140,7 +139,7 @@ export default function CrossMarketplaceAnalysis() {
     // this one loads.
     setState({ status: "loading", analysis: null, error: null });
 
-    getCrossMarketplaceAnalysis(productId, { token, signal: controller.signal })
+    getCrossMarketplaceAnalysis(productId, { token, signalWindow: backendWindowKey(windowKey), signal: controller.signal })
       .then((analysis) => {
         if (requestedFor.current !== key) return;
         setState({ status: "ready", analysis, error: null });
@@ -151,14 +150,22 @@ export default function CrossMarketplaceAnalysis() {
       });
 
     return () => controller.abort();
-  }, [productId, token, attempt]);
+    // `windowKey` is a dependency because the non-price parameters are measured
+    // over it server-side, so changing the horizon is a refetch rather than a
+    // local recomputation. It used to be the latter, over bundled data.
+  }, [productId, token, attempt, windowKey]);
 
   const analysis = state.analysis;
   const horizons = analysis?.horizons ?? null;
-  const signals = useMemo(
-    () => (analysis ? buildStoreSignals(productId, { windowDays: windowByKey(windowKey).days, analysis }) : null),
-    [productId, windowKey, analysis]
-  );
+  /**
+   * Non-price parameters, from the backend.
+   *
+   * They used to be computed here over the bundled dataset — a second
+   * analytical engine reading a second copy of the data. The window they are
+   * measured over is the one the request asked for, so changing the horizon
+   * refetches rather than recomputing locally.
+   */
+  const signals = analysis?.storeSignals ?? null;
   const selected = horizons?.windows?.find((w) => w.key === windowKey) ?? horizons?.windows?.[0] ?? null;
 
   const setWindow = (key) => {
