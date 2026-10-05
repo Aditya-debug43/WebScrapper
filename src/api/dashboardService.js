@@ -1,125 +1,60 @@
-import { mockDelay } from "./client";
-import { getProduct } from "../data/products";
-import { getBrand } from "../data/brands";
-import { getListingsForProduct } from "../data/listings";
-import { marketplaces } from "../data/marketplaces";
-import { getCurrentEffectivePrice } from "../utils/pricingEngine";
-import { OBSERVATION_WINDOWS, DEFAULT_WINDOW_KEY, windowByKey, datasetLatestDate } from "../utils/observationWindows";
-import { analyseWindow } from "../utils/observationWindowStats";
-import { demoSetIds, profileFor } from "../utils/demoSet";
+import { apiRequest } from "./http";
+import { backendWindowKey } from "../utils/observationWindowDefs";
+
+export { OBSERVATION_WINDOWS, DEFAULT_WINDOW_KEY } from "../utils/observationWindowDefs";
 
 /**
- * The products the desk opens on.
+ * THE DESK, FROM THE BACKEND.
  *
- * This used to be two hand-written ids, which is exactly what the review
- * picked up: two products cannot show whether the analysis generalises. They
- * are now chosen by `utils/demoSet` — a stratified sample across marketplace
- * reach, history depth, competitive density, department and price, including
- * cases the engine is expected to refuse. See that module for the method.
+ * Three things changed in the move, and the third is the reason for the
+ * other two.
  *
- * A real deployment would read a per-user tracked-products resource here; the
- * shape of this export is unchanged so that swap stays a one-line change.
+ * 1. ONE REQUEST, NOT THREE. The page used to call for summaries, alerts and
+ *    portfolio totals separately, and each of those independently recomputed
+ *    the same per-product window statistics over the bundled dataset. The
+ *    same work three times, and three results that could in principle
+ *    disagree. They are one server-side computation now and arrive together.
+ *
+ * 2. NO DEFAULT SET IN THE BROWSER. `DEFAULT_TRACKED_PRODUCT_IDS` used to be
+ *    `demoSetIds()` — a stratified sample chosen by profiling all 1,172
+ *    products on reach, capture depth and competitive density. That single
+ *    export was the largest reason the frontend needed the whole catalogue at
+ *    runtime: choosing twelve products required reading every one of them.
+ *    The backend picks the set now, by the same method, and the caller simply
+ *    does not pass any ids.
+ *
+ * 3. NO FALLBACK. If the API fails, this throws. It does not quietly serve a
+ *    bundled desk, because a desk that silently stops reflecting the database
+ *    is worse than a desk that says it is broken.
+ *
+ * The honest-refusal behaviour survives intact: at this catalogue's capture
+ * cadence a one-day window holds a single observation for most products, and
+ * a single observation is a price level and not a movement. Such a product
+ * comes back with a capability and a null change, and the page is expected to
+ * respect that rather than print a change of zero.
  */
-export const DEFAULT_TRACKED_PRODUCT_IDS = demoSetIds();
-
-export { OBSERVATION_WINDOWS, DEFAULT_WINDOW_KEY };
 
 /**
- * A movement is only reported where the window can actually carry one. At
- * this catalogue's capture cadence a 1-day window holds a single observation
- * for most products, and a single observation has no direction — so the
- * summary returns the capability alongside the number, and the interface is
- * expected to respect it rather than print a change of zero.
- */
-export async function getTrackedProductsSummary(productIds, windowKey = DEFAULT_WINDOW_KEY) {
-  await mockDelay();
-  const win = windowByKey(windowKey);
-  return productIds
-    .map((id) => {
-      const product = getProduct(id);
-      if (!product) return null;
-      const current = getCurrentEffectivePrice(id);
-      const w = analyseWindow(id, win.days);
-      return {
-        product,
-        brand: getBrand(product.brandId),
-        profile: profileFor(id),
-        currentPriceMinor: current?.universalEffectiveMinor ?? null,
-        marketplaceCount: getListingsForProduct(id).length,
-        window: w,
-        capability: w.capability,
-        changeMinor: w.changeMinor,
-        // Kept as a fraction for the existing formatters; null whenever the
-        // window cannot support a direction.
-        changePct: w.changePct == null ? null : w.changePct / 100,
-        observationCount: w.n,
-      };
-    })
-    .filter(Boolean);
-}
-
-/**
- * GET /api/dashboard/alerts — derived, never stored.
+ * Everything the desk renders, in one call.
  *
- * An alert needs a direction, so windows that only carry a snapshot produce
- * none. That is the point: firing "no movement" at a product observed once
- * this week would be a statement the data does not support.
+ * @param {object}   [options]
+ * @param {string}   [options.token]       Session token; the endpoint is authenticated.
+ * @param {string[]} [options.productIds]  Omit to let the backend decide — the
+ *                                         user's tracked products, or the
+ *                                         stratified default if they have none.
+ * @param {string}   [options.windowKey]   Observation horizon, in the
+ *                                         interface's own vocabulary (`d30`).
+ * @param {AbortSignal} [options.signal]
  */
-export async function getPriceAlerts(productIds, windowKey = DEFAULT_WINDOW_KEY) {
-  await mockDelay();
-  const summaries = await getTrackedProductsSummary(productIds, windowKey);
-  const win = windowByKey(windowKey);
-  const alerts = [];
-  for (const s of summaries) {
-    if (s.changePct == null) continue;
-    if (s.changePct <= -0.04) {
-      alerts.push({
-        id: `alert_drop_${s.product.id}_${win.key}`,
-        productId: s.product.id,
-        severity: "serious",
-        type: "price_drop",
-        message: `${s.product.canonicalName} moved ${Math.abs(s.changePct * 100).toFixed(1)}% lower across ${win.label.toLowerCase()}, over ${s.observationCount} observations.`,
-      });
-    }
-    if (s.changePct >= 0.04) {
-      alerts.push({
-        id: `alert_rise_${s.product.id}_${win.key}`,
-        productId: s.product.id,
-        severity: "good",
-        type: "price_rise",
-        message: `${s.product.canonicalName} moved ${(s.changePct * 100).toFixed(1)}% higher across ${win.label.toLowerCase()}, over ${s.observationCount} observations.`,
-      });
-    }
-  }
-  return alerts;
-}
+export async function getDesk({ token, productIds, windowKey, signal } = {}) {
+  const params = new URLSearchParams();
+  if (productIds?.length) params.set("products", productIds.join(","));
+  // The interface names this horizon `d30` and the API names it `1m`. The
+  // translation belongs here, not at the call site — sending the interface's
+  // key straight through is a 400, and a screen should not have to know that.
+  if (windowKey) params.set("window", backendWindowKey(windowKey));
+  const query = params.toString();
 
-export async function getPortfolioPosition(productIds, windowKey = DEFAULT_WINDOW_KEY) {
-  await mockDelay();
-  const summaries = await getTrackedProductsSummary(productIds, windowKey);
-  const win = windowByKey(windowKey);
-  const totalMarketplaces = new Set(
-    productIds.flatMap((id) => getListingsForProduct(id).map((l) => l.marketplaceId))
-  ).size;
-
-  // The average is taken only over products whose window carries a direction,
-  // and the count of those is reported beside it — an average over four of
-  // twelve products is a different claim from an average over twelve.
-  const directional = summaries.filter((s) => s.changePct != null);
-  const avgChangePct = directional.length
-    ? directional.reduce((sum, s) => sum + s.changePct, 0) / directional.length
-    : null;
-
-  return {
-    trackedCount: summaries.length,
-    marketplaceCoverage: totalMarketplaces,
-    marketplaceTotal: marketplaces.length,
-    avgChangePct,
-    directionalCount: directional.length,
-    snapshotCount: summaries.filter((s) => s.capability === "snapshot").length,
-    emptyCount: summaries.filter((s) => s.capability === "none").length,
-    windowLabel: win.label,
-    windowDays: win.days,
-    asOf: datasetLatestDate(),
-  };
+  const body = await apiRequest(`/dashboard${query ? `?${query}` : ""}`, { token, signal });
+  return body?.data ?? body;
 }

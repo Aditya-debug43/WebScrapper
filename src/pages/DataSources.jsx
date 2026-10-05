@@ -1,4 +1,5 @@
 import { useAsyncData } from "../utils/useAsyncData";
+import { useAuth } from "../state/AuthContext";
 import { getDataSourcesOverview } from "../api/dataSourcesService";
 import Breadcrumbs from "../components/common/Breadcrumbs";
 import StatusBadge from "../components/common/StatusBadge";
@@ -10,8 +11,21 @@ import "./DataSources.css";
 
 const RUN_STATUS = { success: "good", partial: "warning", failed: "critical" };
 
+/**
+ * Pages attempted and succeeded, where a run recorded them.
+ *
+ * A provider call fetches one response rather than crawling pages, so these
+ * are null for it. "null/null" on screen is worse than an em dash, and
+ * "0/0" would read as a run that failed to fetch anything.
+ */
+function pages(run) {
+  if (!run || run.pagesAttempted == null) return "—";
+  return `${run.pagesSucceeded ?? 0}/${run.pagesAttempted}`;
+}
+
 export default function DataSources() {
-  const { data, loading } = useAsyncData(() => getDataSourcesOverview(), []);
+  const { token } = useAuth();
+  const { data, loading, error } = useAsyncData(() => getDataSourcesOverview({ token }), [token]);
 
   return (
     <div className="page">
@@ -28,6 +42,19 @@ export default function DataSources() {
 
       {loading && <LoadingState label="Loading provenance…" />}
 
+      {/*
+        * A provenance screen that invents provenance when the backend is
+        * unreachable is worse than no provenance screen. The failure is
+        * shown.
+        */}
+      {error && (
+        <div className="pw-missing">
+          <span className="eyebrow">Unavailable</span>
+          <h2 className="page-title">Provenance could not be loaded</h2>
+          <p className="page-subtitle">{error.message}</p>
+        </div>
+      )}
+
       {data && (
         <>
           <div className="ds-marketplace-grid stagger">
@@ -43,21 +70,26 @@ export default function DataSources() {
                   <div>
                     <span className="eyebrow">Last capture</span>
                     <p className="ds-metric-value">
-                      <Clock size={13} strokeWidth={2} /> {m.latestRun ? relativeTime(m.latestRun.finishedAt) : "—"}
+                      <Clock size={13} strokeWidth={2} />{" "}
+                      {m.latestRun
+                        ? relativeTime(m.latestRun.finishedAt ?? m.latestRun.startedAt)
+                        : m.lastObservedAt
+                          ? "via another source"
+                          : "never"}
                     </p>
                   </div>
                   <div>
                     <span className="eyebrow">Pages</span>
                     <p className="ds-metric-value">
                       <CheckCircle2 size={13} strokeWidth={2} />
-                      {m.latestRun ? `${m.latestRun.pagesSucceeded}/${m.latestRun.pagesAttempted}` : "—"}
+                      {pages(m.latestRun)}
                     </p>
                   </div>
                   <div>
                     <span className="eyebrow">Match confidence</span>
                     <p className="ds-metric-value">
                       <ShieldAlert size={13} strokeWidth={2} />
-                      {Math.round(m.avgMatchConfidence * 100)}% avg
+                      {m.avgMatchConfidence != null ? `${Math.round(m.avgMatchConfidence * 100)}% avg` : "—"}
                     </p>
                   </div>
                 </div>
@@ -90,11 +122,17 @@ export default function DataSources() {
             <h2 className="section-title ds-section-title">Recent capture runs</h2>
             <DataTable
               columns={[
-                { key: "marketplace", header: "Marketplace", render: (r) => data.perMarketplace.find((m) => m.marketplace.id === r.marketplaceId)?.marketplace.name },
+                {
+                  key: "marketplace",
+                  header: "Marketplace",
+                  // A provider run spans several stores and names none of
+                  // them, so it reports its provider instead of a blank.
+                  render: (r) => r.marketplaceName ?? (r.provider ? `${r.provider} (all stores)` : "—"),
+                },
                 { key: "started", header: "Started", render: (r) => formatDateTime(r.startedAt) },
                 { key: "status", header: "Status", render: (r) => <StatusBadge status={RUN_STATUS[r.runStatus]}>{r.runStatus}</StatusBadge> },
-                { key: "pages", header: "Pages", align: "right", render: (r) => `${r.pagesSucceeded}/${r.pagesAttempted}` },
-                { key: "parser", header: "Parser version", render: (r) => r.parserVersion },
+                { key: "pages", header: "Pages", align: "right", render: (r) => pages(r) },
+                { key: "parser", header: "Parser version", render: (r) => r.parserVersion ?? "—" },
               ]}
               rows={data.recentRuns}
               rowKey={(r) => r.id}

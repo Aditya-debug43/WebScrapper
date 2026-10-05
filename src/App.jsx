@@ -1,13 +1,14 @@
+import { useEffect } from "react";
 import { Routes, Route } from "react-router-dom";
 import Masthead from "./components/layout/Masthead";
 import Colophon from "./components/layout/Colophon";
 import ProductWorkspaceLayout from "./components/layout/ProductWorkspaceLayout";
 import { RedirectIfAuthenticated, RequireAuth } from "./components/auth/RouteGuards";
 import { AppStateProvider, useAppState } from "./state/AppStateContext";
-import { AuthProvider } from "./state/AuthContext";
+import { AuthProvider, useAuth } from "./state/AuthContext";
 import { ThemeProvider } from "./state/ThemeContext";
 import { useAsyncData } from "./utils/useAsyncData";
-import { getPriceAlerts } from "./api/dashboardService";
+import { getDesk } from "./api/dashboardService";
 
 import Dashboard from "./pages/Dashboard";
 import Catalogue from "./pages/Catalogue";
@@ -35,12 +36,29 @@ import ResetPassword from "./pages/auth/ResetPassword";
  * for a room the visitor has not been let into.
  */
 function Workspace() {
-  const { trackedProductIds } = useAppState();
-  const { data: alerts } = useAsyncData(() => getPriceAlerts(trackedProductIds), [trackedProductIds]);
+  const { token } = useAuth();
+  const { requestedProductIds, adoptResolvedIds } = useAppState();
+
+  /**
+   * The masthead's alert count, read at the default horizon.
+   *
+   * This is also where the desk gets resolved: the response says which
+   * products the server actually put on it, and the app state adopts that
+   * set so a star on a product page knows whether it is lit. The frontend no
+   * longer decides that for itself.
+   */
+  const { data: desk } = useAsyncData(
+    () => getDesk({ token, productIds: requestedProductIds }),
+    [token, requestedProductIds]
+  );
+
+  useEffect(() => {
+    if (desk) adoptResolvedIds(desk.tracked.map((t) => t.product.id));
+  }, [desk, adoptResolvedIds]);
 
   return (
     <div className="app-shell">
-      <Masthead alertCount={alerts?.length ?? 0} />
+      <Masthead alertCount={desk?.alerts?.length ?? 0} />
       <main className="app-main">
         <Routes>
           <Route path="/" element={<Dashboard />} />

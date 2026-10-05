@@ -1,0 +1,291 @@
+{
+  "generatedBy": "scripts/export-desk-parity-fixture.mjs",
+  "note": "What the browser's demoSet chose. The backend must agree.",
+  "catalogueSize": 1154,
+  "tierCounts": {
+    "moderate": 579,
+    "thin": 462,
+    "refused": 90,
+    "strong": 23
+  },
+  "selected": [
+    {
+      "id": "prod_dove_hair_fall",
+      "expectedTier": "strong",
+      "departmentId": "cat_beauty",
+      "productTypeId": "ptype_shampoo",
+      "marketplaceCount": 6,
+      "candidateCount": 9,
+      "cadenceDays": 2,
+      "observationCount": 1830,
+      "pointsPerOffer": 61,
+      "priceMinor": 56900
+    },
+    {
+      "id": "prod_lakme_gloss_lip",
+      "expectedTier": "strong",
+      "departmentId": "cat_beauty",
+      "productTypeId": "ptype_lipstick",
+      "marketplaceCount": 5,
+      "candidateCount": 11,
+      "cadenceDays": 2,
+      "observationCount": 1220,
+      "pointsPerOffer": 61,
+      "priceMinor": 54900
+    },
+    {
+      "id": "prod_reebok_energen",
+      "expectedTier": "moderate",
+      "departmentId": "cat_fashion",
+      "productTypeId": "ptype_running_shoes",
+      "marketplaceCount": 4,
+      "candidateCount": 11,
+      "cadenceDays": 5,
+      "observationCount": 300,
+      "pointsPerOffer": 25,
+      "priceMinor": 299900
+    },
+    {
+      "id": "prod_godrej_236_double",
+      "expectedTier": "moderate",
+      "departmentId": "cat_home_kitchen",
+      "productTypeId": "ptype_refrigerator",
+      "marketplaceCount": 3,
+      "candidateCount": 15,
+      "cadenceDays": 5,
+      "observationCount": 225,
+      "pointsPerOffer": 25,
+      "priceMinor": 2249000
+    },
+    {
+      "id": "prod_cello_gripper_10",
+      "expectedTier": "moderate",
+      "departmentId": "cat_stationery_books",
+      "productTypeId": "ptype_pen",
+      "marketplaceCount": 3,
+      "candidateCount": 11,
+      "cadenceDays": 2,
+      "observationCount": 915,
+      "pointsPerOffer": 61,
+      "priceMinor": 9000
+    },
+    {
+      "id": "prod_galaxy_m14_5g_8_256_silver",
+      "expectedTier": "moderate",
+      "departmentId": "cat_electronics",
+      "productTypeId": "ptype_smartphone",
+      "marketplaceCount": 2,
+      "candidateCount": 13,
+      "cadenceDays": 2,
+      "observationCount": 240,
+      "pointsPerOffer": 60,
+      "priceMinor": 1563000
+    },
+    {
+      "id": "prod_boat_wave_band",
+      "expectedTier": "thin",
+      "departmentId": "cat_sports_fitness",
+      "productTypeId": "ptype_fitness_band",
+      "marketplaceCount": 4,
+      "candidateCount": 4,
+      "cadenceDays": 2,
+      "observationCount": 1220,
+      "pointsPerOffer": 61,
+      "priceMinor": 119900
+    },
+    {
+      "id": "prod_green_soul_vienna",
+      "expectedTier": "thin",
+      "departmentId": "cat_home_furniture",
+      "productTypeId": "ptype_office_chair",
+      "marketplaceCount": 2,
+      "candidateCount": 7,
+      "cadenceDays": 12,
+      "observationCount": 44,
+      "pointsPerOffer": 11,
+      "priceMinor": 1099000
+    },
+    {
+      "id": "prod_dr_morepen_bp09",
+      "expectedTier": "thin",
+      "departmentId": "cat_health_wellness",
+      "productTypeId": "ptype_bp_monitor",
+      "marketplaceCount": 3,
+      "candidateCount": 4,
+      "cadenceDays": 5,
+      "observationCount": 225,
+      "pointsPerOffer": 25,
+      "priceMinor": 139900
+    },
+    {
+      "id": "prod_funskool_uno",
+      "expectedTier": "refused",
+      "departmentId": "cat_toys_games",
+      "productTypeId": "ptype_board_game",
+      "marketplaceCount": 3,
+      "candidateCount": 1,
+      "cadenceDays": 2,
+      "observationCount": 915,
+      "pointsPerOffer": 61,
+      "priceMinor": 24900
+    },
+    {
+      "id": "prod_himalaya_wipes_single",
+      "expectedTier": "refused",
+      "departmentId": "cat_baby_kids",
+      "productTypeId": "ptype_baby_wipes",
+      "marketplaceCount": 3,
+      "candidateCount": 1,
+      "cadenceDays": 2,
+      "observationCount": 915,
+      "pointsPerOffer": 61,
+      "priceMinor": 13900
+    },
+    {
+      "id": "prod_britannia_bourbon",
+      "expectedTier": "moderate",
+      "departmentId": "cat_grocery",
+      "productTypeId": "ptype_biscuits",
+      "marketplaceCount": 2,
+      "candidateCount": 9,
+      "cadenceDays": 2,
+      "observationCount": 610,
+      "pointsPerOffer": 61,
+      "priceMinor": 10500
+    }
+  ],
+  "profileSample": [
+    {
+      "id": "prod_3m_car_polish",
+      "expectedTier": "moderate",
+      "marketplaceCount": 2,
+      "candidateCount": 6,
+      "typePopulation": 7,
+      "cadenceDays": 5,
+      "pointsPerOffer": 25,
+      "priceMinor": 39900,
+      "observationCount": 150
+    },
+    {
+      "id": "prod_biba_georgette_saree",
+      "expectedTier": "thin",
+      "marketplaceCount": 3,
+      "candidateCount": 4,
+      "typePopulation": 11,
+      "cadenceDays": 12,
+      "pointsPerOffer": 11,
+      "priceMinor": 229900,
+      "observationCount": 66
+    },
+    {
+      "id": "prod_bru_instant_200",
+      "expectedTier": "moderate",
+      "marketplaceCount": 2,
+      "candidateCount": 6,
+      "typePopulation": 8,
+      "cadenceDays": 2,
+      "pointsPerOffer": 61,
+      "priceMinor": 46500,
+      "observationCount": 488
+    },
+    {
+      "id": "prod_dell_kb216",
+      "expectedTier": "thin",
+      "marketplaceCount": 2,
+      "candidateCount": 4,
+      "typePopulation": 11,
+      "cadenceDays": 2,
+      "pointsPerOffer": 61,
+      "priceMinor": 74500,
+      "observationCount": 488
+    },
+    {
+      "id": "prod_galaxy_m14_5g_8_256_silver",
+      "expectedTier": "moderate",
+      "marketplaceCount": 2,
+      "candidateCount": 13,
+      "typePopulation": 20,
+      "cadenceDays": 2,
+      "pointsPerOffer": 60,
+      "priceMinor": 1563000,
+      "observationCount": 240
+    },
+    {
+      "id": "prod_hp_victus",
+      "expectedTier": "thin",
+      "marketplaceCount": 1,
+      "candidateCount": 7,
+      "typePopulation": 8,
+      "cadenceDays": 12,
+      "pointsPerOffer": 11,
+      "priceMinor": 6999000,
+      "observationCount": 22
+    },
+    {
+      "id": "prod_lg_65_qned",
+      "expectedTier": "thin",
+      "marketplaceCount": 2,
+      "candidateCount": 3,
+      "typePopulation": 18,
+      "cadenceDays": 12,
+      "pointsPerOffer": 11,
+      "priceMinor": 10999000,
+      "observationCount": 44
+    },
+    {
+      "id": "prod_minimalist_face_wash",
+      "expectedTier": "moderate",
+      "marketplaceCount": 3,
+      "candidateCount": 7,
+      "typePopulation": 11,
+      "cadenceDays": 5,
+      "pointsPerOffer": 25,
+      "priceMinor": 34900,
+      "observationCount": 225
+    },
+    {
+      "id": "prod_panasonic_1ton_ac",
+      "expectedTier": "moderate",
+      "marketplaceCount": 2,
+      "candidateCount": 7,
+      "typePopulation": 8,
+      "cadenceDays": 5,
+      "pointsPerOffer": 25,
+      "priceMinor": 3499000,
+      "observationCount": 150
+    },
+    {
+      "id": "prod_puma_polo_l",
+      "expectedTier": "moderate",
+      "marketplaceCount": 2,
+      "candidateCount": 19,
+      "typePopulation": 29,
+      "cadenceDays": 5,
+      "pointsPerOffer": 25,
+      "priceMinor": 99900,
+      "observationCount": 150
+    },
+    {
+      "id": "prod_solimo_bedsheet_king",
+      "expectedTier": "moderate",
+      "marketplaceCount": 2,
+      "candidateCount": 8,
+      "typePopulation": 9,
+      "cadenceDays": 5,
+      "pointsPerOffer": 25,
+      "priceMinor": 89900,
+      "observationCount": 200
+    },
+    {
+      "id": "prod_voltas_65kg_top",
+      "expectedTier": "thin",
+      "marketplaceCount": 2,
+      "candidateCount": 12,
+      "typePopulation": 21,
+      "cadenceDays": 12,
+      "pointsPerOffer": 11,
+      "priceMinor": 1349000,
+      "observationCount": 44
+    }
+  ]
+}

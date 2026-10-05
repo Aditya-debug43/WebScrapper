@@ -1,14 +1,10 @@
+import { useEffect } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { Package, Store, TrendingUp, BellRing, Search, ArrowRight } from "lucide-react";
 import { useAppState } from "../state/AppStateContext";
+import { useAuth } from "../state/AuthContext";
 import { useAsyncData } from "../utils/useAsyncData";
-import {
-  getTrackedProductsSummary,
-  getPriceAlerts,
-  getPortfolioPosition,
-  OBSERVATION_WINDOWS,
-  DEFAULT_WINDOW_KEY,
-} from "../api/dashboardService";
+import { getDesk, OBSERVATION_WINDOWS, DEFAULT_WINDOW_KEY } from "../api/dashboardService";
 import MetricCard from "../components/common/MetricCard";
 import StatusBadge from "../components/common/StatusBadge";
 import LoadingState from "../components/common/LoadingState";
@@ -50,25 +46,40 @@ const CAPABILITY_LABEL = {
   none: "None",
 };
 
+/**
+ * The API reports percentages as percentages; `formatPct` takes a fraction.
+ * Converted here, once, rather than scattering `/ 100` through the markup —
+ * a missed one shows a 9% move as 895%.
+ */
+const asFraction = (pct) => (pct == null ? null : pct / 100);
+
 export default function Dashboard() {
-  const { trackedProductIds } = useAppState();
+  const { token } = useAuth();
+  const { requestedProductIds, adoptResolvedIds } = useAppState();
   const [params, setParams] = useSearchParams();
   const windowKey = OBSERVATION_WINDOWS.some((w) => w.key === params.get("w"))
     ? params.get("w")
     : DEFAULT_WINDOW_KEY;
 
-  const { data: summaries, loading } = useAsyncData(
-    () => getTrackedProductsSummary(trackedProductIds, windowKey),
-    [trackedProductIds, windowKey]
+  /**
+   * One request, not three.
+   *
+   * The summaries, the alerts and the portfolio totals are three views of a
+   * single calculation and now arrive as one — previously each call
+   * recomputed the same per-product window statistics independently.
+   */
+  const { data: desk, loading, error } = useAsyncData(
+    () => getDesk({ token, productIds: requestedProductIds, windowKey }),
+    [token, requestedProductIds, windowKey]
   );
-  const { data: alerts } = useAsyncData(
-    () => getPriceAlerts(trackedProductIds, windowKey),
-    [trackedProductIds, windowKey]
-  );
-  const { data: portfolio } = useAsyncData(
-    () => getPortfolioPosition(trackedProductIds, windowKey),
-    [trackedProductIds, windowKey]
-  );
+
+  useEffect(() => {
+    if (desk) adoptResolvedIds(desk.tracked.map((t) => t.product.id));
+  }, [desk, adoptResolvedIds]);
+
+  const summaries = desk?.tracked ?? null;
+  const alerts = desk?.alerts ?? null;
+  const portfolio = desk?.portfolio ? { ...desk.portfolio, asOf: desk.asOf } : null;
 
   const setWindow = (key) => {
     const next = new URLSearchParams(params);
@@ -76,6 +87,30 @@ export default function Dashboard() {
     else next.set("w", key);
     setParams(next, { replace: false });
   };
+
+  /**
+   * An outage is shown, never papered over.
+   *
+   * The desk used to be computed in the browser and so could not fail; now
+   * it can. Rendering an empty desk on an error would be indistinguishable
+   * from a user who tracks nothing, which is how a broken deployment comes
+   * to look healthy.
+   */
+  if (error) {
+    return (
+      <div className="page">
+        <Breadcrumbs items={[{ label: "Dashboard" }]} />
+        <div className="pw-missing">
+          <span className="eyebrow">Unavailable</span>
+          <h1 className="page-title">The desk could not be loaded</h1>
+          <p className="page-subtitle">{error.message}</p>
+          <Link to="/catalogue" className="btn btn-primary pw-missing-cta">
+            Browse the catalogue <ArrowRight size={14} strokeWidth={2} />
+          </Link>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="page">
@@ -144,10 +179,10 @@ export default function Dashboard() {
         />
         <MetricCard
           label={`Avg. movement · ${portfolio?.windowLabel ?? ""}`}
-          value={portfolio?.avgChangePct != null ? formatPct(portfolio.avgChangePct, { signed: true }) : "—"}
+          value={portfolio?.avgChangePct != null ? formatPct(asFraction(portfolio.avgChangePct), { signed: true }) : "—"}
           icon={TrendingUp}
           trend="up-is-bad"
-          delta={portfolio?.avgChangePct != null ? formatPct(portfolio.avgChangePct, { signed: true }) : null}
+          delta={portfolio?.avgChangePct != null ? formatPct(asFraction(portfolio.avgChangePct), { signed: true }) : null}
           sublabel={
             portfolio
               ? `across the ${portfolio.directionalCount} with a direction`
@@ -202,13 +237,13 @@ export default function Dashboard() {
                           {s.product.canonicalName}
                         </Link>
                         <span className="desk-sub">
-                          {s.brand?.name}
-                          {s.profile?.categoryName ? ` · ${s.profile.categoryName}` : ""}
+                          {s.product.brandName}
+                          {s.product.categoryName ? ` · ${s.product.categoryName}` : ""}
                         </span>
                       </th>
                       <td>
-                        <span className={`desk-tier ${s.profile?.expectedTier ?? "thin"}`}>
-                          {TIER_LABEL[s.profile?.expectedTier] ?? "—"}
+                        <span className={`desk-tier ${s.expectedTier ?? "thin"}`}>
+                          {TIER_LABEL[s.expectedTier] ?? "—"}
                         </span>
                       </td>
                       <td className="num tabular">{s.marketplaceCount}</td>
@@ -224,10 +259,10 @@ export default function Dashboard() {
                       <td className="num tabular">
                         {s.changePct != null ? (
                           <span className={s.changePct > 0 ? "up" : s.changePct < 0 ? "down" : ""}>
-                            {formatPct(s.changePct, { signed: true })}
+                            {formatPct(asFraction(s.changePct), { signed: true })}
                           </span>
                         ) : (
-                          <span className="desk-none" title={s.window?.withheld?.[0]?.reason ?? ""}>
+                          <span className="desk-none" title={s.withheld?.[0]?.reason ?? ""}>
                             not established
                           </span>
                         )}
@@ -259,7 +294,8 @@ export default function Dashboard() {
           <div className="dash-alerts">
             {alerts?.length === 0 && (
               <p className="dash-alerts-empty">
-                Nothing moved more than 4% over {portfolio?.windowLabel.toLowerCase() ?? "this window"}. Windows that
+                Nothing moved more than {portfolio?.alertThresholdPct ?? 4}% over{" "}
+                {portfolio?.windowLabel.toLowerCase() ?? "this window"}. Windows that
                 hold a single observation cannot raise an alert at all.
               </p>
             )}

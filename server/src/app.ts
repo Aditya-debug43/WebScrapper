@@ -22,6 +22,12 @@ import { registerAnalysisRoutes } from "./modules/analysis/analysis.routes.js";
 import { PricingRepository } from "./modules/pricing/pricing.repository.js";
 import { PricingService } from "./modules/pricing/pricing.service.js";
 import { registerPricingRoutes } from "./modules/pricing/pricing.routes.js";
+import { DashboardRepository } from "./modules/dashboard/dashboard.repository.js";
+import { DashboardService } from "./modules/dashboard/dashboard.service.js";
+import { registerDashboardRoutes } from "./modules/dashboard/dashboard.routes.js";
+import { SourcesRepository } from "./modules/sources/sources.repository.js";
+import { SourcesService } from "./modules/sources/sources.service.js";
+import { registerSourcesRoutes } from "./modules/sources/sources.routes.js";
 import { IngestionService } from "./ingestion/ingestion.service.js";
 import { registerIngestionRoutes } from "./modules/ingestion/ingestion.routes.js";
 
@@ -168,6 +174,16 @@ export async function buildApp(
     analysisService
   );
 
+  /**
+   * The desk reuses the analysis repository for current prices rather than
+   * writing its own ladder query. There is one definition of "the cheapest
+   * in-stock effective price" in this system and the dashboard uses it.
+   */
+  const dashboardService = new DashboardService(new DashboardRepository(db), analysisRepository);
+
+  // Provenance. Reads only what the ingestion layer wrote.
+  const sourcesService = new SourcesService(new SourcesRepository(db));
+
   // Market data. Holds a MarketOfferProvider chosen by one environment
   // variable; nothing above this line knows which provider that is.
   const ingestionService = new IngestionService(db);
@@ -186,6 +202,8 @@ export async function buildApp(
       registerMarketplaceRoutes(v1, marketplaceService);
       registerAnalysisRoutes(v1, analysisService);
       registerPricingRoutes(v1, pricingService);
+      registerDashboardRoutes(v1, dashboardService);
+      registerSourcesRoutes(v1, sourcesService);
       registerIngestionRoutes(v1, ingestionService);
     },
     { prefix: "/api/v1" }
