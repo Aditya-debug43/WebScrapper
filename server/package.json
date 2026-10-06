@@ -22,7 +22,11 @@
     "start:migrate": "node dist/scripts/migrate.js && node dist/server.js",
     "email:check": "tsx src/scripts/email-check.ts",
     "db:backfill:order": "tsx src/scripts/backfill-display-order.ts",
-    "db:backfill:order:prod": "node dist/scripts/backfill-display-order.js"
+    "db:backfill:order:prod": "node dist/scripts/backfill-display-order.js",
+    "capture:due": "tsx src/scripts/capture-due.ts",
+    "capture:due:prod": "node dist/scripts/capture-due.js",
+    "db:purge-synthetic": "tsx src/scripts/purge-synthetic.ts",
+    "db:purge-synthetic:prod": "node dist/scripts/purge-synthetic.js"
   },
   "dependencies": {
     "@fastify/cors": "^11.3.0",

@@ -1,284 +1,244 @@
-import { useCallback, useMemo, useState, useEffect } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useSearchParams } from "react-router-dom";
-import { Search, SlidersHorizontal, X } from "lucide-react";
-import { useAsyncData } from "../utils/useAsyncData";
-import { getCatalogue, SORT_OPTIONS } from "../api/catalogueService";
-import ProductCard from "../components/product/ProductCard";
-import CategoryRail from "../components/catalogue/CategoryRail";
-import FacetGroup from "../components/catalogue/FacetGroup";
+import { Search, Plus, Check, RefreshCw, ExternalLink, Star } from "lucide-react";
+import { useAuth } from "../state/AuthContext";
+import { searchMarket, trackResult } from "../api/discoveryService";
 import LoadingState from "../components/common/LoadingState";
 import Breadcrumbs from "../components/common/Breadcrumbs";
+import { formatMinor } from "../utils/money";
 import "./Catalogue.css";
 
 /**
- * All catalogue state lives in the URL. That keeps a filtered view shareable
- * and bookmarkable, and means opening a product and pressing Back returns to
- * exactly the same filtered result set.
+ * DISCOVERY, NOT A CATALOGUE
+ * ==========================
+ *
+ * This page used to filter a bundled product table, which meant it could only
+ * find what had been seeded: searching for anything else returned nothing,
+ * however real the product was. It asks the market now.
+ *
+ * What went with the old page, and why:
+ *
+ *   FACETS. Brand, category, rating and price-bucket counts were computed
+ *   over the whole seeded catalogue. There is no catalogue to count any
+ *   more — a search returns the offers for one query — so a facet rail would
+ *   be furniture describing nothing. Removed rather than faked.
+ *
+ *   THE CATEGORY TREE. Same reason. A live result has no taxonomy, and
+ *   inventing one to keep a sidebar would be the same mistake as inventing
+ *   a price.
+ *
+ * The query stays in the URL so a search remains shareable and Back works.
  */
-const SPEC_PREFIX = "spec_";
-
-function readCsv(params, key) {
-  const raw = params.get(key);
-  return raw ? raw.split(",").filter(Boolean) : [];
-}
 
 export default function Catalogue() {
+  const { token } = useAuth();
   const [searchParams, setSearchParams] = useSearchParams();
-  const [queryDraft, setQueryDraft] = useState(searchParams.get("q") ?? "");
-  const [mobileFiltersOpen, setMobileFiltersOpen] = useState(false);
+  const activeQuery = searchParams.get("q") ?? "";
+
+  const [draft, setDraft] = useState(activeQuery);
+  const [state, setState] = useState({ loading: false, error: null, data: null });
+  /** Tracking is per-result and optimistic-free: a row shows what it is doing. */
+  const [tracking, setTracking] = useState({});
+
+  useEffect(() => setDraft(activeQuery), [activeQuery]);
+
+  const run = useCallback(
+    async (query, { refresh = false } = {}) => {
+      if (!query.trim()) return;
+      setState({ loading: true, error: null, data: null });
+      try {
+        const data = await searchMarket(query, { token, refresh });
+        setState({ loading: false, error: null, data });
+      } catch (error) {
+        // Surfaced, never swapped for invented products.
+        setState({ loading: false, error, data: null });
+      }
+    },
+    [token]
+  );
 
   useEffect(() => {
-    setQueryDraft(searchParams.get("q") ?? "");
-  }, [searchParams]);
+    if (activeQuery) run(activeQuery);
+  }, [activeQuery, run]);
 
-  const criteria = useMemo(() => {
-    const specFilters = {};
-    for (const [key, value] of searchParams.entries()) {
-      if (key.startsWith(SPEC_PREFIX) && value) {
-        specFilters[key.slice(SPEC_PREFIX.length)] = value.split(",").filter(Boolean);
-      }
+  const submit = (event) => {
+    event.preventDefault();
+    const next = new URLSearchParams(searchParams);
+    if (draft.trim()) next.set("q", draft.trim());
+    else next.delete("q");
+    setSearchParams(next);
+  };
+
+  const track = async (result) => {
+    setTracking((t) => ({ ...t, [result.ref]: { status: "saving" } }));
+    try {
+      const saved = await trackResult(result.ref, { token });
+      setTracking((t) => ({ ...t, [result.ref]: { status: "tracked", productId: saved.product.id } }));
+    } catch (error) {
+      setTracking((t) => ({ ...t, [result.ref]: { status: "failed", message: error.message } }));
     }
-    return {
-      categoryId: searchParams.get("cat"),
-      productTypeId: searchParams.get("pt"),
-      query: searchParams.get("q") ?? "",
-      brandIds: readCsv(searchParams, "brand"),
-      priceBucketIds: readCsv(searchParams, "price"),
-      ratingId: searchParams.get("rating"),
-      marketplaceIds: readCsv(searchParams, "mp"),
-      inStockOnly: searchParams.get("stock") === "1",
-      specFilters,
-      sort: searchParams.get("sort") ?? "relevance",
-    };
-  }, [searchParams]);
+  };
 
-  const { data, loading } = useAsyncData(() => getCatalogue(criteria), [searchParams.toString()]);
-
-  const update = useCallback(
-    (mutate) => {
-      const next = new URLSearchParams(searchParams);
-      mutate(next);
-      setSearchParams(next, { replace: false });
-    },
-    [searchParams, setSearchParams]
-  );
-
-  const toggleCsv = useCallback(
-    (key, value) =>
-      update((next) => {
-        const current = (next.get(key) ?? "").split(",").filter(Boolean);
-        const updated = current.includes(value) ? current.filter((v) => v !== value) : [...current, value];
-        if (updated.length) next.set(key, updated.join(","));
-        else next.delete(key);
-      }),
-    [update]
-  );
-
-  const setSingle = useCallback(
-    (key, value) =>
-      update((next) => {
-        if (value == null || next.get(key) === value) next.delete(key);
-        else next.set(key, value);
-      }),
-    [update]
-  );
-
-  const selectCategory = useCallback(
-    (categoryId) =>
-      update((next) => {
-        // Changing scope clears facet selections — a RAM filter is meaningless
-        // once you have navigated into Footwear.
-        [...next.keys()].forEach((k) => {
-          if (k.startsWith(SPEC_PREFIX) || ["brand", "price", "rating", "mp", "stock", "pt"].includes(k)) next.delete(k);
-        });
-        if (categoryId) next.set("cat", categoryId);
-        else next.delete("cat");
-      }),
-    [update]
-  );
-
-  const selectProductType = useCallback(
-    (productTypeId) =>
-      update((next) => {
-        [...next.keys()].forEach((k) => {
-          if (k.startsWith(SPEC_PREFIX)) next.delete(k);
-        });
-        if (productTypeId) next.set("pt", productTypeId);
-        else next.delete("pt");
-      }),
-    [update]
-  );
-
-  const clearAllFilters = useCallback(
-    () =>
-      update((next) => {
-        [...next.keys()].forEach((k) => {
-          if (k.startsWith(SPEC_PREFIX) || ["brand", "price", "rating", "mp", "stock"].includes(k)) next.delete(k);
-        });
-      }),
-    [update]
-  );
-
-  const activeFilterCount =
-    criteria.brandIds.length +
-    criteria.priceBucketIds.length +
-    criteria.marketplaceIds.length +
-    (criteria.ratingId ? 1 : 0) +
-    (criteria.inStockOnly ? 1 : 0) +
-    Object.values(criteria.specFilters).reduce((sum, v) => sum + v.length, 0);
-
-  function submitSearch(e) {
-    e.preventDefault();
-    update((next) => {
-      if (queryDraft.trim()) next.set("q", queryDraft.trim());
-      else next.delete("q");
-    });
-  }
+  const { loading, error, data } = state;
 
   return (
-    <div className="page catalogue-page">
-      <Breadcrumbs
-        items={[
-          { label: "Catalogue", to: "/catalogue" },
-          ...(data?.breadcrumb ?? []).map((c, i, arr) => ({
-            label: c.name,
-            to: i < arr.length - 1 ? `/catalogue?cat=${c.id}` : undefined,
-          })),
-        ]}
-      />
-
+    <div className="page">
+      <Breadcrumbs items={[{ label: "Find a product" }]} />
       <div className="page-head">
         <div>
-          <h1 className="page-title">
-            {data?.breadcrumb?.length ? data.breadcrumb[data.breadcrumb.length - 1].name : "Product catalogue"}
-          </h1>
+          <h1 className="page-title">Find a product</h1>
           <p className="page-subtitle">
-            Browse by department, narrow by the filters that actually apply to the category, then open a product to
-            see its listings, competitors and pricing recommendation.
+            Searches the live market rather than a stored catalogue, so a product we have never seen before can
+            still be found — and followed.
           </p>
         </div>
       </div>
 
-      <div className="catalogue-layout">
-        {mobileFiltersOpen && (
-          <div className="sheet-backdrop" onClick={() => setMobileFiltersOpen(false)} aria-hidden="true" />
-        )}
-        <aside className={`catalogue-sidebar${mobileFiltersOpen ? " open" : ""}`}>
-          <div className="catalogue-sidebar-inner">
-            <div className="catalogue-sidebar-mobile-head">
-              <span>Filters</span>
-              <button type="button" className="icon-btn" onClick={() => setMobileFiltersOpen(false)} aria-label="Close filters">
-                <X size={16} strokeWidth={2} />
-              </button>
-            </div>
+      <form className="disc-search" onSubmit={submit} role="search">
+        <Search size={16} strokeWidth={2} aria-hidden="true" />
+        <input
+          type="search"
+          value={draft}
+          onChange={(e) => setDraft(e.target.value)}
+          placeholder="Search any product — for example, iPhone 17 256GB"
+          aria-label="Search the live market"
+        />
+        <button type="submit" className="btn btn-primary" disabled={!draft.trim() || loading}>
+          Search
+        </button>
+      </form>
 
-            {data && (
-              <CategoryRail
-                breadcrumb={data.breadcrumb}
-                childCategories={data.childCategories}
-                productTypesInScope={data.productTypesInScope}
-                activeProductTypeId={criteria.productTypeId}
-                onSelectCategory={selectCategory}
-                onSelectProductType={selectProductType}
-              />
-            )}
-
-            {data && (
-              <>
-                <div className="catalogue-filters-head">
-                  <span className="eyebrow">Filters</span>
-                  {activeFilterCount > 0 && (
-                    <button type="button" className="catalogue-clear" onClick={clearAllFilters}>
-                      Clear ({activeFilterCount})
-                    </button>
-                  )}
-                </div>
-
-                <FacetGroup title="Brand" options={data.facets.brand} selected={criteria.brandIds} onToggle={(id) => toggleCsv("brand", id)} />
-                <FacetGroup title="Price" options={data.facets.price} selected={criteria.priceBucketIds} onToggle={(id) => toggleCsv("price", id)} />
-                <FacetGroup
-                  title="Customer rating"
-                  options={data.facets.rating}
-                  selected={criteria.ratingId ? [criteria.ratingId] : []}
-                  onToggle={(id) => setSingle("rating", id)}
-                  singleSelect
-                />
-                {data.facets.specs.map((facet) => (
-                  <FacetGroup
-                    key={facet.key}
-                    title={facet.label}
-                    options={facet.options}
-                    selected={criteria.specFilters[facet.key] ?? []}
-                    onToggle={(id) => toggleCsv(`${SPEC_PREFIX}${facet.key}`, id)}
-                  />
-                ))}
-                <FacetGroup title="Marketplace" options={data.facets.marketplace} selected={criteria.marketplaceIds} onToggle={(id) => toggleCsv("mp", id)} />
-                <FacetGroup
-                  title="Availability"
-                  options={data.facets.availability}
-                  selected={criteria.inStockOnly ? ["in_stock"] : []}
-                  onToggle={() => setSingle("stock", criteria.inStockOnly ? null : "1")}
-                />
-              </>
-            )}
-          </div>
-        </aside>
-
-        <div className="catalogue-main">
-          <div className="catalogue-toolbar">
-            <form className="catalogue-search" onSubmit={submitSearch} role="search">
-              <Search size={15} strokeWidth={2} />
-              <input
-                type="text"
-                placeholder="Search products, brands, categories…"
-                value={queryDraft}
-                onChange={(e) => setQueryDraft(e.target.value)}
-              />
-            </form>
-
-            <button type="button" className="btn btn-secondary btn-sm catalogue-filter-toggle" onClick={() => setMobileFiltersOpen(true)}>
-              <SlidersHorizontal size={14} strokeWidth={2} /> Filters{activeFilterCount ? ` (${activeFilterCount})` : ""}
-            </button>
-
-            <div className="catalogue-sort">
-              <label htmlFor="cat-sort">Sort</label>
-              <select id="cat-sort" value={criteria.sort} onChange={(e) => setSingle("sort", e.target.value)}>
-                {SORT_OPTIONS.map((o) => (
-                  <option key={o.value} value={o.value}>
-                    {o.label}
-                  </option>
-                ))}
-              </select>
-            </div>
-          </div>
-
-          {data && (
-            <p className="catalogue-count">
-              <strong>{data.total}</strong> {data.total === 1 ? "product" : "products"}
-              {activeFilterCount > 0 && data.scopeTotal !== data.total && <> matched from {data.scopeTotal} in scope</>}
-            </p>
-          )}
-
-          {loading && <LoadingState label="Loading catalogue…" />}
-
-          {!loading && data?.total === 0 && (
-            <div className="catalogue-empty">
-              <p>No products match these filters.</p>
-              {activeFilterCount > 0 && (
-                <button type="button" className="btn btn-secondary btn-sm" onClick={clearAllFilters}>
-                  Clear filters
-                </button>
-              )}
-            </div>
-          )}
-
-          <div className="catalogue-grid">
-            {data?.results.map((summary) => (
-              <ProductCard key={summary.product.id} summary={summary} />
-            ))}
-          </div>
+      {!activeQuery && !loading && (
+        <div className="disc-empty">
+          <p>Search for anything. It does not need to be in our database already.</p>
         </div>
-      </div>
+      )}
+
+      {loading && <LoadingState label="Asking the market…" />}
+
+      {error && (
+        <div className="pw-missing">
+          <span className="eyebrow">Unavailable</span>
+          <h2 className="page-title">The market could not be read</h2>
+          <p className="page-subtitle">{error.message}</p>
+          <button type="button" className="btn btn-secondary" onClick={() => run(activeQuery, { refresh: true })}>
+            Try again
+          </button>
+        </div>
+      )}
+
+      {data && (
+        <>
+          <div className="disc-meta">
+            <span>
+              <strong className="tabular">{data.results.length}</strong> offer
+              {data.results.length === 1 ? "" : "s"} for “{data.query}”
+            </span>
+            <span className="disc-freshness">
+              {/* Honest about whether this cost a call. */}
+              {data.reused
+                ? `reused a capture from ${Math.round(data.ageSeconds / 60)} min ago`
+                : "captured just now"}
+            </span>
+            <button
+              type="button"
+              className="btn btn-secondary btn-sm"
+              onClick={() => run(activeQuery, { refresh: true })}
+              title="Fetch the market again. Rate-limited, so a recent capture may be reused."
+            >
+              <RefreshCw size={13} strokeWidth={2} /> Refresh prices
+            </button>
+          </div>
+
+          {data.results.length === 0 && (
+            <div className="disc-empty">
+              <p>No live results found for “{data.query}”.</p>
+              <p className="disc-empty-note">
+                The search ran and the market returned nothing. That is different from an error — this product may
+                simply not be listed.
+              </p>
+            </div>
+          )}
+
+          <div className="disc-grid stagger">
+            {data.results.map((result) => {
+              const state = tracking[result.ref];
+              return (
+                <article className="disc-card" key={result.ref}>
+                  {/* Only an image the provider actually returned. No placeholder. */}
+                  {result.thumbnailUrl ? (
+                    <img className="disc-thumb" src={result.thumbnailUrl} alt="" loading="lazy" />
+                  ) : (
+                    <div className="disc-thumb disc-thumb-none" aria-hidden="true" />
+                  )}
+
+                  <div className="disc-body">
+                    <h3 className="disc-title">{result.title}</h3>
+                    <p className="disc-source">{result.source}</p>
+
+                    <p className="disc-price tabular">
+                      {result.priceMinor != null ? formatMinor(result.priceMinor) : "—"}
+                      {result.mrpMinor != null && result.mrpMinor > result.priceMinor && (
+                        <span className="disc-mrp tabular">{formatMinor(result.mrpMinor)}</span>
+                      )}
+                    </p>
+
+                    <p className="disc-facts">
+                      {/* Every field below is omitted when the provider did not state it. */}
+                      {result.shippingFeeMinor != null && (
+                        <span>
+                          {result.shippingFeeMinor === 0 ? "Free delivery" : `+${formatMinor(result.shippingFeeMinor)} delivery`}
+                        </span>
+                      )}
+                      {result.rating != null && (
+                        <span>
+                          <Star size={11} strokeWidth={2} /> {result.rating}
+                          {result.reviewCount != null ? ` (${result.reviewCount.toLocaleString("en-IN")})` : ""}
+                        </span>
+                      )}
+                      {result.condition && result.condition !== "new" && <span>{result.condition}</span>}
+                    </p>
+
+                    <div className="disc-actions">
+                      <button
+                        type="button"
+                        className={`btn btn-sm ${state?.status === "tracked" ? "btn-secondary" : "btn-accent"}`}
+                        onClick={() => track(result)}
+                        disabled={state?.status === "saving" || state?.status === "tracked"}
+                      >
+                        {state?.status === "tracked" ? (
+                          <>
+                            <Check size={13} strokeWidth={2} /> Tracking
+                          </>
+                        ) : state?.status === "saving" ? (
+                          "Saving…"
+                        ) : (
+                          <>
+                            <Plus size={13} strokeWidth={2} /> Track this product
+                          </>
+                        )}
+                      </button>
+                      {result.url && (
+                        <a className="disc-link" href={result.url} target="_blank" rel="noreferrer noopener">
+                          View <ExternalLink size={12} strokeWidth={2} />
+                        </a>
+                      )}
+                    </div>
+
+                    {state?.status === "failed" && <p className="disc-error">{state.message}</p>}
+                  </div>
+                </article>
+              );
+            })}
+          </div>
+
+          <p className="disc-note">
+            Prices are what the market showed at{" "}
+            <span className="tabular">{new Date(data.capturedAt).toLocaleString("en-IN")}</span>. Tracking a product
+            records that price and begins collecting its history — one capture is shared by everyone following it.
+          </p>
+        </>
+      )}
     </div>
   );
 }

@@ -37,3 +37,36 @@
   outline: 2px solid var(--focus, var(--ink-700));
   outline-offset: 2px;
 }
+
+/* ---------------------------------------------- market-evidence pricing */
+
+.pr-layout { display: flex; flex-direction: column; gap: 22px; }
+
+.pr-badges { display: flex; gap: 8px; margin-bottom: 12px; flex-wrap: wrap; }
+.pr-mode, .pr-method {
+  display: inline-flex; align-items: center; gap: 5px;
+  font-size: 11px; letter-spacing: .04em; text-transform: uppercase;
+  padding: 3px 9px; border-radius: 999px; border: 1px solid var(--border);
+}
+.pr-mode.cold { color: var(--warning-text, var(--text-muted)); }
+.pr-mode.enhanced { color: var(--good-text, var(--text-muted)); }
+
+.pr-headline { padding: 22px 0 4px; border-bottom: 1px solid var(--border); }
+.pr-price { font-size: 38px; font-weight: 600; margin: 4px 0 2px; letter-spacing: -0.02em; }
+.pr-range { font-size: 15px; color: var(--text-muted); margin: 0 0 10px; }
+.pr-confidence { font-size: 13px; color: var(--text-muted); margin: 0 0 18px; }
+
+.pr-section { display: flex; flex-direction: column; gap: 10px; }
+.pr-evidence-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(110px, 1fr)); gap: 14px; margin: 0; }
+.pr-evidence-grid dt { font-size: 11px; text-transform: uppercase; letter-spacing: .04em; color: var(--text-muted); }
+.pr-evidence-grid dd { margin: 3px 0 0; font-size: 16px; font-weight: 600; }
+
+.pr-captured { font-size: 12px; color: var(--text-muted); margin: 0; }
+.pr-none { font-size: 13px; color: var(--text-muted); margin: 0; max-width: 60ch; }
+.pr-reasoning { font-size: 14px; line-height: 1.6; margin: 0; max-width: 72ch; }
+.pr-deterministic { font-size: 22px; font-weight: 600; margin: 0; }
+.pr-factors, .pr-warnings { margin: 0; padding-left: 18px; font-size: 13px; color: var(--text-muted); line-height: 1.6; }
+
+.pr-unavailable { display: flex; flex-direction: column; align-items: flex-start; gap: 12px; padding: 32px 0; max-width: 66ch; }
+.pr-unavailable h2 { font-size: 20px; margin: 0; }
+.pr-unavailable p { color: var(--text-muted); margin: 0; }

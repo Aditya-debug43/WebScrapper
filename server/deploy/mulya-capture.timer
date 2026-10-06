@@ -1,0 +1,28 @@
+# Hourly market-capture sweep.
+#
+# Hourly rather than daily because the DECISION about how often to capture a
+# product belongs to the scheduler, not to the timer. The sweep wakes up every
+# hour, asks which products are actually due under the demand ladder, and
+# usually finds very few — a product nobody follows is never due at all. A
+# daily timer would force every product onto the same cadence and throw away
+# that distinction.
+#
+#   sudo cp deploy/mulya-capture.* /etc/systemd/system/
+#   sudo systemctl daemon-reload
+#   sudo systemctl enable --now mulya-capture.timer
+#   systemctl list-timers mulya-capture.timer
+
+[Unit]
+Description=Mulya market capture sweep
+Requires=mulya-capture.service
+
+[Timer]
+OnCalendar=hourly
+# Spread the load off the hour, so a restart does not align every instance.
+RandomizedDelaySec=300
+# A sweep missed while the box was down runs once on boot rather than being
+# skipped: history has a gap either way, and catching up is the lesser one.
+Persistent=true
+
+[Install]
+WantedBy=timers.target

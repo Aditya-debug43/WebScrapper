@@ -93,7 +93,12 @@ describe("provider isolation", () => {
       keys.sort(),
       [
         "condition", "currency", "deliveryNote", "externalId", "inStock", "mrpMinor", "observedAt",
-        "priceMinor", "provider", "rating", "rawTitle", "reviewCount", "shippingFeeMinor", "sourceName", "url",
+        "priceMinor", "provider", "rating", "rawTitle", "reviewCount", "shippingFeeMinor", "sourceName",
+        // Added for live search: a result the user is asked to choose between
+        // needs a picture, and `thumbnail` is the provider's own rehosted URL
+        // rather than the store's, which frequently blocks hotlinking.
+        "thumbnailUrl", "thumbnailUrls",
+        "url",
       ].sort()
     );
   });

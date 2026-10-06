@@ -254,3 +254,81 @@
     gap: var(--s-2);
   }
 }
+
+/* ------------------------------------------------------------ discovery
+ *
+ * The live-search interface that replaced the faceted catalogue. The old
+ * facet/category rules below this point are retained only where shared.
+ */
+
+.disc-search {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface);
+  margin-bottom: 20px;
+}
+.disc-search input {
+  flex: 1;
+  border: 0;
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  outline: none;
+  min-width: 0;
+}
+
+.disc-meta {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex-wrap: wrap;
+  margin-bottom: 16px;
+  font-size: 13px;
+  color: var(--text-muted);
+}
+.disc-freshness { font-variant-numeric: tabular-nums; }
+
+.disc-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
+  gap: 16px;
+}
+
+.disc-card {
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface);
+  overflow: hidden;
+}
+.disc-thumb {
+  width: 100%;
+  height: 150px;
+  object-fit: contain;
+  background: var(--surface-sunken);
+  padding: 10px;
+}
+/* No image is shown as no image — never a stand-in product picture. */
+.disc-thumb-none { background: var(--surface-sunken); }
+
+.disc-body { display: flex; flex-direction: column; gap: 6px; padding: 12px 14px 14px; flex: 1; }
+.disc-title { font-size: 14px; line-height: 1.35; margin: 0; }
+.disc-source { font-size: 12px; color: var(--text-muted); margin: 0; }
+.disc-price { font-size: 17px; font-weight: 600; margin: 4px 0 0; }
+.disc-mrp { font-size: 13px; font-weight: 400; color: var(--text-muted); text-decoration: line-through; margin-left: 8px; }
+
+.disc-facts { display: flex; flex-wrap: wrap; gap: 10px; font-size: 12px; color: var(--text-muted); margin: 0; }
+.disc-facts span { display: inline-flex; align-items: center; gap: 4px; }
+
+.disc-actions { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-top: auto; padding-top: 10px; }
+.disc-link { display: inline-flex; align-items: center; gap: 4px; font-size: 12px; color: var(--text-muted); }
+.disc-error { font-size: 12px; color: var(--critical); margin: 6px 0 0; }
+
+.disc-empty { padding: 40px 20px; text-align: center; color: var(--text-muted); }
+.disc-empty-note { font-size: 13px; max-width: 46ch; margin: 8px auto 0; }
+.disc-note { margin-top: 22px; font-size: 12px; color: var(--text-muted); max-width: 70ch; }

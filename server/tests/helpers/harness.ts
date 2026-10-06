@@ -9,6 +9,8 @@ import { sql } from "drizzle-orm";
 import { buildApp, type BuiltApp } from "../../src/app.js";
 import { MemoryEmailAdapter, type EmailAdapter } from "../../src/email/index.js";
 import { schema } from "../../src/db/schema.js";
+import type { MarketOfferProvider } from "../../src/ingestion/types.js";
+import type { AIProvider } from "../../src/ai/index.js";
 import * as t from "../../src/db/schema.js";
 
 const HERE = fileURLToPath(new URL(".", import.meta.url));
@@ -107,7 +109,31 @@ export async function createTestAppWith(email: EmailAdapter, opts: SeedOptions =
   return bootstrap(email, opts);
 }
 
-async function bootstrap(email: EmailAdapter, opts: SeedOptions): Promise<BuiltApp> {
+/**
+ * An application wired to deterministic market and AI providers.
+ *
+ * Live discovery is only testable if the provider is predictable: a real
+ * SerpApi call costs money, needs a key, and returns different results every
+ * run, so nothing could be asserted exactly.
+ */
+export async function createDiscoveryTestApp(opts: {
+  marketProvider?: MarketOfferProvider;
+  aiProvider?: AIProvider;
+  seed?: SeedOptions;
+} = {}): Promise<Harness> {
+  const email = new MemoryEmailAdapter();
+  const built = await bootstrap(email, opts.seed ?? {}, {
+    marketProvider: opts.marketProvider,
+    aiProvider: opts.aiProvider,
+  });
+  return { ...built, email };
+}
+
+async function bootstrap(
+  email: EmailAdapter,
+  opts: SeedOptions,
+  providers: { marketProvider?: MarketOfferProvider; aiProvider?: AIProvider } = {}
+): Promise<BuiltApp> {
   const client = new PGlite();
   await client.waitReady;
   const db = drizzle(client, { schema });
@@ -127,7 +153,7 @@ async function bootstrap(email: EmailAdapter, opts: SeedOptions): Promise<BuiltA
     await seedMarketplaceGraph(db, opts.marketplaceProducts, opts.includeProductTypePeers ?? false);
   }
 
-  return buildApp({ db, email, closeDb: async () => client.close() });
+  return buildApp({ db, email, closeDb: async () => client.close(), ...providers });
 }
 
 /**

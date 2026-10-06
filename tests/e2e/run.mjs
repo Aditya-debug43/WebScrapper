@@ -78,6 +78,14 @@ async function main() {
     OTP_RESEND_COOLDOWN_SECONDS: "1",
     OTP_MAX_PER_EMAIL_PER_HOUR: "20",
     SESSION_TTL_DAYS: "30",
+    /**
+     * The fixture provider, so live discovery is exercised end to end
+     * without a network call or an API key. It replays recorded SerpApi
+     * responses through the PRODUCTION normaliser, so the parsing, matching
+     * and persistence under test are the real ones.
+     */
+    MARKET_DATA_PROVIDER: "fixture",
+    MARKET_DATA_FIXTURE_DIR: "./fixtures/market-data",
     RESET_TOKEN_TTL_SECONDS: "900",
     // The console adapter prints the message body when this is on, which is
     // how the test reads a genuine code. The environment schema refuses to

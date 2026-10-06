@@ -14,6 +14,7 @@ import {
   sellers,
 } from "../db/schema.js";
 import type { MatchCandidate } from "./matching.js";
+import { normalizeQuery } from "./queryKey.js";
 
 /**
  * PERSISTENCE FOR INGESTED MARKET DATA
@@ -81,7 +82,12 @@ export class IngestionRepository {
 
   /* ---------------------------------------------------------- capture run */
 
-  async openRun(input: { provider: string; query: string; parserVersion: string }): Promise<string> {
+  async openRun(input: {
+    provider: string;
+    query: string;
+    parserVersion: string;
+    normalizedQuery?: string;
+  }): Promise<string> {
     const id = `run_${randomUUID()}`;
     await this.db.insert(captureRuns).values({
       id,
@@ -90,6 +96,7 @@ export class IngestionRepository {
       marketplaceId: null,
       provider: input.provider,
       sourceQuery: input.query,
+      normalizedQuery: input.normalizedQuery ?? normalizeQuery(input.query),
       startedAt: new Date(),
       runStatus: "failed", // until proven otherwise — a crash leaves it honest
       parserVersion: input.parserVersion,
@@ -146,9 +153,70 @@ export class IngestionRepository {
         fetchedAt: input.fetchedAt,
         contentHash,
         storagePath: `market-data/${input.captureRunId}/${contentHash}.json`,
+        /**
+         * The response itself.
+         *
+         * Until migration 0008 this was hashed and discarded, and
+         * `storage_path` named a file nothing ever wrote. That made two
+         * things impossible: re-running an improved parser over what was
+         * actually received, and resolving server-side which result a user
+         * selected. Both are load-bearing now, so the body is kept.
+         */
+        body: input.body ?? null,
       })
       .onConflictDoNothing();
     return id;
+  }
+
+  /**
+   * The newest reusable capture for a normalised query, with its body.
+   *
+   * The lookup behind every saved provider call: if this returns a row,
+   * nothing is fetched. Partial runs count — a capture that read some results
+   * and not others still describes the market.
+   */
+  async lastSuccessfulRunByKey(provider: string, normalizedQuery: string, notBefore: Date) {
+    const [row] = await this.db
+      .select({
+        id: captureRuns.id,
+        startedAt: captureRuns.startedAt,
+        finishedAt: captureRuns.finishedAt,
+        sourceQuery: captureRuns.sourceQuery,
+        rawDocumentId: rawDocuments.id,
+        sourceUrl: rawDocuments.sourceUrl,
+        body: rawDocuments.body,
+      })
+      .from(captureRuns)
+      .innerJoin(rawDocuments, eq(rawDocuments.captureRunId, captureRuns.id))
+      .where(
+        and(
+          eq(captureRuns.provider, provider),
+          eq(captureRuns.normalizedQuery, normalizedQuery),
+          inArray(captureRuns.runStatus, ["success", "partial"]),
+          gte(captureRuns.startedAt, notBefore),
+          // A pruned body cannot be re-read, so it cannot serve as a snapshot.
+          sql`${rawDocuments.body} is not null`
+        )
+      )
+      .orderBy(desc(captureRuns.startedAt))
+      .limit(1);
+    return row ?? null;
+  }
+
+  /** One capture and its stored body, for resolving a selected result. */
+  async runWithBody(captureRunId: string) {
+    const [row] = await this.db
+      .select({
+        id: captureRuns.id,
+        sourceQuery: captureRuns.sourceQuery,
+        sourceUrl: rawDocuments.sourceUrl,
+        body: rawDocuments.body,
+      })
+      .from(captureRuns)
+      .innerJoin(rawDocuments, eq(rawDocuments.captureRunId, captureRuns.id))
+      .where(eq(captureRuns.id, captureRunId))
+      .limit(1);
+    return row ?? null;
   }
 
   /**

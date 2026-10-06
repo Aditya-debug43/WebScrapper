@@ -6,6 +6,7 @@ import { AuthProvider } from "../../src/state/AuthContext";
 import { ThemeProvider } from "../../src/state/ThemeContext";
 import CrossMarketplaceAnalysis from "../../src/pages/CrossMarketplaceAnalysis";
 import PricingRecommendation from "../../src/pages/PricingRecommendation";
+import Catalogue from "../../src/pages/Catalogue";
 import SignIn from "../../src/pages/auth/SignIn";
 import CreateAccount from "../../src/pages/auth/CreateAccount";
 import VerifyEmail from "../../src/pages/auth/VerifyEmail";
@@ -37,7 +38,17 @@ export function renderAuthApp({ route = "/sign-in" } = {}) {
 
             <Route element={<RequireAuth />}>
               <Route path="/" element={<ProtectedDesk />} />
-              <Route path="/catalogue" element={<ProtectedDesk name="Catalogue" />} />
+              {/*
+                The REAL discovery page.
+                
+                It was a stand-in while the catalogue filtered a bundled
+                product table — mounting that pulled the whole dataset
+                through the pricing engine and proved nothing about
+                authentication. It searches the live market now, so the
+                journey "find something that is not in our database, then
+                track it" can only be proven by mounting the shipped page.
+              */}
+              <Route path="/catalogue" element={<Catalogue />} />
               {/*
                 The REAL recommendation page, behind the real guard.
 

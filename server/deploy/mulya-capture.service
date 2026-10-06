@@ -1,0 +1,31 @@
+# The sweep itself. Triggered by mulya-capture.timer, not enabled directly.
+#
+# Type=oneshot because this runs, does its work and exits. It is deliberately
+# NOT part of mulya.service: a capture sweep that crashed must never take the
+# API down with it, and the API restarting must never interrupt a sweep.
+
+[Unit]
+Description=Mulya market capture sweep (one run)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=ubuntu
+WorkingDirectory=/home/ubuntu/WebScrapper/server
+ExecStart=/usr/bin/node dist/scripts/capture-due.js
+
+# A sweep that hangs on an unresponsive provider must not block the next one.
+TimeoutStartSec=900
+
+# A provider outage is an ordinary outcome, recorded per product and reported
+# in the exit log. Restarting on failure would retry a dead upstream in a
+# tight loop and spend quota doing it.
+Restart=no
+
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=mulya-capture
+
+[Install]
+WantedBy=multi-user.target

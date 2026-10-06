@@ -130,6 +130,12 @@ export const attributeDataTypeEnum = pgEnum("attribute_data_type", ["integer", "
 export const filterTypeEnum = pgEnum("filter_type", ["range", "enum", "boolean"]);
 export const runStatusEnum = pgEnum("run_status", ["success", "partial", "failed"]);
 
+/** Where a row came from. See migration 0008 — a seeded product may already
+ * carry genuine observations, so provenance has to be recorded explicitly
+ * rather than inferred. */
+export const rowOriginEnum = pgEnum("row_origin", ["seed", "live", "manual"]);
+export const trackingStatusEnum = pgEnum("tracking_status", ["active", "paused"]);
+
 
 /* ========================================================================== */
 /* Identity                                                                    */
@@ -387,15 +393,14 @@ export const products = pgTable(
      */
     parentProductId: text("parent_product_id").references((): AnyPgColumn => products.id),
     isPurchasable: boolean("is_purchasable").notNull().default(true),
-    brandId: text("brand_id")
-      .notNull()
-      .references(() => brands.id),
-    categoryId: text("category_id")
-      .notNull()
-      .references(() => categories.id),
-    productTypeId: text("product_type_id")
-      .notNull()
-      .references(() => productTypes.id),
+    /*
+     * Nullable since 0009: a product discovered from a marketplace title has
+     * no taxonomy yet, and inventing one would be the same class of mistake
+     * as inventing a price. Null means not yet known.
+     */
+    brandId: text("brand_id").references(() => brands.id),
+    categoryId: text("category_id").references(() => categories.id),
+    productTypeId: text("product_type_id").references(() => productTypes.id),
     canonicalName: text("canonical_name").notNull(),
     modelName: text("model_name").notNull(),
     // What distinguishes this variant from its siblings ({ ram: "8GB" }).
@@ -420,6 +425,34 @@ export const products = pgTable(
     lifecycleStatus: lifecycleStatusEnum("lifecycle_status").notNull().default("active"),
     firstSeenAt: date("first_seen_at"),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+
+    /** Seeded, discovered from a live capture, or entered by hand. */
+    origin: rowOriginEnum("origin").notNull().default("seed"),
+
+    /* ------------------------------------------- the market capture schedule
+     *
+     * On the PRODUCT, not on the tracking row, and that is the whole point.
+     * A market snapshot describes the market for a product; it does not
+     * belong to whoever asked for it. Putting the schedule here means a
+     * hundred users tracking one phone cost one capture rather than a
+     * hundred, and every screen reads the same evidence.
+     */
+
+    /** What to ask the provider to refresh this product. Null for seeded rows. */
+    canonicalQuery: text("canonical_query"),
+    captureIntervalHours: integer("capture_interval_hours"),
+    lastCapturedAt: timestamp("last_captured_at", { withTimezone: true }),
+    nextCaptureAt: timestamp("next_capture_at", { withTimezone: true }),
+
+    /**
+     * Demand, denormalised so the scheduler can rank without a join.
+     *
+     * A product nobody tracks and nobody has opened recently earns no
+     * scheduled call at all — the largest single saving available, because
+     * most of a catalogue is cold at any moment.
+     */
+    trackerCount: integer("tracker_count").notNull().default(0),
+    lastInterestAt: timestamp("last_interest_at", { withTimezone: true }),
   },
   (t) => [
     index("products_category_idx").on(t.categoryId),
@@ -427,10 +460,13 @@ export const products = pgTable(
     index("products_brand_idx").on(t.brandId),
     index("products_parent_idx").on(t.parentProductId),
     index("products_specs_gin").using("gin", t.specifications),
+    index("products_origin_idx").on(t.origin),
     // A thing you can buy must declare the schema its specs conform to.
+    // A SEEDED product must declare the schema its specs conform to. A live
+    // one has neither specs nor a schema yet, which is not a defect.
     check(
       "products_purchasable_has_spec_schema",
-      sql`not ${t.isPurchasable} or ${t.specSchemaVersion} is not null`
+      sql`${t.origin} <> 'seed' or not ${t.isPurchasable} or ${t.specSchemaVersion} is not null`
     ),
   ]
 );
@@ -528,6 +564,7 @@ export const listings = pgTable(
      * under. Carried into the evidence score rather than assumed — an
      * auto-matched listing at 92% is weaker evidence than a confirmed one.
      */
+    origin: rowOriginEnum("origin").notNull().default("seed"),
     matchStatus: matchStatusEnum("match_status").notNull(),
     matchConfidence: real("match_confidence"),
     listingStatus: listingStatusEnum("listing_status").notNull().default("active"),
@@ -563,6 +600,7 @@ export const sellers = pgTable(
       .references(() => marketplaces.id),
     externalSellerId: text("external_seller_id").notNull(),
     name: text("name").notNull(),
+    origin: rowOriginEnum("origin").notNull().default("seed"),
     sellerType: sellerTypeEnum("seller_type").notNull(),
     defaultFulfilmentType: fulfilmentTypeEnum("default_fulfilment_type").notNull(),
     sellerGroupId: text("seller_group_id"),
@@ -783,18 +821,45 @@ export const sellerCostInputs = pgTable(
 );
 
 /** Replaces the tracked-product ids currently held in React state. */
+/**
+ * WHO IS FOLLOWING WHAT — and deliberately nothing else.
+ *
+ * This table carries no capture schedule. That absence is the design: a
+ * per-user schedule is precisely how "one SerpApi call per user per product
+ * per day" happens, and the market does not belong to whoever asked about it.
+ * The schedule lives on `products`, so a hundred people following one phone
+ * cost one capture and read the same evidence.
+ *
+ * Three distinct ideas, kept apart:
+ *   tracked_products     this user wants to follow this product
+ *   capture_runs         the market was asked about at time T
+ *   price_observations   marketplace Y offered it at price Z at time T
+ */
 export const trackedProducts = pgTable(
   "tracked_products",
   {
+    id: text("id").notNull(),
     userId: uuid("user_id")
       .notNull()
       .references(() => users.id, { onDelete: "cascade" }),
     productId: text("product_id")
       .notNull()
       .references(() => products.id, { onDelete: "cascade" }),
+    status: trackingStatusEnum("status").notNull().default("active"),
+    /** What the user searched to find it — kept for provenance, not for scheduling. */
+    searchQuery: text("search_query"),
+    /** The offer they chose, so the interface can link back to what they saw. */
+    sourceUrl: text("source_url"),
     trackedAt: timestamp("tracked_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },
-  (t) => [primaryKey({ columns: [t.userId, t.productId] }), index("tracked_products_product_idx").on(t.productId)]
+  (t) => [
+    // One row per user per product: following something twice is following it.
+    primaryKey({ columns: [t.userId, t.productId] }),
+    uniqueIndex("tracked_products_id_key").on(t.id),
+    index("tracked_products_product_idx").on(t.productId),
+    index("tracked_products_user_idx").on(t.userId, t.status),
+  ]
 );
 
 /* ========================================================================== */
@@ -820,6 +885,14 @@ export const captureRuns = pgTable(
     provider: text("provider"),
     /** The query that was asked, for a provider that takes one. */
     sourceQuery: text("source_query"),
+    /**
+     * The dedup key.
+     *
+     * "iphone 17 256gb" and "iPhone 17 256 GB" are the same market question
+     * and must not cost two calls. Normalisation collapses formatting only —
+     * storage, RAM and model numbers are meaning, not formatting.
+     */
+    normalizedQuery: text("normalized_query"),
     startedAt: timestamp("started_at", { withTimezone: true }).notNull(),
     finishedAt: timestamp("finished_at", { withTimezone: true }),
     runStatus: runStatusEnum("run_status").notNull(),
@@ -845,8 +918,22 @@ export const rawDocuments = pgTable(
     fetchedAt: timestamp("fetched_at", { withTimezone: true }),
     contentHash: text("content_hash"),
     storagePath: text("storage_path"),
+    /**
+     * The response as received.
+     *
+     * Added in 0008. Before it the body was hashed and thrown away: the hash
+     * proved a capture had happened but could not show what it returned, so a
+     * parser fixed later could not be re-run over it, and a user selecting a
+     * live search result could not be resolved server-side. `storage_path`
+     * recorded a path nothing ever wrote to.
+     */
+    body: jsonb("body"),
   },
-  (t) => [index("raw_documents_run_idx").on(t.captureRunId)]
+  (t) => [
+    index("raw_documents_run_idx").on(t.captureRunId),
+    // Retention prunes by age.
+    index("raw_documents_fetched_idx").on(t.fetchedAt.desc()),
+  ]
 );
 
 /**

@@ -42,7 +42,7 @@ const MUTANTS = [
      * down.
      */
     name: "an API service falls back to bundled data",
-    file: "src/api/dashboardService.js",
+    file: "src/api/discoveryService.js",
     apply: (s) => `import { getProduct } from "../data/products";\n${s}`,
   },
   {
@@ -61,8 +61,8 @@ const MUTANTS = [
     file: "src/state/AppStateContext.jsx",
     apply: (s) =>
       s.replace(
-        "const [chosenIds, setChosenIds]",
-        'const DEFAULT_TRACKED_PRODUCT_IDS = [];\n  const [chosenIds, setChosenIds]'
+        "const [tracked, setTracked] = useState([]);",
+        'const DEFAULT_TRACKED_PRODUCT_IDS = ["prod_dove_hair_fall"];\n  const [tracked, setTracked] = useState([]);'
       ),
   },
   {
@@ -71,7 +71,7 @@ const MUTANTS = [
      * Only the named assertion can see a desk hardcoded in the frontend.
      */
     name: "the frontend hardcodes a default desk again",
-    file: "src/api/dashboardService.js",
+    file: "src/api/discoveryService.js",
     apply: (s) => `${s}\nexport const DEFAULT_TRACKED_PRODUCT_IDS = ["prod_dove_hair_fall"];\n`,
   },
   {
@@ -81,7 +81,7 @@ const MUTANTS = [
   },
   {
     name: "a comment mentioning demoSet is documentation, not a violation",
-    file: "src/api/dashboardService.js",
+    file: "src/api/discoveryService.js",
     apply: (s) => `${s}\n// the stratified demoSet selection moved to the backend\n`,
     mustSurvive: true,
   },

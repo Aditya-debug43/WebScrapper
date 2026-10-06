@@ -10,7 +10,7 @@ import "./ProductOverview.css";
 
 export default function ProductOverview() {
   const { productId } = useOutletContext();
-  const { isTracked, toggleTracked } = useAppState();
+  const { isTracked, stopTracking } = useAppState();
   const { data, loading } = useAsyncData(() => getProductDetail(productId), [productId]);
 
   if (loading || !data) return <LoadingState label="Loading product…" />;
@@ -24,10 +24,21 @@ export default function ProductOverview() {
         <section className="po-section">
           <div className="section-head">
             <h2 className="section-title">Identity</h2>
-            <button type="button" className={`btn btn-sm ${tracked ? "btn-secondary" : "btn-accent"}`} onClick={() => toggleTracked(productId)}>
-              {tracked ? <BookmarkCheck size={14} strokeWidth={2} /> : <Bookmark size={14} strokeWidth={2} />}
-              {tracked ? "Tracking" : "Track this product"}
-            </button>
+            {/*
+              * Tracking STARTS from a live search result, because the server
+              * resolves which real offer was chosen rather than trusting the
+              * browser. So this button can only stop it; starting happens on
+              * the discovery page, where there is a result to point at.
+              */}
+            {tracked ? (
+              <button type="button" className="btn btn-sm btn-secondary" onClick={() => stopTracking(productId)}>
+                <BookmarkCheck size={14} strokeWidth={2} /> Tracking — stop
+              </button>
+            ) : (
+              <Link to="/catalogue" className="btn btn-sm btn-accent">
+                <Bookmark size={14} strokeWidth={2} /> Find and track
+              </Link>
+            )}
           </div>
           <div className="po-identity">
             <dl className="po-identity-grid">

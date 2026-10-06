@@ -136,23 +136,64 @@ describe("the browser does not carry the dataset", () => {
   });
 
   /**
-   * The dashboard is named specifically because it was the last and largest
-   * route in: choosing the twelve default products meant profiling all 1,172,
-   * so `DEFAULT_TRACKED_PRODUCT_IDS` alone pulled the whole catalogue into
-   * the bundle. The backend picks the set now.
+   * THERE IS NO DEFAULT DESK ANY MORE.
+   *
+   * This assertion has been rewritten twice, each time weakening a claim
+   * that turned out to be too generous. First the browser chose twelve
+   * products by profiling all 1,172 bundled ones. Then the backend chose
+   * them — better, but still a list nobody had asked for. Now the desk is
+   * what the signed-in user actually follows, and `api/dashboardService.js`
+   * is gone entirely.
    */
-  it("the desk gets its products from the backend, not from a local selection", () => {
-    const service = codeOf(join(SRC, "api", "dashboardService.js"));
+  it("the desk is what this user follows, not a default set", () => {
+    expect(
+      existsSync(join(SRC, "api", "dashboardService.js")),
+      "the service that served a default desk should no longer exist"
+    ).toBe(false);
 
-    expect(service).toMatch(/apiRequest\(/);
-    expect(service).toMatch(/\/dashboard/);
-    expect(service, "the stratified selection belongs to the backend now").not.toContain("demoSet");
-    expect(service).not.toContain("DEFAULT_TRACKED_PRODUCT_IDS");
+    const discovery = codeOf(join(SRC, "api", "discoveryService.js"));
+    expect(discovery).toMatch(/apiRequest\(/);
+    expect(discovery).toMatch(/\/tracked/);
 
     const state = codeOf(join(SRC, "state", "AppStateContext.jsx"));
-    expect(state, "the default desk must not be seeded in the browser").not.toContain(
-      "DEFAULT_TRACKED_PRODUCT_IDS"
-    );
+    expect(state, "no default desk may be seeded in the browser").not.toContain("DEFAULT_TRACKED_PRODUCT_IDS");
+    expect(state, "and none may be computed there either").not.toContain("demoSet");
+    expect(state, "the list comes from the server").toContain("getTracked");
+
+    /**
+     * And nowhere ELSE either.
+     *
+     * A mutation test caught this gap: checking only `AppStateContext` let a
+     * hardcoded list reappear in the API client one file away, where it would
+     * have been just as wrong and rather harder to notice.
+     */
+    const violations = [];
+    for (const file of files) {
+      const relative = rel(file);
+      if (!relative.startsWith("api/") && !relative.startsWith("state/")) continue;
+      const code = codeOf(file);
+      if (/DEFAULT_TRACKED_PRODUCT_IDS/.test(code)) violations.push(`${relative} declares a default desk`);
+      // A literal list of product ids is a seeded desk whatever it is called.
+      if (/\[\s*["']prod_[^"']*["']\s*(,|\])/.test(code)) violations.push(`${relative} hardcodes product ids`);
+    }
+    expect(violations, violations.join("\n")).toEqual([]);
+  });
+
+  /**
+   * Search must not be able to answer from a local table.
+   *
+   * The failure this prevents is specific: a catalogue that filters bundled
+   * products returns zero for anything it was not seeded with, which is how
+   * "iPhone 18" returned nothing while the provider would have answered.
+   */
+  it("discovery asks the market, and has no local catalogue to fall back to", () => {
+    const page = codeOf(join(SRC, "pages", "Catalogue.jsx"));
+    expect(page).toContain("searchMarket");
+    expect(page, "no bundled product list may be consulted").not.toMatch(/from\s+["'][^"']*\/data\//);
+
+    const discovery = codeOf(join(SRC, "api", "discoveryService.js"));
+    expect(discovery).toMatch(/\/search/);
+    expect(discovery).not.toMatch(/from\s+["'][^"']*\/data\//);
   });
 
   it("the provenance screen reads provenance, and has nothing to invent it from", () => {

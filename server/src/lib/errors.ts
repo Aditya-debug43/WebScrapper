@@ -25,6 +25,8 @@ export type ErrorCode =
   | "RESET_TOKEN_INVALID"
   | "ACCOUNT_INACTIVE"
   | "EMAIL_SEND_FAILED"
+  /** The market data provider could not be reached, or refused. Never an empty result. */
+  | "MARKET_DATA_UNAVAILABLE"
   | "INTERNAL_ERROR";
 
 const STATUS: Record<ErrorCode, number> = {
@@ -46,6 +48,8 @@ const STATUS: Record<ErrorCode, number> = {
   RESET_TOKEN_INVALID: 400,
   ACCOUNT_INACTIVE: 403,
   EMAIL_SEND_FAILED: 502,
+  // 503: the lookup did not happen, which is not the same as finding nothing.
+  MARKET_DATA_UNAVAILABLE: 503,
   INTERNAL_ERROR: 500,
 };
 

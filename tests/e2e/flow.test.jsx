@@ -240,8 +240,6 @@ describe("E2E — the real application against the real API", () => {
 describe("E2E — the recommendation comes from the backend", () => {
   /** Strong data, 6 marketplaces: the recommendation path. */
   const PRICED = "prod_dove_hair_fall";
-  /** Almost nothing comparable: the refusal path. */
-  const REFUSED = "prod_airpods_pro2";
 
   async function signedIn(route) {
     const user = userEvent.setup();
@@ -256,77 +254,122 @@ describe("E2E — the recommendation comes from the backend", () => {
     return { user, view: renderAuthApp({ route }) };
   }
 
-  it("E2E-07: the page renders a price the API computed", async () => {
-    await signedIn(`/products/${PRICED}/recommendation`);
+  /**
+   * E2E-07..10 were rewritten for the real-data architecture.
+   *
+   * They used to drive a SEEDED product through the catalogue-comparable
+   * engine. That engine priced against a bundled catalogue, and the whole
+   * point of this phase is that production no longer has one — so asserting
+   * it still works would be asserting the thing we removed.
+   *
+   * What they prove now is the replacement: a product discovered live can be
+   * tracked and priced from real market evidence, and a seeded product
+   * refuses rather than quietly pricing against synthetic comparables.
+   */
 
-    expect(await screen.findByTestId("workspace", {}, { timeout: 30_000 })).toBeInTheDocument();
-    expect(await screen.findByText(/Pricing strategies/i, {}, { timeout: 30_000 })).toBeInTheDocument();
+  it("E2E-07: live search finds a product and tracking records a real price", async () => {
+    const { user } = await signedIn("/catalogue");
 
-    // The three strategies, and a selected price.
-    expect(await screen.findByText(/^Fast Sale$/)).toBeInTheDocument();
-    expect(screen.getAllByText(/^Balanced$/).length).toBeGreaterThan(0);
-    expect(screen.getByText(/^Premium$/)).toBeInTheDocument();
+    // Typed into the box, as a user would. The results come from a capture,
+    // not from the products table.
+    const box = await screen.findByLabelText(/search the live market/i, {}, { timeout: 30_000 });
+    await user.type(box, "iPhone 15 128GB");
+    await user.click(screen.getByRole("button", { name: /^search$/i }));
 
-    /**
-     * The decisive check: the figure on screen is the figure the API returned.
-     * Fetched independently here, so a page rendering its own arithmetic would
-     * disagree with the service and fail.
-     */
-    const token = window.localStorage.getItem(TOKEN_KEY);
-    const response = await fetch(`${import.meta.env.VITE_API_BASE_URL}/products/${PRICED}/recommendation`, {
-      headers: { Authorization: `Bearer ${token}` },
-    });
-    expect(response.status).toBe(200);
-    const { data } = await response.json();
-    expect(data.status).toBe("recommended");
-
-    const inr = (minor) => `₹${Math.round(minor / 100).toLocaleString("en-IN")}`;
-    const balanced = data.strategies.find((s) => s.key === "balanced");
-    expect(screen.getAllByText(inr(balanced.priceMinor)).length).toBeGreaterThan(0);
-    expect(screen.getByText(new RegExp(`Floor — ${inr(data.floorMinor)}`))).toBeInTheDocument();
-    expect(screen.getByText(new RegExp(`Ceiling — ${inr(data.ceilingMinor)}`))).toBeInTheDocument();
-    expect(screen.getByText(new RegExp(`Confidence: ${data.evidence.level}`, "i"))).toBeInTheDocument();
-  });
-
-  it("E2E-08: a refused product renders the refusal, not an invented price", async () => {
-    await signedIn(`/products/${REFUSED}/recommendation`);
-
-    expect(
-      await screen.findByText(/Not enough comparable evidence|No valid price exists/i, {}, { timeout: 30_000 })
-    ).toBeInTheDocument();
-    expect(screen.queryByText(/Pricing strategies/i)).not.toBeInTheDocument();
+    const buttons = await screen.findAllByRole("button", { name: /track this product/i }, { timeout: 30_000 });
+    expect(buttons.length).toBeGreaterThan(0);
 
     const token = window.localStorage.getItem(TOKEN_KEY);
-    const response = await fetch(`${import.meta.env.VITE_API_BASE_URL}/products/${REFUSED}/recommendation`, {
+    const search = await fetch(
+      `${import.meta.env.VITE_API_BASE_URL}/search?q=${encodeURIComponent("iPhone 15 128GB")}`,
+      { headers: { Authorization: `Bearer ${token}` } }
+    );
+    expect(search.status).toBe(200);
+    const { data } = await search.json();
+    expect(data.results.length).toBeGreaterThan(0);
+    expect(data.results[0].ref).toBeTruthy();
+
+    // Tracking it creates the product and its first real observation.
+    const tracked = await fetch(`${import.meta.env.VITE_API_BASE_URL}/tracked`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${token}`, "content-type": "application/json" },
+      body: JSON.stringify({ ref: data.results[0].ref }),
+    });
+    expect(tracked.status).toBe(201);
+    const created = (await tracked.json()).data;
+    expect(created.product.id).toBeTruthy();
+
+    const desk = await fetch(`${import.meta.env.VITE_API_BASE_URL}/tracked`, {
       headers: { Authorization: `Bearer ${token}` },
     });
-    const { data } = await response.json();
-    expect(data.status).toBe("insufficient_evidence");
-    expect(data.recommendation).toBeNull();
+    const rows = (await desk.json()).data;
+    const row = rows.find((r) => r.productId === created.product.id);
+    expect(row.observationCount).toBeGreaterThanOrEqual(1);
+    expect(row.currentPriceMinor).toBeGreaterThan(0);
   });
 
-  it("E2E-09: a reload still loads the recommendation from the backend", async () => {
-    const { view } = await signedIn(`/products/${PRICED}/recommendation`);
-    await screen.findByText(/Pricing strategies/i, {}, { timeout: 30_000 });
+  it("E2E-08: a seeded product refuses rather than pricing from synthetic data", async () => {
+    const token = window.localStorage.getItem(TOKEN_KEY) ?? (await signedIn("/"), window.localStorage.getItem(TOKEN_KEY));
+    const response = await fetch(
+      `${import.meta.env.VITE_API_BASE_URL}/products/${PRICED}/market-recommendation`,
+      { headers: { Authorization: `Bearer ${token}` } }
+    );
 
-    // Unmount and mount again with the session in storage — a refresh.
-    view.unmount();
-    renderAuthApp({ route: `/products/${PRICED}/recommendation` });
-    expect(await screen.findByText(/Pricing strategies/i, {}, { timeout: 30_000 })).toBeInTheDocument();
+    // 400 with a reason: it has no live market query behind it.
+    expect(response.status).toBe(400);
+    const body = await response.json();
+    expect(body.error.message).toMatch(/no live market query/i);
+    expect(JSON.stringify(body)).not.toMatch(/recommendedPriceMinor/);
+  });
+
+  it("E2E-09: a tracked live product is priced with no history at all", async () => {
+    const { user } = await signedIn("/catalogue");
+    const box = await screen.findByLabelText(/search the live market/i, {}, { timeout: 30_000 });
+    await user.type(box, "POCO X6 Pro 8GB 256GB");
+    await user.click(screen.getByRole("button", { name: /^search$/i }));
+
+    await screen.findAllByRole("button", { name: /track this product/i }, { timeout: 30_000 });
+    await user.click(screen.getAllByRole("button", { name: /track this product/i })[0]);
+    await screen.findByRole("button", { name: /^tracking$/i }, {}, { timeout: 30_000 });
+
+    const token = window.localStorage.getItem(TOKEN_KEY);
+    const desk = await fetch(`${import.meta.env.VITE_API_BASE_URL}/tracked`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    const row = (await desk.json()).data[0];
+
+    const rec = await fetch(
+      `${import.meta.env.VITE_API_BASE_URL}/products/${row.productId}/market-recommendation`,
+      { headers: { Authorization: `Bearer ${token}` } }
+    );
+    expect(rec.status).toBe(200);
+    const { data } = await rec.json();
+
+    // Cold start: one capture, no history, and still a defensible answer —
+    // or an honest refusal if even the current market is too thin.
+    if (data.available) {
+      expect(data.mode).toBe("cold_start");
+      expect(data.recommendedPriceMinor).toBeGreaterThan(0);
+      expect(data.market.offerCount).toBeGreaterThanOrEqual(3);
+      expect(data.method).toBe("deterministic");
+    } else {
+      expect(data.reason).toBe("insufficient_market_evidence");
+      expect(data.recommendedPriceMinor).toBeUndefined();
+    }
   });
 
   it("E2E-10: a product that does not exist fails safely", async () => {
     await signedIn("/products/prod_does_not_exist/recommendation");
-    expect(await screen.findByText(/could not be found/i, {}, { timeout: 30_000 })).toBeInTheDocument();
-    expect(screen.queryByText(/Pricing strategies/i)).not.toBeInTheDocument();
+    expect(await screen.findByText(/could not be found|no product with id/i, {}, { timeout: 30_000 })).toBeInTheDocument();
+    expect(screen.queryByText(/Recommended price/i)).not.toBeInTheDocument();
   });
 
   it("E2E-11: the endpoint refuses an unauthenticated request", async () => {
-    const response = await fetch(`${import.meta.env.VITE_API_BASE_URL}/products/${PRICED}/recommendation`);
+    const response = await fetch(`${import.meta.env.VITE_API_BASE_URL}/products/${PRICED}/market-recommendation`);
     expect(response.status).toBe(401);
     const body = await response.json();
     expect(body.error.code).toBe("UNAUTHENTICATED");
-    expect(JSON.stringify(body)).not.toMatch(/strategies|priceMinor/);
+    expect(JSON.stringify(body)).not.toMatch(/recommendedPriceMinor/);
   });
 
   it("E2E-12: a revoked session cannot load a recommendation", async () => {
@@ -338,7 +381,7 @@ describe("E2E — the recommendation comes from the backend", () => {
     await user.click(screen.getByRole("menuitem", { name: /sign out/i }));
     await waitFor(() => expect(window.localStorage.getItem(TOKEN_KEY)).toBeNull());
 
-    const response = await fetch(`${import.meta.env.VITE_API_BASE_URL}/products/${PRICED}/recommendation`, {
+    const response = await fetch(`${import.meta.env.VITE_API_BASE_URL}/products/${PRICED}/market-recommendation`, {
       headers: { Authorization: `Bearer ${token}` },
     });
     expect(response.status).toBe(401);

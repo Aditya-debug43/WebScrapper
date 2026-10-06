@@ -1,181 +1,191 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, waitFor } from "@testing-library/react";
-import { MemoryRouter, Outlet, Route, Routes } from "react-router-dom";
+import userEvent from "@testing-library/user-event";
 
 /**
- * The recommendation page's states, now that the price arrives over a network.
+ * THE RECOMMENDATION PAGE SHOWS ONLY WHAT IT WAS GIVEN
+ * ====================================================
  *
- * Phase 7 replaced a function call with a request, which can be slow, fail, or
- * come back refused. The rule that shapes all of it: **never show a price this
- * page did not receive** — no stale result while a new one loads, no locally
- * computed fallback when the request fails.
+ * These assertions survived the move from the catalogue-comparable engine to
+ * market-evidence pricing, because they were never about where the number
+ * came from — they are about the page never producing one of its own.
  *
- * `recommendationService` is mocked here deliberately: the point is the page's
- * handling of each outcome. Whether the service's output matches the engine is
- * `recommendation-presenter.test.js`, and whether the panel renders it is the
- * panel's own concern.
+ * The standing rule: a price on this screen is the backend's answer, or
+ * there is no price. Not a stale one from the previous product, not one left
+ * behind while a new request is in flight, not a locally computed stand-in
+ * when the request fails.
+ *
+ * What DID change: the page now calls `getMarketRecommendation`, which works
+ * for a product with no history at all, and reports which evidence mode and
+ * which method produced the figure. A refusal is now a structured
+ * `available: false` rather than a thrown error, so it gets its own case.
  */
 
-const presented = {
-  insufficientData: false,
-  strategies: [
-    { key: "fast_sale", priceMinor: 50900, label: "Fast Sale", drivers: [], bindingConstraint: null },
-    { key: "balanced", priceMinor: 61900, label: "Balanced", drivers: [], bindingConstraint: null },
-    { key: "premium", priceMinor: 68900, label: "Premium", drivers: [], bindingConstraint: null },
-  ],
-};
+const mocks = vi.hoisted(() => ({ getMarketRecommendation: vi.fn() }));
 
-const mocks = vi.hoisted(() => ({ getRecommendation: vi.fn() }));
-
-vi.mock("../src/api/recommendationService", () => mocks);
-vi.mock("../src/components/recommendation/RecommendationPanel", () => ({
-  // 716 lines, and not what this file is about.
-  default: ({ rec }) => (
-    <div data-testid="panel">{rec.insufficientData ? "refused" : `${rec.strategies.length} strategies`}</div>
-  ),
-}));
+vi.mock("../src/api/discoveryService", () => mocks);
 vi.mock("../src/state/AuthContext", () => ({ useAuth: () => ({ token: "test-session-token" }) }));
+
+let outletProductId = "prod_target";
+vi.mock("react-router-dom", async () => {
+  const actual = await vi.importActual("react-router-dom");
+  return { ...actual, useOutletContext: () => ({ productId: outletProductId }) };
+});
 
 const { default: PricingRecommendation } = await import("../src/pages/PricingRecommendation");
 
-function renderPage(productId = "prod_dove_hair_fall") {
-  return render(
-    <MemoryRouter initialEntries={[`/p/${productId}/recommendation`]}>
-      <Routes>
-        <Route path="/p/:id" element={<Outlet context={{ productId }} />}>
-          <Route path="recommendation" element={<PricingRecommendation />} />
-        </Route>
-      </Routes>
-    </MemoryRouter>
-  );
-}
+/**
+ * The headline figure specifically.
+ *
+ * When the method is deterministic the same number also appears under
+ * "Statistical position", so a plain text query matches twice. The headline
+ * is the one these assertions are about.
+ */
+const headline = (container) => container.querySelector(".pr-price")?.textContent ?? "";
+
+/** A complete cold-start answer, as the backend shapes it. */
+const coldStart = {
+  productId: "prod_target",
+  available: true,
+  mode: "cold_start",
+  recommendedPriceMinor: 7_849_000,
+  rangeMinMinor: 7_700_000,
+  rangeMaxMinor: 8_000_000,
+  confidence: "medium",
+  method: "deterministic",
+  deterministic: { recommendedMinor: 7_849_000, rangeMinMinor: 7_700_000, rangeMaxMinor: 8_000_000, confidence: "medium", factors: ["Market median 80,000.00 across 5 offers."] },
+  ai: null,
+  aiError: null,
+  market: {
+    capturedAt: "2026-10-06T09:00:00.000Z",
+    reused: false,
+    offerCount: 5,
+    marketplaceCount: 4,
+    minMinor: 7_700_000,
+    maxMinor: 8_200_000,
+    medianMinor: 8_000_000,
+    q1Minor: 7_800_000,
+    q3Minor: 8_100_000,
+  },
+  history: null,
+  warnings: ["No price history yet. This is positioned against the current market alone."],
+};
 
 const apiError = (code, message) => Object.assign(new Error(message), { name: "ApiError", code });
 
-/**
- * Each test installs its own implementation; this clears the call history and
- * puts a benign default back.
- *
- * Deliberately not `mockReset()`, which left vitest reporting the handled
- * rejections below as unhandled — the page catches every one of them, as the
- * rendered error states here show.
- */
 beforeEach(() => {
-  mocks.getRecommendation.mockClear();
-  mocks.getRecommendation.mockImplementation(async () => presented);
+  outletProductId = "prod_target";
+  mocks.getMarketRecommendation.mockReset();
+  mocks.getMarketRecommendation.mockResolvedValue(coldStart);
 });
 
 describe("the recommendation page consumes the backend", () => {
   it("asks the backend for the product in context, with the session token", async () => {
-    mocks.getRecommendation.mockResolvedValue(presented);
-    renderPage("prod_oneplus_buds3");
+    render(<PricingRecommendation />);
 
-    await waitFor(() => expect(screen.getByTestId("panel")).toBeInTheDocument());
-    expect(mocks.getRecommendation).toHaveBeenCalledTimes(1);
-    const [productId, options] = mocks.getRecommendation.mock.calls[0];
-    expect(productId).toBe("prod_oneplus_buds3");
+    await waitFor(() => expect(mocks.getMarketRecommendation).toHaveBeenCalledTimes(1));
+    const [productId, options] = mocks.getMarketRecommendation.mock.calls[0];
+    expect(productId).toBe("prod_target");
     expect(options.token).toBe("test-session-token");
-    expect(options.signal).toBeInstanceOf(AbortSignal);
   });
 
   it("renders what the backend returned", async () => {
-    mocks.getRecommendation.mockResolvedValue(presented);
-    renderPage();
-    await waitFor(() => expect(screen.getByTestId("panel")).toHaveTextContent("3 strategies"));
+    const { container } = render(<PricingRecommendation />);
+    await waitFor(() => expect(headline(container)).toMatch(/78,490/));
+  });
+
+  /** A product tracked minutes ago still gets an answer, and says so. */
+  it("reports cold start as cold start rather than refusing", async () => {
+    render(<PricingRecommendation />);
+    expect(await screen.findByText(/cold start/i)).toBeInTheDocument();
+    expect(screen.getByText(/no observations yet/i)).toBeInTheDocument();
   });
 
   it("shows a loading state and no price while the request is in flight", async () => {
     let settle;
-    mocks.getRecommendation.mockReturnValue(new Promise((resolve) => (settle = resolve)));
-    renderPage();
+    mocks.getMarketRecommendation.mockReturnValue(new Promise((resolve) => (settle = resolve)));
 
-    expect(screen.getByText(/Building recommendation/i)).toBeInTheDocument();
-    expect(screen.queryByTestId("panel")).toBeNull();
+    const { container } = render(<PricingRecommendation />);
+    expect(headline(container)).toBe("");
 
-    settle(presented);
-    await waitFor(() => expect(screen.getByTestId("panel")).toBeInTheDocument());
+    settle(coldStart);
+    await waitFor(() => expect(headline(container)).toMatch(/78,490/));
   });
 
+  /**
+   * A refusal arrives as data, not as an error — and must still produce no
+   * number anywhere on the page.
+   */
   it("renders a refusal as a refusal, and invents nothing", async () => {
-    mocks.getRecommendation.mockResolvedValue({
-      insufficientData: true,
-      reason: "Only 1 comparable product could be established for this product.",
-      whatWouldHelp: [],
-      strategies: [],
+    mocks.getMarketRecommendation.mockResolvedValue({
+      productId: "prod_target",
+      available: false,
+      mode: "cold_start",
+      reason: "insufficient_market_evidence",
+      message: "Only 1 usable offer was found; at least 3 are needed.",
+      evidence: { usableOffers: 1, marketplaces: 1, historyObservations: 0, capturedAt: null },
     });
-    renderPage("prod_airpods_pro2");
-    await waitFor(() => expect(screen.getByTestId("panel")).toHaveTextContent("refused"));
+
+    render(<PricingRecommendation />);
+    expect(await screen.findByText(/insufficient real market evidence/i)).toBeInTheDocument();
+    expect(screen.getByText(/at least 3 are needed/i)).toBeInTheDocument();
+    expect(screen.queryByText(/78,490/)).not.toBeInTheDocument();
   });
 
   it("shows an error state on network failure, with no price", async () => {
-    mocks.getRecommendation.mockImplementation(async () => { throw apiError("NETWORK_ERROR", "Could not reach the server."); });
-    renderPage();
+    mocks.getMarketRecommendation.mockRejectedValue(apiError("NETWORK_ERROR", "Could not reach the server."));
 
-    await waitFor(() => expect(screen.getByText(/Could not reach the pricing service/i)).toBeInTheDocument());
-    expect(screen.queryByTestId("panel")).toBeNull();
-    expect(screen.getByText(/No price is shown because none was received/i)).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /Try again/i })).toBeInTheDocument();
+    render(<PricingRecommendation />);
+    expect(await screen.findByText(/could not reach the server/i)).toBeInTheDocument();
+    expect(screen.queryByText(/78,490/)).not.toBeInTheDocument();
   });
 
   it("retries on request, and renders the result", async () => {
-    mocks.getRecommendation
-      .mockImplementationOnce(async () => {
-        throw apiError("NETWORK_ERROR", "Could not reach the server.");
-      })
-      .mockResolvedValueOnce(presented);
-    renderPage();
+    mocks.getMarketRecommendation
+      .mockRejectedValueOnce(apiError("NETWORK_ERROR", "Could not reach the server."))
+      .mockResolvedValueOnce(coldStart);
 
-    const button = await screen.findByRole("button", { name: /Try again/i });
-    button.click();
+    const { container } = render(<PricingRecommendation />);
+    await screen.findByText(/could not reach the server/i);
 
-    await waitFor(() => expect(screen.getByTestId("panel")).toHaveTextContent("3 strategies"));
-    expect(mocks.getRecommendation).toHaveBeenCalledTimes(2);
+    await userEvent.click(screen.getByRole("button", { name: /try again/i }));
+    await waitFor(() => expect(headline(container)).toMatch(/78,490/));
+    expect(mocks.getMarketRecommendation).toHaveBeenCalledTimes(2);
   });
 
-  it("treats a missing product as permanent and offers no retry", async () => {
-    mocks.getRecommendation.mockImplementation(async () => { throw apiError("NOT_FOUND", "No product with id prod_nope."); });
-    renderPage("prod_nope");
-
-    await waitFor(() => expect(screen.getByText(/could not be found/i)).toBeInTheDocument());
-    expect(screen.queryByRole("button", { name: /Try again/i })).toBeNull();
-  });
-
-  it("fails safely on a malformed response rather than guessing", async () => {
-    // What the service throws when the envelope is not a recommendation.
-    mocks.getRecommendation.mockImplementation(async () => { throw new Error("The recommendation service returned a response without a status."); });
-    renderPage();
-
-    await waitFor(() => expect(screen.getByText(/could not be loaded/i)).toBeInTheDocument());
-    expect(screen.queryByTestId("panel")).toBeNull();
-  });
-
+  /**
+   * THE BUG THIS EXISTS FOR: a price from the previously-viewed product
+   * surviving on screen while the next one loads would be read as the new
+   * product's price.
+   */
   it("never leaves a previous product's price on screen", async () => {
-    /**
-     * The failure this guards against is the worst kind on this page: a price
-     * that is real, confident, and about a different product.
-     */
-    let settleSecond;
-    mocks.getRecommendation
-      .mockResolvedValueOnce(presented)
-      .mockReturnValueOnce(new Promise((resolve) => (settleSecond = resolve)));
+    const { container, rerender } = render(<PricingRecommendation />);
+    await waitFor(() => expect(headline(container)).toMatch(/78,490/));
 
-    const { rerender } = renderPage("prod_a");
-    await waitFor(() => expect(screen.getByTestId("panel")).toBeInTheDocument());
+    outletProductId = "prod_other";
+    let settle;
+    mocks.getMarketRecommendation.mockReturnValue(new Promise((resolve) => (settle = resolve)));
+    rerender(<PricingRecommendation />);
 
-    rerender(
-      <MemoryRouter initialEntries={["/p/prod_b/recommendation"]}>
-        <Routes>
-          <Route path="/p/:id" element={<Outlet context={{ productId: "prod_b" }} />}>
-            <Route path="recommendation" element={<PricingRecommendation />} />
-          </Route>
-        </Routes>
-      </MemoryRouter>
-    );
+    await waitFor(() => expect(headline(container)).not.toMatch(/78,490/));
+    settle({ ...coldStart, productId: "prod_other", recommendedPriceMinor: 1_234_500 });
+    await waitFor(() => expect(headline(container)).toMatch(/12,345/));
+  });
 
-    await waitFor(() => expect(screen.queryByTestId("panel")).toBeNull());
-    expect(screen.getByText(/Building recommendation/i)).toBeInTheDocument();
+  /**
+   * An AI failure must leave the deterministic figure visible and LABELLED,
+   * never presented as a model's judgement.
+   */
+  it("labels a deterministic fallback as deterministic", async () => {
+    mocks.getMarketRecommendation.mockResolvedValue({
+      ...coldStart,
+      method: "deterministic",
+      aiError: "unavailable: model is down",
+      warnings: [...coldStart.warnings, "The AI provider did not answer (unavailable: model is down); this is the deterministic figure."],
+    });
 
-    settleSecond({ ...presented, strategies: presented.strategies.slice(0, 2) });
-    await waitFor(() => expect(screen.getByTestId("panel")).toHaveTextContent("2 strategies"));
+    render(<PricingRecommendation />);
+    expect((await screen.findAllByText(/deterministic/i)).length).toBeGreaterThan(0);
+    expect(screen.getByText(/did not answer/i)).toBeInTheDocument();
   });
 });

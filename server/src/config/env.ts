@@ -160,6 +160,62 @@ const schema = z
     MARKET_DATA_TTL_SECONDS: z.coerce.number().int().positive().default(21_600),
 
     /**
+     * How fresh a SEARCH insists on being, in seconds.
+     *
+     * Shorter than the general window because typing a query is an explicit
+     * request for the current market — but not zero, or a user pressing enter
+     * twice buys two calls for one question. Fifteen minutes is long enough
+     * to absorb retries and impatience, short enough that a search still
+     * means "now".
+     */
+    MARKET_DATA_SEARCH_TTL_SECONDS: z.coerce.number().int().positive().default(900),
+
+    /**
+     * The floor under a deliberate "refresh prices" press.
+     *
+     * The button is not a licence to spend: inside this window it returns
+     * what is already stored and says so. Separate from the search window
+     * because the two are different promises to the user.
+     */
+    MARKET_DATA_REFRESH_FLOOR_SECONDS: z.coerce.number().int().positive().default(1_800),
+
+    /**
+     * How long full response bodies are kept before pruning to hash-only.
+     *
+     * Bodies are what make a capture re-readable — a parser fixed later can
+     * be re-run over what was actually received, and a tracked result can be
+     * resolved server-side. They are also the bulk of the storage: roughly
+     * 150 KB per capture. Ninety days keeps every body a re-parse would
+     * realistically want while bounding growth.
+     */
+    MARKET_DATA_BODY_RETENTION_DAYS: z.coerce.number().int().positive().default(90),
+
+    /**
+     * Upper bound on products captured in one scheduled sweep.
+     *
+     * A ceiling on spend per run: if demand grows faster than the budget,
+     * the sweep takes the most-followed products first and the rest wait for
+     * the next hour rather than the bill arriving as a surprise.
+     */
+    CAPTURE_SWEEP_MAX_PRODUCTS: z.coerce.number().int().positive().default(50),
+
+    /* ----------------------------------------------------------------- AI
+     *
+     * Which provider reasons over the pricing evidence. `none` is the
+     * default and is a complete, working configuration: the deterministic
+     * engine still produces a recommendation, labelled as deterministic.
+     *
+     * The provider is named ONLY here and in the adapter factory. Switching
+     * is a configuration change, not a rewrite — which is the requirement,
+     * because the final provider has not been chosen.
+     */
+    AI_PROVIDER: z.enum(["none", "gemini", "openai", "anthropic"]).default("none"),
+    AI_MODEL: z.string().min(1).default("gemini-2.0-flash"),
+    /** Server-side only. Never reaches the browser and is never logged. */
+    AI_API_KEY: z.string().min(1).optional(),
+    AI_TIMEOUT_MS: z.coerce.number().int().positive().default(20_000),
+
+    /**
      * Upper bound on results requested per query, so a caller cannot turn one
      * API call into a hundred by asking for more.
      */

@@ -44,6 +44,15 @@ type SerpShoppingResult = {
   snippet?: string;
   extensions?: string[];
   second_hand_condition?: string;
+  /**
+   * SerpApi rehosts the store's image on its own CDN and returns that URL
+   * here. Preferred over anything the store serves directly: the store's own
+   * URL frequently blocks hotlinking or expires, and a broken image in a
+   * price comparison reads as a broken product.
+   */
+  thumbnail?: string;
+  /** Occasionally several, when the source carries a gallery. */
+  thumbnails?: string[];
 };
 
 type SerpResponse = {
@@ -267,6 +276,10 @@ export function normaliseSerpResponse(
       inStock: parseStock(result),
       condition: parseCondition(result),
       deliveryNote: delivery.note,
+      thumbnailUrl: typeof result.thumbnail === "string" && result.thumbnail ? result.thumbnail : null,
+      thumbnailUrls: Array.isArray(result.thumbnails)
+        ? result.thumbnails.filter((t): t is string => typeof t === "string" && t.length > 0)
+        : [],
       provider,
       observedAt: fetchedAt,
       raw: result,

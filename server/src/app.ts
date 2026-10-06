@@ -28,6 +28,13 @@ import { registerDashboardRoutes } from "./modules/dashboard/dashboard.routes.js
 import { SourcesRepository } from "./modules/sources/sources.repository.js";
 import { SourcesService } from "./modules/sources/sources.service.js";
 import { registerSourcesRoutes } from "./modules/sources/sources.routes.js";
+import { SnapshotService } from "./ingestion/snapshot.service.js";
+import type { MarketOfferProvider } from "./ingestion/types.js";
+import { createAIProvider, type AIProvider } from "./ai/index.js";
+import { MarketPricingService } from "./modules/pricing/marketPricing.service.js";
+import { DiscoveryRepository } from "./modules/discovery/discovery.repository.js";
+import { DiscoveryService } from "./modules/discovery/discovery.service.js";
+import { registerDiscoveryRoutes } from "./modules/discovery/discovery.routes.js";
 import { IngestionService } from "./ingestion/ingestion.service.js";
 import { registerIngestionRoutes } from "./modules/ingestion/ingestion.routes.js";
 
@@ -47,7 +54,15 @@ export type BuiltApp = {
  * nothing but call this and listen.
  */
 export async function buildApp(
-  overrides: { db?: Db; email?: EmailAdapter; closeDb?: () => Promise<void> } = {}
+  overrides: {
+    db?: Db;
+    email?: EmailAdapter;
+    closeDb?: () => Promise<void>;
+    /** A deterministic market provider, so a test never reaches the network. */
+    marketProvider?: MarketOfferProvider;
+    /** A stub AI provider, so a test never reaches a model API. */
+    aiProvider?: AIProvider;
+  } = {}
 ): Promise<BuiltApp> {
   let closeDb = overrides.closeDb ?? (async () => {});
   let db = overrides.db;
@@ -189,6 +204,22 @@ export async function buildApp(
   const ingestionService = new IngestionService(db);
 
   /**
+   * Market snapshots. ONE instance, deliberately: the in-flight map that
+   * coalesces concurrent identical requests only works if every caller
+   * shares it, so search, tracking, the scheduler and the recommendation
+   * all hold this same object.
+   */
+  const snapshotService = new SnapshotService(db, overrides.marketProvider);
+  const discoveryService = new DiscoveryService(new DiscoveryRepository(db), snapshotService);
+
+  /**
+   * Pricing from live market evidence. The AI provider is resolved once
+   * here and nowhere else — the pricing service holds the port, never a
+   * concrete provider, so switching is configuration rather than a rewrite.
+   */
+  const marketPricingService = new MarketPricingService(db, snapshotService, overrides.aiProvider ?? createAIProvider());
+
+  /**
    * Liveness only. No version, no commit, no database host, no dependency
    * detail — a health endpoint is unauthenticated by necessity and is the
    * cheapest reconnaissance target on any deployment.
@@ -204,6 +235,7 @@ export async function buildApp(
       registerPricingRoutes(v1, pricingService);
       registerDashboardRoutes(v1, dashboardService);
       registerSourcesRoutes(v1, sourcesService);
+      registerDiscoveryRoutes(v1, discoveryService, marketPricingService);
       registerIngestionRoutes(v1, ingestionService);
     },
     { prefix: "/api/v1" }

@@ -1,14 +1,11 @@
-import { useEffect } from "react";
 import { Routes, Route } from "react-router-dom";
 import Masthead from "./components/layout/Masthead";
 import Colophon from "./components/layout/Colophon";
 import ProductWorkspaceLayout from "./components/layout/ProductWorkspaceLayout";
 import { RedirectIfAuthenticated, RequireAuth } from "./components/auth/RouteGuards";
 import { AppStateProvider, useAppState } from "./state/AppStateContext";
-import { AuthProvider, useAuth } from "./state/AuthContext";
+import { AuthProvider } from "./state/AuthContext";
 import { ThemeProvider } from "./state/ThemeContext";
-import { useAsyncData } from "./utils/useAsyncData";
-import { getDesk } from "./api/dashboardService";
 
 import Dashboard from "./pages/Dashboard";
 import Catalogue from "./pages/Catalogue";
@@ -36,29 +33,18 @@ import ResetPassword from "./pages/auth/ResetPassword";
  * for a room the visitor has not been let into.
  */
 function Workspace() {
-  const { token } = useAuth();
-  const { requestedProductIds, adoptResolvedIds } = useAppState();
-
   /**
-   * The masthead's alert count, read at the default horizon.
+   * The badge counts what this user follows.
    *
-   * This is also where the desk gets resolved: the response says which
-   * products the server actually put on it, and the app state adopts that
-   * set so a star on a product page knows whether it is lit. The frontend no
-   * longer decides that for itself.
+   * It used to be an alert count computed over a global seeded product set
+   * — a number about products nobody had chosen. There is no synthetic
+   * alert source any more, and inventing one would be the same mistake.
    */
-  const { data: desk } = useAsyncData(
-    () => getDesk({ token, productIds: requestedProductIds }),
-    [token, requestedProductIds]
-  );
-
-  useEffect(() => {
-    if (desk) adoptResolvedIds(desk.tracked.map((t) => t.product.id));
-  }, [desk, adoptResolvedIds]);
+  const { trackedProducts } = useAppState();
 
   return (
     <div className="app-shell">
-      <Masthead alertCount={desk?.alerts?.length ?? 0} />
+      <Masthead alertCount={trackedProducts.length} />
       <main className="app-main">
         <Routes>
           <Route path="/" element={<Dashboard />} />

@@ -81,6 +81,18 @@ export type MarketOffer = {
   /** The delivery promise as written, e.g. "Free delivery by Tue, 14 Oct". */
   deliveryNote: string | null;
 
+  /**
+   * Product image, as the PROVIDER hosts it where it offers one.
+   *
+   * Null when the provider gave none — a search result with no image shows no
+   * image. A placeholder drawn from anywhere else would be the interface
+   * inventing a fact about the product, which is the one thing this pipeline
+   * exists to prevent.
+   */
+  thumbnailUrl: string | null;
+  /** Further images where the source carried a gallery. Usually empty. */
+  thumbnailUrls: string[];
+
   /** Which adapter produced this. Recorded on everything it writes. */
   provider: string;
   /** When the provider observed it, ISO-8601. */

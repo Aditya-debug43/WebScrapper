@@ -130,10 +130,12 @@ describe("the browser does not decide a price", () => {
     const reachable = [...reachableFrom(RECOMMENDATION_PAGE)].map((f) => relative(SRC, f).replace(/\\/g, "/"));
 
     // The page really does reach its own parts, or the walk found nothing.
-    expect(reachable).toContain("api/recommendationService.js");
-    expect(reachable).toContain("utils/recommendationPresenter.js");
-    expect(reachable).toContain("components/recommendation/RecommendationPanel.jsx");
+    // Phase 10: the page asks `discoveryService` for a market-evidence price.
+    // `recommendationService` served the catalogue-comparable engine and is
+    // no longer on this path.
+    expect(reachable).toContain("api/discoveryService.js");
     expect(reachable).toContain("api/http.js");
+    expect(reachable).toContain("utils/money.js");
 
     const offenders = reachable.filter((rel) => PRICING_MODULES.some((m) => rel === `utils/${m}.js`));
     expect(
@@ -144,11 +146,14 @@ describe("the browser does not decide a price", () => {
 
   it("the service reaches the backend, and the page asks the service", () => {
     const page = codeOf(RECOMMENDATION_PAGE);
-    const service = codeOf(join(SRC, "api", "recommendationService.js"));
+    const service = codeOf(join(SRC, "api", "discoveryService.js"));
 
-    expect(page).toMatch(/getRecommendation\(/);
+    expect(page).toMatch(/getMarketRecommendation\(/);
     expect(service).toMatch(/apiRequest\(/);
-    expect(service).toMatch(/\/recommendation/);
+    expect(service).toMatch(/market-recommendation/);
+    // The price is argued from real market evidence, so the page must not
+    // reach for a bundled dataset to fill any gap in it.
+    expect(page).not.toMatch(/from\s+["'][^"']*\/data\//);
   });
 
   it("the presenter formats and does not calculate", () => {
