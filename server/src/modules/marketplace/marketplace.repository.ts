@@ -545,7 +545,7 @@ export class MarketplaceRepository {
                  l.last_seen_at::text       as "lastSeenAt"
             from listings l
             join products p     on p.id = l.product_id
-            join brands b       on b.id = p.brand_id
+            left join brands b  on b.id = p.brand_id
             join marketplaces m on m.id = l.marketplace_id
            where l.id = ${listingId}`
     );

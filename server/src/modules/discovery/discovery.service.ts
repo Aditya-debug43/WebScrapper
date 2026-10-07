@@ -2,6 +2,7 @@ import { env } from "../../config/env.js";
 import { AppError } from "../../lib/errors.js";
 import { FRESHNESS, signResultRef, type MarketSnapshot, type SnapshotService } from "../../ingestion/snapshot.service.js";
 import { ProviderError } from "../../ingestion/types.js";
+import { scoreResults } from "../../ingestion/relevance.js";
 import type { DiscoveryRepository } from "./discovery.repository.js";
 
 /**
@@ -68,6 +69,24 @@ export class DiscoveryService {
      */
     const known = await this.repo.resolveKnownProducts(snapshot.offers.map((o) => o.rawTitle));
 
+    /**
+     * Rank by what the user actually asked for.
+     *
+     * A search for "iphone 18 pro" returns two phones and thirty-eight
+     * cases, every one of which contains the searched words. Shown in the
+     * provider's order the page is a case catalogue. See `relevance.ts` —
+     * the rule reads the shape of the response rather than any list of
+     * accessory words, so it holds for laptops and shoes too, and inverts
+     * by itself when somebody searches FOR a case.
+     */
+    const scored = scoreResults(
+      snapshot.query,
+      snapshot.offers.map((o) => ({ title: o.rawTitle, priceMinor: o.priceMinor, source: o.sourceName, offer: o }))
+    ).sort((a, b) => b.score - a.score);
+
+    const shown = scored.filter((r) => r.relevance !== "irrelevant");
+    const setAside = scored.length - shown.length;
+
     return {
       data: {
         query: snapshot.query,
@@ -76,7 +95,9 @@ export class DiscoveryService {
         reused: snapshot.reused,
         ageSeconds: snapshot.ageSeconds,
         provider: snapshot.provider,
-        results: snapshot.offers.map((offer) => ({
+        /** How many the provider returned that were not about this query at all. */
+        setAside,
+        results: shown.map(({ item: { offer }, relevance, reason }) => ({
           /** Signed, server-resolvable. The browser never supplies product data. */
           ref: signResultRef(snapshot.captureRunId, offer.resultIndex),
           title: offer.rawTitle,
@@ -96,6 +117,15 @@ export class DiscoveryService {
           thumbnailUrls: offer.thumbnailUrls,
           /** Set when this already corresponds to something we hold. */
           knownProductId: known.get(offer.rawTitle) ?? null,
+          /**
+           * "strong" and "plausible" are the product; "accessory" is
+           * something sold alongside it. Surfaced so the interface can
+           * lead with the former and keep the latter out of the way,
+           * rather than being silently dropped — a result set that was
+           * mostly accessories is a fact about the query worth seeing.
+           */
+          relevance,
+          relevanceReason: reason,
         })),
       },
     };

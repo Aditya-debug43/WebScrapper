@@ -118,9 +118,9 @@ export class CatalogueRepository {
         marketplaceCount: sql<number>`(select count(*)::int from ${listings} l where l.product_id = ${outer("products", "id")})`,
       })
       .from(products)
-      .innerJoin(brands, eq(brands.id, products.brandId))
-      .innerJoin(categories, eq(categories.id, products.categoryId))
-      .innerJoin(productTypes, eq(productTypes.id, products.productTypeId))
+      .leftJoin(brands, eq(brands.id, products.brandId))
+      .leftJoin(categories, eq(categories.id, products.categoryId))
+      .leftJoin(productTypes, eq(productTypes.id, products.productTypeId))
       .where(where)
       .orderBy(...this.orderFor(f.sort))
       .limit(f.pageSize)
@@ -134,6 +134,21 @@ export class CatalogueRepository {
     return { rows, total: totalRows[0]?.n ?? 0 };
   }
 
+  /**
+   * One product, with whatever taxonomy it has.
+   *
+   * LEFT joins, and that matters. These were INNER joins, which was correct
+   * while every product came from a seed file that had already classified it
+   * — and silently wrong the moment products could be discovered live. A
+   * product found in a marketplace has no brand, category or product type
+   * (migration 0009 made those nullable rather than inventing them), so all
+   * three joins failed and the row vanished. The product existed, tracking
+   * worked, the dashboard listed it, and opening it said "No product with id
+   * prod_live_…" — a row that was there the whole time.
+   *
+   * The fix belongs in the read model, not in the data: fabricating a brand
+   * to satisfy a join would put a made-up fact on screen.
+   */
   async findProduct(id: string) {
     const rows = await this.db
       .select({
@@ -158,9 +173,9 @@ export class CatalogueRepository {
         marketplaceCount: sql<number>`(select count(*)::int from ${listings} l where l.product_id = ${outer("products", "id")})`,
       })
       .from(products)
-      .innerJoin(brands, eq(brands.id, products.brandId))
-      .innerJoin(categories, eq(categories.id, products.categoryId))
-      .innerJoin(productTypes, eq(productTypes.id, products.productTypeId))
+      .leftJoin(brands, eq(brands.id, products.brandId))
+      .leftJoin(categories, eq(categories.id, products.categoryId))
+      .leftJoin(productTypes, eq(productTypes.id, products.productTypeId))
       .where(eq(products.id, id))
       .limit(1);
     return rows[0] ?? null;
@@ -509,9 +524,9 @@ export class CatalogueRepository {
         productTypeName: productTypes.name,
       })
       .from(products)
-      .innerJoin(brands, eq(brands.id, products.brandId))
-      .innerJoin(categories, eq(categories.id, products.categoryId))
-      .innerJoin(productTypes, eq(productTypes.id, products.productTypeId))
+      .leftJoin(brands, eq(brands.id, products.brandId))
+      .leftJoin(categories, eq(categories.id, products.categoryId))
+      .leftJoin(productTypes, eq(productTypes.id, products.productTypeId))
       .where(inArray(products.id, productIds));
   }
 

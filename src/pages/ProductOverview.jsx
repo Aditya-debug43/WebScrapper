@@ -110,10 +110,20 @@ export default function ProductOverview() {
 }
 
 function IdentityRow({ label, value }) {
+  /**
+   * An empty string counts as absent, not as a value.
+   *
+   * A product discovered in a marketplace has no brand or category — the
+   * backend returns null and an empty breadcrumb rather than inventing one,
+   * and `categoryPath.map(…).join()` turns that into "". Without this the
+   * row rendered blank, which reads as a missing value rather than as a
+   * value we honestly do not have.
+   */
+  const shown = value === null || value === undefined || value === "" ? "—" : value;
   return (
     <div className="po-identity-row">
       <dt>{label}</dt>
-      <dd>{value ?? "—"}</dd>
+      <dd>{shown}</dd>
     </div>
   );
 }

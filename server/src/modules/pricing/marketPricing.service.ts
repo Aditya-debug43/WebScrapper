@@ -6,6 +6,7 @@ import { FRESHNESS, type MarketSnapshot, type SnapshotService } from "../../inge
 import { ProviderError } from "../../ingestion/types.js";
 import { AIProviderError, type AIProvider, type PricingEvidence } from "../../ai/index.js";
 import { bandAroundAnchor, provisionalAnchor } from "../../lib/marketBand.js";
+import { productMatches } from "../../ingestion/relevance.js";
 
 /**
  * PRICING FROM REAL MARKET EVIDENCE
@@ -93,18 +94,42 @@ export class MarketPricingService {
     /**
      * Keep the offers that are describing THIS product.
      *
-     * A shopping search returns the product and everything sold alongside it,
-     * and every accessory title genuinely contains the product name — so text
-     * cannot separate them, but price can. Anchored on what this product has
-     * really been observed to cost; see `lib/marketBand.ts` for why that
-     * matters so much (without it an iPhone priced against phone cases).
+     * THE SAME RULE THE SEARCH RESULTS ARE RANKED BY. That matters more than
+     * it sounds: when identity was decided one way for display and another
+     * for pricing, a product could be shown as a phone and priced as a case.
+     * `relevance.ts` is now the single definition, so the offers a user sees
+     * under a product are the offers its price is argued from.
+     *
+     * Two layers, in order:
+     *
+     *   RELEVANCE  semantic — does this title describe the product, or
+     *              something sold beside it? Self-calibrating, no accessory
+     *              word list, works for any category.
+     *
+     *   PRICE BAND numeric — a last guard against something that reads like
+     *              the product but is priced like a different class of
+     *              object, anchored on a price really observed for it.
+     *
+     * Either alone has a blind spot. Relevance cannot see a mispriced
+     * duplicate listing; the band cannot see a premium accessory that costs
+     * as much as the product. Together they are the identity rule.
      */
-    const anchorMinor = (await this.latestObservedPrice(productId)) ?? provisionalAnchor(priced.map((o) => o.priceMinor!));
+    const relevant = productMatches(product.canonicalQuery, priced.map((o) => ({
+      title: o.rawTitle,
+      priceMinor: o.priceMinor,
+      source: o.sourceName,
+      offer: o,
+    }))).map((r) => r.offer);
+
+    const anchorMinor =
+      (await this.latestObservedPrice(productId)) ?? provisionalAnchor(relevant.map((o) => o.priceMinor!));
     const banded = anchorMinor
-      ? bandAroundAnchor(priced, (o) => o.priceMinor, anchorMinor)
-      : { kept: priced, excluded: [], anchorMinor: 0, loMinor: 0, hiMinor: 0 };
+      ? bandAroundAnchor(relevant, (o) => o.priceMinor, anchorMinor)
+      : { kept: relevant, excluded: [], anchorMinor: 0, loMinor: 0, hiMinor: 0 };
 
     const usable = banded.kept;
+    /** Everything the identity rule rejected, by either layer. */
+    const rejected = priced.length - usable.length;
     const prices = usable.map((o) => o.priceMinor!).sort((a, b) => a - b);
     const marketplaces = new Set(usable.map((o) => o.sourceName));
 
@@ -129,7 +154,7 @@ export class MarketPricingService {
             : `Only ${prices.length} usable offer(s) were found; at least ${MIN_USABLE_OFFERS} are needed to position a price.`,
           evidence: {
             usableOffers: prices.length,
-            excludedAsDifferentProduct: banded.excluded.length,
+            excludedAsDifferentProduct: rejected,
             marketplaces: marketplaces.size,
             historyObservations: history?.observationCount ?? 0,
             capturedAt: snapshot?.capturedAt ?? null,
@@ -153,7 +178,7 @@ export class MarketPricingService {
        * skins, bundles. Reported rather than silently dropped, because a
        * large number here means the search query is too broad.
        */
-      excludedAsDifferentProduct: banded.excluded.length,
+      excludedAsDifferentProduct: rejected,
       anchorMinor: banded.anchorMinor,
     };
 

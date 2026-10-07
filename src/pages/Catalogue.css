@@ -332,3 +332,15 @@
 .disc-empty { padding: 40px 20px; text-align: center; color: var(--text-muted); }
 .disc-empty-note { font-size: 13px; max-width: 46ch; margin: 8px auto 0; }
 .disc-note { margin-top: 22px; font-size: 12px; color: var(--text-muted); max-width: 70ch; }
+
+/* Accessories: present, searchable, and clearly not the thing you asked for. */
+.disc-aside { margin-top: 34px; padding-top: 22px; border-top: 1px solid var(--border); }
+.disc-aside-head {
+  font-size: 13px; font-weight: 500; color: var(--text-muted);
+  margin: 0 0 14px; letter-spacing: .01em;
+}
+.disc-grid-small { grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); }
+.disc-card-muted { opacity: .72; }
+.disc-card-muted:hover { opacity: 1; }
+.disc-card-muted .disc-thumb { height: 110px; }
+.disc-card-muted .disc-title { font-size: 13px; }

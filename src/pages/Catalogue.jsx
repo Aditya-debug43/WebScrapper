@@ -81,6 +81,14 @@ export default function Catalogue() {
 
   const { loading, error, data } = state;
 
+  /**
+   * The backend classifies each result as strong / plausible / accessory.
+   * Anything it could not relate to the query at all is already withheld
+   * there and reported as `setAside`.
+   */
+  const products = data?.results.filter((r) => r.relevance !== "accessory") ?? [];
+  const accessories = data?.results.filter((r) => r.relevance === "accessory") ?? [];
+
   return (
     <div className="page">
       <Breadcrumbs items={[{ label: "Find a product" }]} />
@@ -131,8 +139,8 @@ export default function Catalogue() {
         <>
           <div className="disc-meta">
             <span>
-              <strong className="tabular">{data.results.length}</strong> offer
-              {data.results.length === 1 ? "" : "s"} for “{data.query}”
+              <strong className="tabular">{products.length}</strong> result
+              {products.length === 1 ? "" : "s"} for “{data.query}”
             </span>
             <span className="disc-freshness">
               {/* Honest about whether this cost a call. */}
@@ -150,7 +158,7 @@ export default function Catalogue() {
             </button>
           </div>
 
-          {data.results.length === 0 && (
+          {products.length === 0 && (
             <div className="disc-empty">
               <p>No live results found for “{data.query}”.</p>
               <p className="disc-empty-note">
@@ -160,8 +168,17 @@ export default function Catalogue() {
             </div>
           )}
 
+          {/*
+            * Products first, accessories after.
+            *
+            * The backend ranks and classifies — a search for "iphone 18 pro"
+            * returns two phones and thirty-eight cases, every one of which
+            * contains the searched words. Accessories are kept rather than
+            * hidden, because a result set that is mostly cases is a fact
+            * about the query worth seeing, but they do not lead.
+            */}
           <div className="disc-grid stagger">
-            {data.results.map((result) => {
+            {products.map((result) => {
               const state = tracking[result.ref];
               return (
                 <article className="disc-card" key={result.ref}>
@@ -231,6 +248,43 @@ export default function Catalogue() {
               );
             })}
           </div>
+
+          {accessories.length > 0 && (
+            <section className="disc-aside">
+              <h2 className="disc-aside-head">
+                Also sold for this — <span className="tabular">{accessories.length}</span> accessor
+                {accessories.length === 1 ? "y" : "ies"}
+              </h2>
+              <div className="disc-grid disc-grid-small">
+                {accessories.slice(0, 8).map((result) => (
+                  <article className="disc-card disc-card-muted" key={result.ref}>
+                    {result.thumbnailUrl ? (
+                      <img className="disc-thumb" src={result.thumbnailUrl} alt="" loading="lazy" />
+                    ) : (
+                      <div className="disc-thumb disc-thumb-none" aria-hidden="true" />
+                    )}
+                    <div className="disc-body">
+                      <h3 className="disc-title">{result.title}</h3>
+                      <p className="disc-source">{result.source}</p>
+                      <p className="disc-price tabular">
+                        {result.priceMinor != null ? formatMinor(result.priceMinor) : "—"}
+                      </p>
+                      <div className="disc-actions">
+                        <button
+                          type="button"
+                          className="btn btn-sm btn-secondary"
+                          onClick={() => track(result)}
+                          disabled={tracking[result.ref]?.status === "saving" || tracking[result.ref]?.status === "tracked"}
+                        >
+                          {tracking[result.ref]?.status === "tracked" ? "Tracking" : "Track anyway"}
+                        </button>
+                      </div>
+                    </div>
+                  </article>
+                ))}
+              </div>
+            </section>
+          )}
 
           <p className="disc-note">
             Prices are what the market showed at{" "}

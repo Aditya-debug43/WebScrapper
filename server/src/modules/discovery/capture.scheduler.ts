@@ -5,6 +5,7 @@ import { ProviderError } from "../../ingestion/types.js";
 import type { SnapshotService } from "../../ingestion/snapshot.service.js";
 import type { DiscoveryRepository } from "./discovery.repository.js";
 import { bandAroundAnchor, provisionalAnchor } from "../../lib/marketBand.js";
+import { productMatches } from "../../ingestion/relevance.js";
 
 /**
  * ADAPTIVE CAPTURE
@@ -173,12 +174,23 @@ export class CaptureScheduler {
          * observed at; see `lib/marketBand.ts`.
          */
         const priced = snapshot.offers.filter((o) => o.priceMinor != null && o.priceMinor > 0);
+
+        /**
+         * The same identity rule search and pricing use. A case price written
+         * into a phone's history corrupts it permanently — the observation is
+         * real, so nothing downstream can tell it was the wrong product.
+         */
+        const relevant = productMatches(
+          product.canonicalQuery,
+          priced.map((o) => ({ title: o.rawTitle, priceMinor: o.priceMinor, source: o.sourceName, offer: o }))
+        ).map((r) => r.offer);
+
         const anchor =
-          (await this.lastObservedPrice(product.id)) ?? provisionalAnchor(priced.map((o) => o.priceMinor!));
+          (await this.lastObservedPrice(product.id)) ?? provisionalAnchor(relevant.map((o) => o.priceMinor!));
 
         const inBand = anchor
-          ? bandAroundAnchor(priced, (o) => o.priceMinor, anchor).kept
-          : priced;
+          ? bandAroundAnchor(relevant, (o) => o.priceMinor, anchor).kept
+          : relevant;
 
         let written = 0;
         for (const offer of inBand) {

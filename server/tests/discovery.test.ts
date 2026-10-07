@@ -699,3 +699,79 @@ describe("the AI layer is swappable and cannot smuggle nonsense through", () => 
     }
   });
 });
+
+/* ========================================== a live product is a real product */
+
+describe("a tracked live product can actually be opened", () => {
+  /**
+   * THE BUG THIS EXISTS FOR.
+   *
+   * Tracking worked, the dashboard listed the product, and clicking it said
+   * "No product with id prod_live_…" — about a row that was in the table the
+   * whole time. `findProduct` INNER JOINed brands, categories and product
+   * types, which is correct for a seeded product and fatal for a discovered
+   * one: migration 0009 made those nullable precisely because a marketplace
+   * title does not state them, so all three joins failed and the row vanished.
+   *
+   * The fix is in the read model. Inventing a brand to satisfy a join would
+   * have put a fabricated fact on the product page.
+   */
+  test("the id the dashboard shows is the id the product API resolves", async () => {
+    const { body: search } = await api("GET", "/search?q=openable%20widget");
+    const { body: tracked } = await api("POST", "/tracked", { ref: search.data.results[0].ref });
+    const productId = tracked.data.product.id;
+
+    const desk = await api("GET", "/tracked");
+    const row = desk.body.data.find((t: any) => t.productId === productId);
+    assert.ok(row, "the dashboard must list the product it just created");
+
+    // The same id, through the product endpoint the page actually calls.
+    const detail = await api("GET", `/products/${productId}`);
+    assert.equal(detail.status, 200, `the product page could not load it: ${JSON.stringify(detail.body).slice(0, 200)}`);
+    assert.equal(detail.body.data.id, productId);
+  });
+
+  test("it loads with no brand, category or product type", async () => {
+    const { body: search } = await api("GET", "/search?q=taxonomyless%20widget");
+    const { body: tracked } = await api("POST", "/tracked", { ref: search.data.results[0].ref });
+
+    const stored = (await h.db.execute(sql`
+      select brand_id, category_id, product_type_id from products where id = ${tracked.data.product.id}
+    `)) as unknown as { rows: Array<{ brand_id: null; category_id: null; product_type_id: null }> };
+    const row = stored.rows[0]!;
+    assert.equal(row.brand_id, null, "the premise: a live product genuinely has no taxonomy");
+    assert.equal(row.category_id, null);
+    assert.equal(row.product_type_id, null);
+
+    const { status, body } = await api("GET", `/products/${tracked.data.product.id}`);
+    assert.equal(status, 200);
+
+    // Reported as absent, never invented.
+    assert.equal(body.data.brand, null);
+    assert.equal(body.data.category, null);
+    assert.equal(body.data.productType, null);
+    // And the real fields it does have are present.
+    assert.ok(body.data.canonicalName);
+    assert.deepEqual(body.data.categoryPath, []);
+    assert.deepEqual(body.data.attributeDefinitions, []);
+  });
+
+  /**
+   * That a SEEDED product still loads with its taxonomy is asserted where
+   * there is a catalogue to assert it against — `catalogue.test.ts` checks
+   * `brand.name === "Dove"` on the product detail of a seeded row. This
+   * harness deliberately seeds nothing, so repeating it here would only have
+   * proven that an absent product is absent.
+   */
+
+  test("its price history is whatever was really observed", async () => {
+    const { body: search } = await api("GET", "/search?q=history%20openable");
+    const { body: tracked } = await api("POST", "/tracked", { ref: search.data.results[0].ref });
+
+    const rec = await api("GET", `/products/${tracked.data.product.id}/market-recommendation`);
+    assert.equal(rec.status, 200);
+    // One capture, one observation — not a manufactured month of history.
+    assert.equal(rec.body.data.history.observationCount, 1);
+    assert.equal(rec.body.data.history.changePct, null);
+  });
+});

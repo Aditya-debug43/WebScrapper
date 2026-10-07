@@ -53,8 +53,16 @@ export class CatalogueService {
       product.parentProductId
         ? this.repo.findVariantSiblings(product.parentProductId, product.id)
         : Promise.resolve([]),
-      this.repo.findCategoryAncestors(product.categoryPath),
-      this.repo.attributeDefinitionsFor(product.productTypeId, product.specSchemaVersion),
+      /**
+       * A live product has no taxonomy, so there is no breadcrumb to build
+       * and no specification schema to look up. Both resolve to empty rather
+       * than being invented — a product discovered in a marketplace really
+       * has not been classified, and saying otherwise would be fabrication.
+       */
+      product.categoryPath ? this.repo.findCategoryAncestors(product.categoryPath) : Promise.resolve([]),
+      product.productTypeId
+        ? this.repo.attributeDefinitionsFor(product.productTypeId, product.specSchemaVersion)
+        : Promise.resolve([]),
     ]);
 
     /**
@@ -358,14 +366,15 @@ function shapeCatalogueRow(
         lifecycleStatus: string;
         firstSeenAt: string | null;
         variantAxes: Record<string, string> | null;
-        brandId: string;
-        brandName: string;
-        brandTier: string;
-        categoryId: string;
-        categoryName: string;
-        categoryPath: string;
-        productTypeId: string;
-        productTypeName: string;
+        // Nullable since live discovery — see shapeProductSummary.
+        brandId: string | null;
+        brandName: string | null;
+        brandTier: string | null;
+        categoryId: string | null;
+        categoryName: string | null;
+        categoryPath: string | null;
+        productTypeId: string | null;
+        productTypeName: string | null;
       }
     | undefined
 ) {
@@ -379,9 +388,9 @@ function shapeCatalogueRow(
           lifecycleStatus: d.lifecycleStatus,
           firstSeenAt: d.firstSeenAt,
           variantAxes: d.variantAxes ?? null,
-          brand: { id: d.brandId, name: d.brandName, tier: d.brandTier },
-          category: { id: d.categoryId, name: d.categoryName, path: d.categoryPath },
-          productType: { id: d.productTypeId, name: d.productTypeName },
+          brand: d.brandId ? { id: d.brandId, name: d.brandName, tier: d.brandTier } : null,
+          category: d.categoryId ? { id: d.categoryId, name: d.categoryName, path: d.categoryPath } : null,
+          productType: d.productTypeId ? { id: d.productTypeId, name: d.productTypeName } : null,
         }
       : { id: s.productId, canonicalName: s.canonicalName },
     minPriceMinor: s.minPriceMinor,
@@ -403,14 +412,21 @@ function shapeProductSummary(p: {
   isPurchasable: boolean;
   lifecycleStatus: string;
   firstSeenAt: string | null;
-  brandId: string;
-  brandName: string;
-  brandTier: string;
-  categoryId: string;
-  categoryName: string;
-  categoryPath: string;
-  productTypeId: string;
-  productTypeName: string;
+  /**
+   * Nullable since live discovery.
+   *
+   * A product found in a marketplace has no brand, category or product type —
+   * migration 0009 made those columns nullable rather than inventing a
+   * taxonomy for it. The read model carries that honestly.
+   */
+  brandId: string | null;
+  brandName: string | null;
+  brandTier: string | null;
+  categoryId: string | null;
+  categoryName: string | null;
+  categoryPath: string | null;
+  productTypeId: string | null;
+  productTypeName: string | null;
   marketplaceCount: number;
 }) {
   return {
@@ -420,9 +436,13 @@ function shapeProductSummary(p: {
     isPurchasable: p.isPurchasable,
     lifecycleStatus: p.lifecycleStatus,
     firstSeenAt: p.firstSeenAt,
-    brand: { id: p.brandId, name: p.brandName, tier: p.brandTier },
-    category: { id: p.categoryId, name: p.categoryName, path: p.categoryPath },
-    productType: { id: p.productTypeId, name: p.productTypeName },
+    /**
+     * Null, not an empty object, when unknown — so the interface can say
+     * "not available" rather than render a nameless brand chip.
+     */
+    brand: p.brandId ? { id: p.brandId, name: p.brandName, tier: p.brandTier } : null,
+    category: p.categoryId ? { id: p.categoryId, name: p.categoryName, path: p.categoryPath } : null,
+    productType: p.productTypeId ? { id: p.productTypeId, name: p.productTypeName } : null,
     marketplaceCount: p.marketplaceCount,
   };
 }
