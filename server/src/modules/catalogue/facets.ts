@@ -276,7 +276,23 @@ export function computeFacets(input: {
   // ---- brand
   const brandPool = applyAllExcept("brand");
   const brandCounts = new Map<string, number>();
-  for (const s of brandPool) brandCounts.set(s.brandId, (brandCounts.get(s.brandId) ?? 0) + 1);
+  /**
+   * A product with no brand contributes no brand facet.
+   *
+   * Live products have none — a marketplace title does not state one, and
+   * migration 0009 made the column nullable rather than inventing it. Counted
+   * blindly, the null became a facet option whose label was null, and sorting
+   * the options called `localeCompare` on it and took the whole catalogue
+   * endpoint down with a 500.
+   *
+   * Skipping is the honest behaviour either way: "no brand" is not a brand
+   * somebody would filter by, and showing it as one would invite a click that
+   * means nothing.
+   */
+  for (const s of brandPool) {
+    if (!s.brandId) continue;
+    brandCounts.set(s.brandId, (brandCounts.get(s.brandId) ?? 0) + 1);
+  }
   /**
    * ---- brand
    *
