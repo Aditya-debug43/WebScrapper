@@ -31,6 +31,22 @@ say() { printf '\n\033[1m· %s\033[0m\n' "$*"; }
 
 cd "$REPO"
 
+# A build needs roughly 200 MB for the dependency tree and its output. This
+# host has a 6.7 GB disk and has already filled it completely once, at which
+# point an install failed midway and left dpkg in an interrupted state — a far
+# worse outcome than refusing to start. Checking first costs nothing.
+say "checking disk"
+AVAILABLE_MB=$(df -Pm / | awk 'NR==2{print $4}')
+echo "  ${AVAILABLE_MB} MB free on /"
+if [ "$AVAILABLE_MB" -lt 400 ]; then
+  echo "Only ${AVAILABLE_MB} MB free; this deployment needs about 400 MB." >&2
+  echo "Reclaim some first — the following are caches and are safe to clear:" >&2
+  echo "  sudo apt-get clean" >&2
+  echo "  sudo journalctl --vacuum-size=32M" >&2
+  echo "  snap revisions marked disabled in: snap list --all" >&2
+  exit 1
+fi
+
 say "current revision"
 git log --oneline -1
 
@@ -60,6 +76,13 @@ npm ci
 
 say "building"
 npm run build
+
+# Dev dependencies existed only to run tsc. Dropping them now returns a good
+# part of the tree to the disk, and nothing in production imports them: every
+# entry point runs `node dist/...`, never tsx.
+say "pruning dev dependencies"
+npm prune --omit=dev
+echo "  node_modules now $(du -sh node_modules | cut -f1)"
 
 say "applying migrations"
 # Safe to re-run: the runner tracks applied files in __migrations and skips
