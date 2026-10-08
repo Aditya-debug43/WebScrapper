@@ -130,11 +130,25 @@ const DEFAULT_CLUSTER_LIMIT = 4;
  * went wrong. Meanwhile the server finishes the work and writes a perfectly
  * good market that nobody was told about.
  *
- * 18 seconds leaves room for the search call that preceded this, the writes
- * that follow it, and the round trip. The scheduler passes no deadline at
- * all: it has no gateway in front of it and would rather wait.
+ * 20 seconds leaves room for the writes that follow and the round trip.
+ *
+ * It is a WALL-CLOCK budget for the whole capture rather than a per-phase
+ * allowance, and that distinction is the point. A capture may or may not need
+ * a search first: tracking a chosen result does not, because the row is
+ * re-read from the stored capture, but refreshing a product that has no
+ * catalogue ids yet does. Budgeting the phases separately let that second
+ * path spend an unbounded search AND a full product allowance — which is
+ * exactly how a limit gets exceeded by the one route nobody measured.
+ *
+ * So the deadline is a MOMENT, and each phase gets whatever is left of it.
+ * The scheduler passes none: it has no gateway in front of it and would
+ * rather wait for the complete answer.
  */
-const INTERACTIVE_DEADLINE_MS = 18_000;
+const INTERACTIVE_BUDGET_MS = 20_000;
+
+/** How long is left, floored so a caller is never asked to wait backwards. */
+const remainingMs = (deadlineAt: number | undefined): number | undefined =>
+  deadlineAt == null ? undefined : Math.max(500, deadlineAt - Date.now());
 
 /** Below this many sellers, the word "market" is doing too much work. */
 export const MIN_SELLERS_FOR_MARKET = 3;
@@ -190,7 +204,7 @@ export class MarketService {
    */
   async captureFromResult(
     ref: string,
-    opts: { clusterLimit?: number; force?: boolean; deadlineMs?: number } = {}
+    opts: { clusterLimit?: number; force?: boolean; deadlineAt?: number } = {}
   ): Promise<MarketCaptureResult> {
     const resolved = await this.snapshots.resolveResult(ref);
     if (!resolved) {
@@ -223,7 +237,7 @@ export class MarketService {
       clusterLimit: opts.clusterLimit,
       force: opts.force,
       // Somebody clicked a button and is watching a spinner.
-      deadlineMs: opts.deadlineMs ?? INTERACTIVE_DEADLINE_MS,
+      deadlineAt: opts.deadlineAt ?? Date.now() + INTERACTIVE_BUDGET_MS,
     });
   }
 
@@ -241,12 +255,47 @@ export class MarketService {
       anchorExternalProductId?: string | null;
       clusterLimit?: number;
       force?: boolean;
-      deadlineMs?: number;
+      deadlineAt?: number;
     } = {}
   ): Promise<MarketCaptureResult> {
-    const snapshot = await this.snapshots.snapshotFor(query, {
+    /**
+     * The search is inside the budget too.
+     *
+     * Without this the wall clock only governs the second half: a search that
+     * took 25 seconds would leave the product calls with nothing and still
+     * blow the gateway on its own. Racing it means a caller gets an answer —
+     * "this took too long" — rather than a 503 with no explanation in it
+     * while the work carries on unseen.
+     *
+     * The capture it started is NOT wasted when this gives up. `snapshotFor`
+     * records the run and stores the body regardless, so the next request for
+     * the same query finds it fresh and pays nothing.
+     */
+    const budgetMs = remainingMs(opts.deadlineAt);
+    const searching = this.snapshots.snapshotFor(query, {
       maxAgeSeconds: opts.force ? FRESHNESS.userRefresh() : FRESHNESS.recommendation(),
     });
+
+    const snapshot =
+      budgetMs == null
+        ? await searching
+        : await Promise.race([
+            searching,
+            new Promise<never>((_, reject) =>
+              setTimeout(
+                () =>
+                  reject(
+                    new ProviderError(
+                      this.provider.name,
+                      `Identifying the product took longer than the ${budgetMs}ms this request could wait. The capture is still running and the next attempt will reuse it.`,
+                      "timeout",
+                      true
+                    )
+                  ),
+                budgetMs
+              ).unref?.()
+            ),
+          ]);
 
     return this.capture({
       query: snapshot.query,
@@ -259,14 +308,14 @@ export class MarketService {
       anchorExternalProductId: opts.anchorExternalProductId ?? null,
       clusterLimit: opts.clusterLimit,
       force: opts.force,
-      deadlineMs: opts.deadlineMs,
+      deadlineAt: opts.deadlineAt,
     });
   }
 
   /** Re-open a product this system already holds. */
   async refreshProduct(
     productId: string,
-    opts: { clusterLimit?: number; force?: boolean; deadlineMs?: number } = {}
+    opts: { clusterLimit?: number; force?: boolean; deadlineAt?: number } = {}
   ): Promise<MarketCaptureResult> {
     const product = await this.repo.productById(productId);
     if (!product) throw new AppError("NOT_FOUND", `No product with id ${productId}.`);
@@ -282,7 +331,7 @@ export class MarketService {
      */
     const known = await this.repo.catalogIdsFor(productId, this.provider.name, limit);
     if (known.length > 0) {
-      const fetched = await this.openIds(known, { deadlineMs: opts.deadlineMs });
+      const fetched = await this.openIds(known, { deadlineAt: opts.deadlineAt });
       if (fetched.markets.length === 0) {
         throw new AppError("MARKET_DATA_UNAVAILABLE", describeFailures(fetched.failures));
       }
@@ -332,7 +381,7 @@ export class MarketService {
       anchorExternalProductId: product.external_product_id,
       clusterLimit: limit,
       force: opts.force,
-      deadlineMs: opts.deadlineMs,
+      deadlineAt: opts.deadlineAt,
     });
   }
 
@@ -347,7 +396,7 @@ export class MarketService {
     /** Skip the freshness short-circuit. A deliberate "read it again now". */
     force?: boolean;
     /** Set when somebody is waiting on the other end of a request. */
-    deadlineMs?: number;
+    deadlineAt?: number;
   }): Promise<MarketCaptureResult> {
     const limit = input.clusterLimit ?? DEFAULT_CLUSTER_LIMIT;
 
@@ -414,7 +463,7 @@ export class MarketService {
     }
 
     const fetched = await this.openIds(cluster.members.map((m) => m.externalProductId), {
-      deadlineMs: input.deadlineMs,
+      deadlineAt: input.deadlineAt,
     });
     if (fetched.markets.length === 0) {
       throw new AppError("MARKET_DATA_UNAVAILABLE", describeFailures(fetched.failures));
@@ -508,7 +557,7 @@ export class MarketService {
    */
   private async openIds(
     ids: string[],
-    opts: { deadlineMs?: number } = {}
+    opts: { deadlineAt?: number } = {}
   ): Promise<{ markets: ProductMarket[]; calls: number; failures: string[] }> {
     /**
      * IN PARALLEL, and that is a correctness property, not a micro-optimisation.
@@ -553,7 +602,9 @@ export class MarketService {
       })
     );
 
-    const settled = await (opts.deadlineMs == null
+    const budgetMs = remainingMs(opts.deadlineAt);
+
+    const settled = await (budgetMs == null
       ? Promise.allSettled(pending)
       : Promise.all(
           pending.map((p) =>
@@ -569,12 +620,12 @@ export class MarketService {
                       status: "rejected",
                       reason: new ProviderError(
                         this.provider.name,
-                        `Did not answer within the ${opts.deadlineMs}ms this request could wait.`,
+                        `Did not answer within the ${budgetMs}ms left of this request's budget.`,
                         "timeout",
                         true
                       ),
                     }),
-                  opts.deadlineMs
+                  budgetMs
                 ).unref?.()
               ),
             ])

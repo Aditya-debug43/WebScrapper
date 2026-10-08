@@ -119,7 +119,7 @@ export class MarketPricingService {
         await this.market.refreshProduct(productId, {
           force: Boolean(opts.refresh),
           // Behind a request too: a partial market now beats none at all.
-          deadlineMs: 18_000,
+          deadlineAt: Date.now() + 20_000,
         });
         view = await this.market.marketFor(productId, { yourPriceMinor: opts.yourPriceMinor ?? null });
         captured = true;

@@ -118,12 +118,19 @@ export function registerMarketRoutes(app: FastifyInstance, market: MarketService
     async (request) => {
       const { id } = request.params as { id: string };
       const body = (request.body ?? {}) as { clusterLimit?: number; force?: boolean };
-      // A waiting request, so it takes what arrives inside the gateway's
-      // budget rather than overrunning it and losing the answer entirely.
+      /**
+       * A waiting request, so the capture gets a wall-clock deadline and
+       * takes whatever has arrived by it. Overrunning the gateway loses the
+       * answer entirely — the work completes and the caller is told it
+       * failed — which is strictly worse than a partial market.
+       *
+       * The clock starts here, at the edge, so every phase inside shares one
+       * budget instead of each getting its own.
+       */
       const result = await market.refreshProduct(id, {
         clusterLimit: body.clusterLimit,
         force: body.force,
-        deadlineMs: 18_000,
+        deadlineAt: Date.now() + 20_000,
       });
       return {
         data: {
