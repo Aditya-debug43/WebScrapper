@@ -1,0 +1,14 @@
+# Line endings
+# ===========
+#
+# Most of this repository is edited on Windows and the working copy is CRLF,
+# which is harmless for source that only ever runs through Node.
+#
+# These are not harmless. A shell script whose shebang ends `bash\r` fails on
+# Linux with a message that names neither the file nor the carriage return,
+# and a systemd unit with CRLF line endings is rejected the same way. Both run
+# only on the server, so the breakage would appear exactly once, during a
+# deployment, and nowhere before it.
+*.sh      text eol=lf
+*.service text eol=lf
+*.timer   text eol=lf
