@@ -166,3 +166,106 @@ export class ProviderError extends Error {
     this.name = "ProviderError";
   }
 }
+
+/* ========================================================================== */
+/*  THE COMPETITIVE MARKET                                                    */
+/* ========================================================================== */
+
+/**
+ * A SELLER'S OFFER FOR ONE CANONICAL PRODUCT.
+ *
+ * The entity the whole pricing system was missing. A search result is one
+ * store's listing; this is one SELLER among many for a product that has an
+ * identity of its own — which is what "who am I competing with, and at what
+ * price?" actually requires.
+ *
+ * `sellerExternalId` is the provider's own merchant identifier. It is what
+ * makes a seller the same seller across captures, so a price series can be
+ * attributed to Croma rather than to "whatever was in row three last time".
+ * Matching sellers by display name would merge every store that renamed
+ * itself and split every one that appears under two spellings.
+ */
+export type MarketSellerOffer = {
+  /** Stable per-merchant identity from the provider. Null where it gives none. */
+  sellerExternalId: string | null;
+  sellerName: string;
+  /** The seller's own listing title — often states the exact configuration. */
+  listingTitle: string | null;
+  url: string | null;
+
+  /** Integer minor units. `totalMinor` includes shipping where the provider states it. */
+  priceMinor: number | null;
+  totalMinor: number | null;
+  shippingMinor: number | null;
+  shippingNote: string | null;
+  currency: string;
+
+  rating: number | null;
+  reviewCount: number | null;
+  /** `null` where the provider does not say, which is not the same as false. */
+  inStock: boolean | null;
+  condition: "new" | "refurbished" | "used" | null;
+  /** "In stock online", "Free 7-day returns" — kept verbatim, not parsed. */
+  notes: string[];
+};
+
+/**
+ * ONE CATALOGUE ID'S MARKET, AS THE PROVIDER SEES IT.
+ *
+ * NOTE WHAT IS ABSENT: there is no price history here, because the provider
+ * does not supply one. It reports only that it *has* a chart. So every
+ * historical price in this system is a price this system observed and
+ * timestamped itself, and a trend is only ever as old as our own capture
+ * record. That is a real limitation and it is better stated in the type than
+ * discovered later by a reader of a chart.
+ *
+ * There is also no "more sellers available" flag. The provider returns a
+ * pagination token for its store list and following it yields nothing, so the
+ * flag would be wrong exactly when it mattered. Breadth of coverage comes from
+ * clustering a product's several catalogue ids instead — see `cluster.ts`.
+ */
+export type ProductMarket = {
+  provider: string;
+  /** The provider's catalogue identity for the product. */
+  externalProductId: string;
+  title: string;
+  brand: string | null;
+  thumbnailUrl: string | null;
+  /** Structured specifications — storage capacity, RAM, screen size. */
+  attributes: Array<{ name: string; value: string }>;
+  /** Every seller the provider returned for this catalogue id. */
+  sellers: MarketSellerOffer[];
+
+  /**
+   * The range the provider states for this product, where it states one.
+   *
+   * Often WIDER than the sellers it listed, which is the provider admitting
+   * it knows of offers it did not return. Treated as evidence about coverage,
+   * never as a price to recommend.
+   */
+  priceRangeLowMinor: number | null;
+  priceRangeHighMinor: number | null;
+  /** The provider tracks this product's price. A capability, not a series. */
+  priceTrackingAvailable: boolean;
+
+  /** Related products and configurations, for variant resolution. */
+  relatedTitles: string[];
+  fetchedAt: string;
+  /** The untouched response, for the provenance store. */
+  raw: unknown;
+  requestUrl: string;
+};
+
+/**
+ * A SOURCE OF COMPETITIVE MARKET DATA FOR ONE CATALOGUE ID.
+ *
+ * Separate port from `MarketOfferProvider` because the two answer different
+ * questions. That one asks "what matches these words?" and returns a list of
+ * different products. This one asks "who sells THIS product, and for how
+ * much?" and returns one product's sellers. Conflating them is precisely the
+ * mistake that made a text search stand in for a competitive market.
+ */
+export type ProductMarketProvider = {
+  readonly name: string;
+  fetchProduct(externalProductId: string, opts?: { country?: string; currency?: string }): Promise<ProductMarket>;
+};

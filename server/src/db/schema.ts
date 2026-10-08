@@ -429,6 +429,20 @@ export const products = pgTable(
     /** Seeded, discovered from a live capture, or entered by hand. */
     origin: rowOriginEnum("origin").notNull().default("seed"),
 
+    /**
+     * The provider's catalogue id for this product.
+     *
+     * The handle that turns a product back into a market. A shopping search
+     * returns one row per catalogue id, and a second call turns that id into
+     * the list of stores selling it — so without this column a product's
+     * competition could only be re-found by re-running a text search, which
+     * answers a different question and returns different products.
+     *
+     * This is the PRIMARY id. A product usually has several (see
+     * `product_catalog_ids`); this is the one search resolved to.
+     */
+    externalProductId: text("external_product_id"),
+
     /* ------------------------------------------- the market capture schedule
      *
      * On the PRODUCT, not on the tracking row, and that is the whole point.
@@ -965,6 +979,115 @@ export const fieldCoverage = pgTable(
 );
 
 /* ========================================================================== */
+/* The competitive market                                                      */
+/* ========================================================================== */
+
+/**
+ * EVERY PROVIDER CATALOGUE ID BELIEVED TO BE THIS PRODUCT.
+ *
+ * One product has many catalogue ids, and that is not an edge case — it is
+ * the normal shape of the data. The same pair of headphones comes back under
+ * four ids, each exposing a different two or three stores. Measured on live
+ * data: one id yields three sellers, four ids yield ten.
+ *
+ * So a market built from a single id undercounts competition by roughly
+ * threefold, and does it silently, which is the worst way for a number to be
+ * wrong. This table is the cluster, and it keeps the evidence — the title
+ * each id was published under, and how confident the match is — so a wrong
+ * clustering is reviewable rather than invisible.
+ *
+ * `sellerCount` is kept per id so the next capture can spend its calls on the
+ * ids that actually yield sellers instead of re-opening dead ones.
+ */
+export const productCatalogIds = pgTable(
+  "product_catalog_ids",
+  {
+    id: text("id").primaryKey(),
+    productId: text("product_id")
+      .notNull()
+      .references(() => products.id, { onDelete: "cascade" }),
+    provider: text("provider").notNull(),
+    externalProductId: text("external_product_id").notNull(),
+    /** The title under that id, verbatim — the evidence for the clustering. */
+    title: text("title"),
+    /** The id search resolved to; the others were clustered onto it. */
+    isPrimary: boolean("is_primary").notNull().default(false),
+    matchConfidence: real("match_confidence"),
+    sellerCount: integer("seller_count"),
+    firstSeenAt: timestamp("first_seen_at", { withTimezone: true }).notNull().defaultNow(),
+    lastFetchedAt: timestamp("last_fetched_at", { withTimezone: true }),
+  },
+  (t) => [
+    // A catalogue id belongs to one product. If two products claim the same
+    // id, one of the clusterings is wrong and should fail loudly.
+    uniqueIndex("product_catalog_ids_provider_key").on(t.provider, t.externalProductId),
+    index("product_catalog_ids_product_idx").on(t.productId),
+    check(
+      "product_catalog_ids_confidence_range",
+      sql`${t.matchConfidence} is null or (${t.matchConfidence} >= 0 and ${t.matchConfidence} <= 1)`
+    ),
+  ]
+);
+
+/**
+ * ONE DAY'S COMPETITIVE PICTURE FOR A PRODUCT.
+ *
+ * Per-seller series already live in `price_observations`, and they are the
+ * finer evidence. But sellers churn: a store appearing or dropping out
+ * between captures moves every statistic computed across the set, so a chart
+ * drawn from the per-seller rows alone shows movement that no price made.
+ *
+ * This table records the distribution itself, once per product per day —
+ * what the market looked like, how wide it was, and how many sellers the
+ * figure rests on. That last part is what makes it honest: a median over
+ * three sellers and a median over twenty are not the same claim, and a reader
+ * of the trend can see which they have.
+ *
+ * `providerCalls` is on every row because the cost of this data is a real
+ * engineering constraint and belongs beside the data, not only in a log.
+ */
+export const productMarketSnapshots = pgTable(
+  "product_market_snapshots",
+  {
+    id: text("id").primaryKey(),
+    productId: text("product_id")
+      .notNull()
+      .references(() => products.id, { onDelete: "cascade" }),
+    capturedOn: date("captured_on").notNull(),
+    recordedAt: timestamp("recorded_at", { withTimezone: true }).notNull(),
+    /** Distinct sellers by provider merchant id, priced and usable. */
+    sellerCount: integer("seller_count").notNull(),
+    /** Distinct stores those sellers trade on. */
+    marketplaceCount: integer("marketplace_count").notNull(),
+    inStockCount: integer("in_stock_count").notNull(),
+    lowMinor: integer("low_minor").notNull(),
+    p25Minor: integer("p25_minor").notNull(),
+    medianMinor: integer("median_minor").notNull(),
+    p75Minor: integer("p75_minor").notNull(),
+    highMinor: integer("high_minor").notNull(),
+    currencyCode: text("currency_code").notNull().default("INR"),
+    cheapestSellerId: text("cheapest_seller_id").references(() => sellers.id),
+    catalogIdsUsed: integer("catalog_ids_used").notNull().default(1),
+    providerCalls: integer("provider_calls").notNull().default(0),
+  },
+  (t) => [
+    // One picture per product per day. A second capture the same day revises
+    // it, because it is an aggregate rather than an observation.
+    uniqueIndex("product_market_snapshot_day_key").on(t.productId, t.capturedOn),
+    index("product_market_snapshot_product_idx").on(t.productId, t.capturedOn.desc()),
+    check(
+      "product_market_snapshots_ordered",
+      sql`${t.lowMinor} <= ${t.p25Minor} and ${t.p25Minor} <= ${t.medianMinor}
+          and ${t.medianMinor} <= ${t.p75Minor} and ${t.p75Minor} <= ${t.highMinor}`
+    ),
+    check(
+      "product_market_snapshots_counts",
+      sql`${t.sellerCount} > 0 and ${t.marketplaceCount} > 0 and ${t.inStockCount} >= 0`
+    ),
+  ]
+);
+
+/* ========================================================================== */
 
 export const schema = {
   users,
@@ -982,6 +1105,8 @@ export const schema = {
   sellerRatingSnapshots,
   offers,
   priceObservations,
+  productCatalogIds,
+  productMarketSnapshots,
   reviewSnapshots,
   promotions,
   feeRules,

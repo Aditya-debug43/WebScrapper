@@ -1,12 +1,24 @@
 import { env } from "../config/env.js";
-import { ProviderError, type MarketOfferProvider, type MarketQuery } from "./types.js";
+import { ProviderError, type MarketOfferProvider, type MarketQuery, type ProductMarketProvider } from "./types.js";
 import { SerpApiProvider } from "./providers/serpapi.provider.js";
 import { FixtureProvider } from "./providers/fixture.provider.js";
+import { SerpApiMarketProvider } from "./providers/serpapi.market.js";
+import { FixtureMarketProvider } from "./providers/fixture.market.js";
 
-export type { MarketOffer, MarketOfferBatch, MarketOfferProvider, MarketQuery } from "./types.js";
+export type {
+  MarketOffer,
+  MarketOfferBatch,
+  MarketOfferProvider,
+  MarketQuery,
+  MarketSellerOffer,
+  ProductMarket,
+  ProductMarketProvider,
+} from "./types.js";
 export { ProviderError } from "./types.js";
 export { SerpApiProvider, normaliseSerpResponse } from "./providers/serpapi.provider.js";
 export { FixtureProvider } from "./providers/fixture.provider.js";
+export { SerpApiMarketProvider, normaliseProductMarket } from "./providers/serpapi.market.js";
+export { FixtureMarketProvider } from "./providers/fixture.market.js";
 
 /**
  * A provider that answers every question by refusing.
@@ -51,5 +63,42 @@ export function createMarketOfferProvider(): MarketOfferProvider {
     case "none":
     default:
       return new DisabledProvider();
+  }
+}
+
+/** Refuses, for the same reason `DisabledProvider` does. */
+class DisabledMarketProvider implements ProductMarketProvider {
+  readonly name = "none";
+
+  async fetchProduct(): Promise<never> {
+    throw new ProviderError(
+      this.name,
+      "Market data ingestion is disabled (MARKET_DATA_PROVIDER=none).",
+      "unavailable",
+      false
+    );
+  }
+}
+
+/**
+ * Who answers "who sells this product?".
+ *
+ * Switched by the SAME environment variable as the search provider, because
+ * in practice they are two endpoints of one vendor and configuring them apart
+ * would mean a deployment could search with one vendor and read sellers from
+ * another — producing catalogue ids one provider issued and the other cannot
+ * resolve. A future vendor that supplies only one half can be given its own
+ * variable at that point; inventing one now would be configuration for a
+ * situation that does not exist.
+ */
+export function createProductMarketProvider(): ProductMarketProvider {
+  switch (env.MARKET_DATA_PROVIDER) {
+    case "serpapi":
+      return new SerpApiMarketProvider();
+    case "fixture":
+      return new FixtureMarketProvider();
+    case "none":
+    default:
+      return new DisabledMarketProvider();
   }
 }

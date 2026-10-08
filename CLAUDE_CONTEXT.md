@@ -1404,7 +1404,7 @@ the user to sign in, exactly as on every other authenticated screen.
 
 ---
 
-### Stage 29 — Backend phase 8: the analysis screen reads the backend (current)
+### Stage 29 — Backend phase 8: the analysis screen reads the backend
 
 The last screen that priced anything in the browser now asks the API instead.
 `buildCrossMarketplaceAnalysis` called `buildRecommendation`, so until this
@@ -1491,6 +1491,245 @@ screen's three requests go out in parallel, so a reader waits for the slowest
 rather than the sum.
 
 ---
+
+### Stage 30 — Competitive pricing intelligence: the market is the sellers, not the search (current)
+
+The question this application exists to answer is a seller's: **if I list this
+product, what should I charge?** Stages 21–29 built the pipeline that could
+answer it and then, in one specific place, answered a different question
+instead. This stage fixes that place.
+
+#### What was wrong
+
+The flow had become: search → show marketplace results → the user picks one
+result → track that result. Everything downstream then described **one
+seller**, because that is all that was ever stored.
+
+Three concrete defects, all in how the entity graph was populated rather than
+in the graph itself:
+
+| Where | What it did |
+|---|---|
+| `discovery.repository.ts` `recordSelectedOffer()` | Wrote **one** offer, from the one row the user clicked. Market size = 1 by construction. |
+| `resolveSeller()` | Wrote `externalSellerId: "storefront"` — one seller per store, no merchant identity, so a price series could not be attributed to a merchant. |
+| `marketPricing.service.ts` | Built "the market" by **re-running the text search**. A shopping search returns one row per catalogue id, so those forty rows are forty *different products*. The engine compared a product against other products that matched the same words, and the relevance filter and price band in front of it were damage control on a question that was already wrong. |
+
+The schema was not the problem. `products → listings → sellers → offers →
+price_observations` was already exactly the right backbone; nothing about it
+needed to change except one column.
+
+#### What the provider can actually supply (re-audited live, and one earlier finding discarded)
+
+The architecture depends on this, so it was measured against the live API
+rather than assumed. **One finding from the earlier audit was wrong and has
+been discarded:**
+
+| Claim | Reality |
+|---|---|
+| ~~`price_insights` gives a year of per-seller history~~ | **False.** It is `{"price_history": true, "price_tracking_available": true}` — two booleans meaning *"Google shows a chart"*, not the data. |
+| `stores_next_page_token` yields more sellers | **Unreliable.** Token present, following it returned **0 stores**. Not modelled: a flag that is wrong whenever it is set is worse than none. |
+| search rows carry `product_id` | **True** — 40/40 rows. |
+| the product endpoint returns sellers | **True** — 1–5 stores per id, each with `merchant_id`, price, shipping, total, rating, reviews, stock notes, plus `product_attributes` and a stated `price_range`. |
+
+Two consequences, and they are the whole design.
+
+**There is no provider history, so history must be ours.** Any design
+promising a price chart on day one was promising invented data. Real history
+comes only from repeated capture over time, which is what the scheduler is
+for, and the interface says so in those words.
+
+**One catalogue id is not the market.** The same physical product is published
+under many catalogue ids, each exposing a different handful of stores:
+
+```
+"sony wh-1000xm5"  → 28 rows carry the model code
+  id A → Amazon.in, Flipkart, Tata CLiQ
+  id B → Amazon.in, Myntra, myG
+  id C → Excess2Sell, JioMart
+  id D → Computech, Variety Infotech, ADS Store
+```
+
+**Measured: 1 search call + 5 product calls → 10 distinct sellers,
+₹24,550–₹31,990**, every one with a stable `merchant_id`. Amazon.in recurred
+across two ids under merchant id `141020976`, which is what proves merchant id
+is a *global* seller identity and therefore usable for deduplication and for
+attributing a price series.
+
+One id alone returned three sellers. So a market built from a single id
+undercounts the competition roughly threefold, and does it silently — which is
+the worst way for a number to be wrong.
+
+#### The architecture now
+
+```
+query ──[1 search call]──→ candidate rows (catalogue id, title, price, store)
+                               │
+                    relevance + variant clustering          cluster.ts
+                               │
+                  canonical PRODUCT + its sibling catalogue ids
+                               │
+                ──[N product calls, N=4]──→ union of sellers by merchant id
+                               │
+                    attribute verification (post-fetch)     market.service.ts
+                               │
+     marketplaces ← stores │ sellers ← merchant id │ listings │ offers
+                               │
+              price_observations        ← per-seller history (ours)
+              product_market_snapshots  ← the daily competitive aggregate
+                               │
+                 competition analysis → recommended selling price
+```
+
+New tables (migration `0010_competitive_market.sql`):
+
+- **`product_catalog_ids`** — every provider id believed to be this product,
+  with the title it was published under, the match confidence, and how many
+  sellers it last yielded. The cluster, with its evidence, so a wrong
+  clustering is reviewable rather than invisible. The yield lets the next
+  capture spend its calls on ids that actually produce sellers.
+- **`product_market_snapshots`** — one row per product per day: seller count,
+  marketplace count, in-stock count, low/p25/median/p75/high, cheapest seller,
+  catalogue ids used, **provider calls spent**. This is what a trend can
+  honestly be drawn from: sellers churn, so a median computed across the
+  per-seller rows alone moves when a store joins or leaves, showing movement
+  no price ever made. The seller count sits beside every figure for the same
+  reason — a median over three sellers and one over twenty are different
+  claims.
+
+One new column: `products.external_product_id`, the provider's catalogue
+identity. The handle that turns a product back into a market. Without it, a
+product's competition could only be re-found by re-running a text search,
+which answers a different question.
+
+#### Identity: four layers, each catching what the one before cannot
+
+This is the part with the most failure modes, and every layer below exists
+because a specific wrong answer was observed.
+
+1. **Relevance** (`relevance.ts`, unchanged in purpose) — is this row the
+   product, or something sold beside it? Self-calibrating on the response's
+   own price cohorts; no accessory word list.
+
+   One real bug fixed here: a token counted as "discriminating" if *any* row
+   lacked it. Searching "sony wh-1000xm5" returns six rows all saying "sony";
+   "wh-1000xm5" appeared in five — the three real listings and both
+   accessories, the missing one being a WH-1000XM4 the search dragged in. That
+   one near-miss made the token qualify, the cheap cohort won, and **the
+   headphones were classified as accessories of their own carry case.** A
+   token now only counts as discriminating when it is largely present in one
+   cohort and largely absent from the other.
+
+2. **Clustering** (`cluster.ts`, new) — which catalogue ids are the same
+   product? Model codes must match exactly; stated specifications must not
+   contradict (silence is agreement, since store titles abbreviate
+   constantly); price must be within 3× (a different *class* of object differs
+   by a factor of ten, so this is not policing a spread).
+
+   An accessory classification is overridden only by **complete model
+   agreement plus near-parity pricing** (1.5×), because relevance is
+   deliberately strict about titles that spend more words elsewhere — a spare
+   part does exactly that — and a retailer's descriptive listing of the real
+   product reads the same way.
+
+3. **The unsupervised-anchor bar** — with no human click, the anchor must be
+   `strong`, not merely `plausible`. A live search for "sony wh-1000xm5"
+   returned 38 rows and **not one was the headphones**: 32 skins at ₹2,322
+   from a single vendor, two cases, a replacement headband, and a WH-1000XM6.
+   Taking the best of that bad set spent four provider calls to create a
+   product that was a sticker. It now refuses, and spends nothing. A user's
+   own click is still honoured — they made a judgement; this is not the place
+   to overrule it.
+
+4. **Attribute verification, after fetching** — the clustering works from
+   store listing titles, which cannot separate an iPhone 15 from an iPhone 15
+   **Plus**: one ordinary English word, indistinguishable by any pattern from a
+   retailer's padding ("Wireless Noise Cancelling Headphones" adds four such
+   words and is still the same product). Measured on the recorded fixtures,
+   clustering "iPhone 15 128GB" admitted the Plus *and* the Pro — three
+   different phones pooled into one market. The fetched responses carry the
+   provider's **structured attributes**, where those two disagree on screen
+   size as a matter of record. Same rule as everywhere else, better evidence:
+   silence is agreement, a different value is not.
+
+#### Condition partitions the market before any statistic is taken
+
+Found live. A capture for "apple iphone 16 pro 256gb" returned six sellers: a
+**renewed** unit at ₹89,999, a **used** one at ₹1,08,399, and four selling new
+stock at ₹1,14,999–₹1,47,227. Pooled, the market's floor became a refurbished
+price and the spread 50%, and the analysis reasoned about "the cheapest seller"
+as though somebody listing a new phone could match it.
+
+They are not competitors. The new offers are the market; the others are
+reported separately — a refurbished market 20% below is real information, it is
+simply not the market this price is argued against. A product sold only
+refurbished still gets a market, because it still has a price.
+
+#### What the recommendation reads now
+
+`competition.ts` is pure: distribution, structure, position, trend. Structure
+is the part that matters and the part a median cannot express:
+
+- **floor, second floor, and the gap** — undercutting a lone outlier by a
+  rupee is not the same move as undercutting a pack of six;
+- **sellers at the floor** — a crowded floor is a defended position, so the
+  deterministic engine lifts the target above it rather than joining a price
+  war it would then fight with five others;
+- **clustering** — if everyone is within 5% of the median, price is not the
+  lever and the recommendation says so.
+
+`deterministic.ts` was extracted from the pricing service as a pure function,
+because mutation testing proved its most important guarantee was asserted
+nowhere: **never recommend below the cheapest real offer.** Reaching that
+branch needs an observed history well below the current market, which no
+integration test happened to produce, so the guard could be deleted and the
+suite stayed green. It now has its own tests.
+
+A seeded product is refused outright, twice over: the market query excludes
+non-captured listings, and the recommendation states the reason rather than
+reporting a real product with a mysteriously empty market. Pricing from the
+synthetic dataset would be the one failure this whole pipeline exists to
+prevent.
+
+#### Cost, stated plainly
+
+One search call plus one call per catalogue id opened — four by default. Four
+things keep that from multiplying, and all four are measured in the tests:
+
+- the market belongs to the **product**, not to whoever asked for it, so fifty
+  people following one product cost **one** capture (the freshness
+  short-circuit runs *after* identification, which is free, and *before* any
+  spend);
+- a refresh re-opens the catalogue ids already clustered onto the product, so
+  it pays **no search call**;
+- a product nobody follows and nobody has opened is **never captured at all**;
+- **reading a stored market costs nothing** — `GET /products/:id/market`
+  touches no provider, so a seller can keep the screen open, sort it and
+  compare marketplaces for free. Only `POST /products/:id/capture` and the
+  scheduler spend, and both report what they spent beside what they found.
+
+Provider calls are metered per endpoint, because the product endpoint is the
+costlier half and counting only searches understated the spend roughly
+fourfold.
+
+#### What was replaced
+
+| Removed | Why |
+|---|---|
+| `recordSelectedOffer()` and the single-offer write path | It was the defect. Competitive data now has one writer: `market.repository.ts`. |
+| `lib/marketBand.ts` | A price band anchored on an observed price, filtering search rows. Unnecessary once the sellers come from the provider's own catalogue entry for the product — it was compensating for the wrong question. |
+| The search-as-market path in `marketPricing.service.ts` | Replaced by reading the stored seller set. |
+| `price_insights`-as-history | It was never data. |
+| `storefront` as a seller key | Replaced by `merchant_id`. Rows written under the old key are **adopted** in place the first time a merchant id is seen for them, so the series they already carry stays continuous rather than being orphaned beside a new row. |
+
+Two provenance probes elsewhere were reading `external_seller_id = 'storefront'`
+to mean "live", which silently stopped matching anything. Both
+`tests/regression.test.ts` and `scripts/verify.ts` now use the `origin` column,
+which exists for exactly this and does not depend on the shape of an id. That
+hunt also turned up a real mislabelled row — a seller marked `origin='seed'` on
+a provider-discovered marketplace, whose only observation carried the live
+parser version — so `REG-11d` now asserts that contradiction can never recur
+silently. It matters because the synthetic-data purge decides what to delete
+from `origin`.
 
 ## 3a. Where AI/ML belongs in this system (asked explicitly at Stage 13)
 
@@ -2255,6 +2494,30 @@ Based on where the project actually stands, the next steps that follow directly 
 12ce. **Enforce the architecture with a test, not a convention.** One import would restore a second pricing engine, and it would agree for a while before drifting. A test that walks the real import graph is the only thing that stops it, and allowlisting the single known exception keeps the count going down and never up (Stage 28).
 
 12bz. **Absent data is a stop, not a modelling challenge.** There is no quantity sold anywhere in this dataset, so elasticity and true willingness-to-pay are not estimable — not poorly estimable. Name what is missing and refuse the model; a validation score on a fabricated target is worse than no model (Stage 27).
+12cf. **A shopping search returns one row per PRODUCT, not one row per seller.** Forty rows are forty different products. Treating that list as "the market" for one of them is comparing a product against other products that matched the same words, and no amount of relevance filtering in front of it fixes the question. A product's competitors are the merchants the provider returns for its own catalogue id (Stage 30).
+
+12cg. **One product has many catalogue ids, and they must be unioned.** Each id exposes only two or three of a product's sellers. Measured live: one id returned 3 sellers, four ids returned 10. A market built from a single id undercounts the competition about threefold and does it silently. `product_catalog_ids` is the cluster; never reduce a capture to the anchor id alone (Stage 30).
+
+12ch. **`merchant_id` is the seller's identity, not its display name.** It is stable across captures and across catalogue ids — the live data shows one store recurring under two ids with one merchant id, which is the only reason deduplication works. Matching on name would merge every store that renamed itself and split every one with two spellings. The old `storefront` placeholder is adopted in place when a merchant id first arrives, never duplicated, or the series already recorded is orphaned (Stage 30).
+
+12ci. **The data provider supplies no price history.** `price_insights` is two booleans saying a chart exists. Every historical price in this system is one this system observed and timestamped, so a trend is only ever as old as our own capture record — and the interface says that in words. Any design that shows a chart on the day a product is first seen is showing invented data (Stage 30).
+
+12cj. **The market belongs to the product, not to whoever asked for it.** The capture schedule, the catalogue ids and the stored sellers all hang off `products`, so fifty people following one phone cost one capture. The freshness check runs after identification — which is free, from a stored snapshot — and before any spend (Stage 30).
+
+12ck. **Reading a market must cost nothing.** `GET /products/:id/market` touches no provider. When reading and capturing are the same operation, every page view is a purchase and the only way left to control cost is to show people less of their own data. Capture is a separate, explicit, metered act that reports what it spent beside what it found (Stage 30).
+
+12cl. **Condition partitions the market before any statistic is taken.** A renewed unit at ₹89,999 pooled with new stock at ₹1,14,999+ made a refurbished price the market floor and the spread 50%. A new listing does not compete with a refurbished one. The excluded conditions are reported, not dropped — they are real, just a different market (Stage 30).
+
+12cm. **Identity needs four layers, and each catches what the one before cannot.** Relevance reads the response's own price cohorts; clustering requires exact model-code agreement and no contradicted specification; an unsupervised anchor must be `strong`, never merely `plausible`; and the provider's structured attributes settle near-identical variants after fetching. An iPhone 15 and an iPhone 15 Plus differ by one English word, which no pattern separates from a retailer's padding — only the attributes do (Stage 30).
+
+12cn. **With no human click, refuse rather than take the best of a bad set.** A live search for "sony wh-1000xm5" returned 38 rows and not one was the headphones. Anchoring on the highest scorer spent four provider calls building a product that was a vinyl sticker. A user's own click is a judgement and is still honoured; an automatic capture has made none (Stage 30).
+
+12co. **Never recommend below the cheapest real offer.** The floor is a fact about the market, not a target. The blend with observed history can reach beneath it when a product's price has risen since it was first captured, and without the guard the system advises undercutting a price nobody charges. This survived a mutation while it lived as a private method; it is now a pure function with its own tests (Stage 30).
+
+12cp. **A statistic ships with the seller count it was computed over.** A median over three sellers and one over twenty are different claims, and a reader who cannot see which they have will assume the stronger one. `product_market_snapshots` records the count per day for the same reason: sellers churn, so a trend drawn from the per-seller rows alone shows movement no price ever made (Stage 30).
+
+12cq. **Provenance probes must read `origin`, not the shape of an id.** Two of them tested `external_seller_id = 'storefront'` to mean "live"; when sellers were re-keyed on merchant id the predicate silently stopped matching anything. That hunt also found a live row mislabelled `origin='seed'` on a provider-discovered marketplace — a contradiction `REG-11d` now forbids, because the synthetic-data purge decides what to delete from that column (Stage 30).
+
 13. **Prefer understanding existing code over adding new abstractions.** The codebase is intentionally not over-engineered for its current scope (a class-project wireframe) — resist adding speculative infrastructure (e.g. a state-management library, a component library, a testing framework) unless the user's request genuinely requires it.
 11. **Keep this file up to date.** If you make a decision significant enough that a future session would need to know about it, add it here — particularly to §3 (evolution), §6 (critical decisions), §14/§15 (status), and §20 (historical context) as appropriate. Don't let this file go stale while the code moves on.
 12. **When in doubt about project intent, ask** rather than assume — several past requests in this project have been extremely explicit and prescriptive (see the visual-correction request that produced Stage 9); treat that as the user's established working style, not a one-off.

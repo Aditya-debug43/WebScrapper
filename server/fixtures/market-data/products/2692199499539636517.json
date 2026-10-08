@@ -1,0 +1,76 @@
+{
+  "search_metadata": {
+    "id": "fixture_2692199499539636517",
+    "status": "Success"
+  },
+  "search_parameters": {
+    "engine": "google_product",
+    "product_id": "2692199499539636517",
+    "gl": "in",
+    "hl": "en"
+  },
+  "product_results": {
+    "title": "Apple iPhone 15 Plus",
+    "brand": "Apple",
+    "thumbnails": [
+      "https://fixture.test/2692199499539636517.jpg"
+    ],
+    "price_range": "₹52,000-₹69,900",
+    "product_attributes": [
+      {
+        "name": "screen size",
+        "value": "6.7 inches"
+      },
+      {
+        "name": "storage capacity",
+        "value": "128 GB"
+      },
+      {
+        "name": "brand",
+        "value": "Apple"
+      }
+    ],
+    "price_insights": {
+      "price_history": true,
+      "price_tracking_available": true
+    },
+    "stores": [
+      {
+        "position": 1,
+        "name": "EMI Snapmint",
+        "merchant_id": "es001",
+        "link": "https://emisnapmint.test/p",
+        "title": "EMI Snapmint",
+        "price": "₹52,000",
+        "extracted_price": 52000,
+        "total": "₹52,000",
+        "extracted_total": 52000,
+        "shipping": "Free",
+        "rating": 4.2,
+        "reviews": 480,
+        "details_and_offers": [
+          "In stock online",
+          "Free delivery"
+        ]
+      },
+      {
+        "position": 2,
+        "name": "desertcart.in",
+        "merchant_id": "dc001",
+        "link": "https://desertcartin.test/p",
+        "title": "desertcart.in",
+        "price": "₹69,900",
+        "extracted_price": 69900,
+        "total": "₹69,900",
+        "extracted_total": 69900,
+        "shipping": "Free",
+        "rating": 4.2,
+        "reviews": 480,
+        "details_and_offers": [
+          "In stock online",
+          "Free delivery"
+        ]
+      }
+    ]
+  }
+}

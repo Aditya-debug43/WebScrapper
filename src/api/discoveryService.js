@@ -36,7 +36,13 @@ export async function searchMarket(query, { token, limit, refresh, signal } = {}
 }
 
 /**
- * Follow a product, from a result the user picked.
+ * Follow a product's MARKET, from a result the user picked.
+ *
+ * The result identifies which product is meant; it is not the thing being
+ * tracked. The backend resolves it to a catalogue identity, opens that
+ * product's competing sellers across every catalogue id it is published
+ * under, and stores them. The response says how many sellers and
+ * marketplaces that turned out to be, and what it cost.
  *
  * Sends only the signed reference the backend issued. Deliberately not the
  * title or the price: what the browser displayed is a copy, and the capture
@@ -79,6 +85,78 @@ export async function getMarketRecommendation(productId, { token, refresh, signa
     token,
     signal,
   });
+  return body?.data ?? body;
+}
+
+/**
+ * A PRODUCT'S COMPETITIVE MARKET: every seller, every marketplace, the
+ * distribution, and this system's own captured history.
+ *
+ * Free to call. It reads stored evidence and touches no provider, so a
+ * seller can keep this open, sort it and compare marketplaces without
+ * spending anything. Re-reading the market is a separate, deliberate act —
+ * `captureMarket` below.
+ *
+ * @param {string} productId
+ * @param {{ token?: string, yourPrice?: number, signal?: AbortSignal }} [options]
+ *   `yourPrice` is in MAJOR units, as a seller would type it, and asks "if I
+ *   listed at this, where would I stand?". It is a question, not a stored fact.
+ */
+export async function getProductMarket(productId, { token, yourPrice, signal } = {}) {
+  const params = new URLSearchParams();
+  if (yourPrice != null && Number.isFinite(yourPrice)) params.set("yourPrice", String(yourPrice));
+  const query = params.toString();
+
+  const body = await apiRequest(
+    `/products/${encodeURIComponent(productId)}/market${query ? `?${query}` : ""}`,
+    { token, signal }
+  );
+  return body?.data ?? body;
+}
+
+/** Each competing seller's own price series, from this system's captures. */
+export async function getSellerHistory(productId, { token, days, signal } = {}) {
+  const query = days == null ? "" : `?days=${encodeURIComponent(days)}`;
+  const body = await apiRequest(`/products/${encodeURIComponent(productId)}/market/sellers${query}`, {
+    token,
+    signal,
+  });
+  return body?.data ?? body;
+}
+
+/**
+ * Re-read this product's market now.
+ *
+ * The operation that spends provider calls — one per catalogue id. It
+ * returns what it cost beside what it found, so the spend is visible where
+ * it happens rather than only in a monthly total.
+ */
+export async function captureMarket(productId, { token, clusterLimit, force, signal } = {}) {
+  const body = await apiRequest(`/products/${encodeURIComponent(productId)}/capture`, {
+    method: "POST",
+    body: { ...(clusterLimit == null ? {} : { clusterLimit }), ...(force ? { force: true } : {}) },
+    token,
+    signal,
+  });
+  return body?.data ?? body;
+}
+
+/**
+ * The recommended selling price, argued from the competition above.
+ *
+ * @param {{ yourPrice?: number }} [options] The seller's own intended price,
+ *   in major units, so the answer can say where it would place them.
+ */
+export async function getRecommendedPrice(productId, { token, refresh, yourPrice, signal } = {}) {
+  const params = new URLSearchParams();
+  if (refresh) params.set("refresh", "true");
+  if (yourPrice != null && Number.isFinite(yourPrice)) params.set("yourPrice", String(yourPrice));
+  const query = params.toString();
+
+  const body = await apiRequest(
+    `/products/${encodeURIComponent(productId)}/recommended-price${query ? `?${query}` : ""}`,
+    { token, signal }
+  );
   return body?.data ?? body;
 }
 

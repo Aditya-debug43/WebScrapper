@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { useSearchParams } from "react-router-dom";
+import { useSearchParams, Link } from "react-router-dom";
 import { Search, Plus, Check, RefreshCw, ExternalLink, Star } from "lucide-react";
 import { useAuth } from "../state/AuthContext";
 import { searchMarket, trackResult } from "../api/discoveryService";
@@ -73,7 +73,21 @@ export default function Catalogue() {
     setTracking((t) => ({ ...t, [result.ref]: { status: "saving" } }));
     try {
       const saved = await trackResult(result.ref, { token });
-      setTracking((t) => ({ ...t, [result.ref]: { status: "tracked", productId: saved.product.id } }));
+      setTracking((t) => ({
+        ...t,
+        [result.ref]: {
+          status: "tracked",
+          productId: saved.product.id,
+          /**
+           * What following it actually bought. Worth showing immediately:
+           * the user clicked ONE listing, and what was stored is that
+           * product's whole competitive market. Without this the action
+           * looks like it saved the row they clicked, which is exactly the
+           * behaviour this version replaced.
+           */
+          market: saved.market,
+        },
+      }));
     } catch (error) {
       setTracking((t) => ({ ...t, [result.ref]: { status: "failed", message: error.message } }));
     }
@@ -241,6 +255,24 @@ export default function Catalogue() {
                         </a>
                       )}
                     </div>
+
+                    {state?.status === "tracked" && state.market && (
+                      <p className="disc-tracked-market">
+                        {state.market.sellers > 0 ? (
+                          <>
+                            Stored {state.market.sellers} competing seller
+                            {state.market.sellers === 1 ? "" : "s"} across {state.market.marketplaces} marketplace
+                            {state.market.marketplaces === 1 ? "" : "s"}
+                            {state.market.providerCalls > 0
+                              ? ` — ${state.market.providerCalls} provider call${state.market.providerCalls === 1 ? "" : "s"}.`
+                              : " — reused a market already captured, at no cost."}
+                          </>
+                        ) : (
+                          "Following it. Its market will be read on the next capture."
+                        )}{" "}
+                        <Link to={`/products/${state.productId}/market`}>See the competition</Link>
+                      </p>
+                    )}
 
                     {state?.status === "failed" && <p className="disc-error">{state.message}</p>}
                   </div>

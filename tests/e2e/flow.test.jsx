@@ -350,7 +350,17 @@ describe("E2E — the recommendation comes from the backend", () => {
     if (data.available) {
       expect(data.mode).toBe("cold_start");
       expect(data.recommendedPriceMinor).toBeGreaterThan(0);
-      expect(data.market.offerCount).toBeGreaterThanOrEqual(3);
+      /*
+       * Competing SELLERS, not search rows. The distinction is the whole
+       * redesign: a shopping search returns one row per catalogue id, so the
+       * old count was counting different products. These are merchants
+       * selling this one, each on a marketplace.
+       */
+      expect(data.market.sellerCount).toBeGreaterThanOrEqual(3);
+      expect(data.market.marketplaceCount).toBeGreaterThanOrEqual(2);
+      expect(data.market.sellers.length).toBe(data.market.sellerCount);
+      // And the market it was argued from was assembled from several ids.
+      expect(data.market.catalogIdCount).toBeGreaterThan(1);
       expect(data.method).toBe("deterministic");
     } else {
       expect(data.reason).toBe("insufficient_market_evidence");

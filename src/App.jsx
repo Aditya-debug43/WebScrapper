@@ -11,6 +11,7 @@ import Dashboard from "./pages/Dashboard";
 import Catalogue from "./pages/Catalogue";
 import ProductOverview from "./pages/ProductOverview";
 import MarketplaceComparison from "./pages/MarketplaceComparison";
+import CompetitiveMarket from "./pages/CompetitiveMarket";
 import ListingDetail from "./pages/ListingDetail";
 import PriceHistoryPage from "./pages/PriceHistoryPage";
 import CrossMarketplaceAnalysis from "./pages/CrossMarketplaceAnalysis";
@@ -53,6 +54,12 @@ function Workspace() {
           <Route element={<ProductWorkspaceLayout />}>
             <Route path="/products/:productId" element={<ProductOverview />} />
             <Route path="/products/:productId/marketplaces" element={<MarketplaceComparison />} />
+            {/*
+              The competitive market: every seller of this product, the
+              distribution of their prices, and where a given price would
+              land. The question a seller setting a price actually has.
+            */}
+            <Route path="/products/:productId/market" element={<CompetitiveMarket />} />
             <Route path="/products/:productId/analysis" element={<CrossMarketplaceAnalysis />} />
             <Route path="/products/:productId/recommendation" element={<PricingRecommendation />} />
             <Route path="/listings/:listingId" element={<ListingDetail />} />

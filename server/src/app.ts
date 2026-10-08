@@ -29,9 +29,13 @@ import { SourcesRepository } from "./modules/sources/sources.repository.js";
 import { SourcesService } from "./modules/sources/sources.service.js";
 import { registerSourcesRoutes } from "./modules/sources/sources.routes.js";
 import { SnapshotService } from "./ingestion/snapshot.service.js";
-import type { MarketOfferProvider } from "./ingestion/types.js";
+import type { MarketOfferProvider, ProductMarketProvider } from "./ingestion/types.js";
+import { createProductMarketProvider } from "./ingestion/index.js";
 import { createAIProvider, type AIProvider } from "./ai/index.js";
 import { MarketPricingService } from "./modules/pricing/marketPricing.service.js";
+import { MarketRepository } from "./modules/market/market.repository.js";
+import { MarketService } from "./modules/market/market.service.js";
+import { registerMarketRoutes } from "./modules/market/market.routes.js";
 import { DiscoveryRepository } from "./modules/discovery/discovery.repository.js";
 import { DiscoveryService } from "./modules/discovery/discovery.service.js";
 import { registerDiscoveryRoutes } from "./modules/discovery/discovery.routes.js";
@@ -62,6 +66,8 @@ export async function buildApp(
     marketProvider?: MarketOfferProvider;
     /** A stub AI provider, so a test never reaches a model API. */
     aiProvider?: AIProvider;
+    /** A deterministic product-market provider, so a test never fans out. */
+    productMarketProvider?: ProductMarketProvider;
   } = {}
 ): Promise<BuiltApp> {
   let closeDb = overrides.closeDb ?? (async () => {});
@@ -210,14 +216,33 @@ export async function buildApp(
    * all hold this same object.
    */
   const snapshotService = new SnapshotService(db, overrides.marketProvider);
-  const discoveryService = new DiscoveryService(new DiscoveryRepository(db), snapshotService);
+
+  /**
+   * THE COMPETITIVE MARKET. One repository and one service, shared.
+   *
+   * Discovery identifies products; this opens their markets. They are kept
+   * separate because they answer different questions — "what matches these
+   * words" and "who sells this thing" — and the previous architecture failed
+   * precisely by using the first as an answer to the second.
+   */
+  const marketRepository = new MarketRepository(db);
+  const marketService = new MarketService(
+    marketRepository,
+    snapshotService,
+    overrides.productMarketProvider ?? createProductMarketProvider()
+  );
+  const discoveryService = new DiscoveryService(new DiscoveryRepository(db), snapshotService, marketService);
 
   /**
    * Pricing from live market evidence. The AI provider is resolved once
    * here and nowhere else — the pricing service holds the port, never a
    * concrete provider, so switching is configuration rather than a rewrite.
    */
-  const marketPricingService = new MarketPricingService(db, snapshotService, overrides.aiProvider ?? createAIProvider());
+  const marketPricingService = new MarketPricingService(
+    marketRepository,
+    marketService,
+    overrides.aiProvider ?? createAIProvider()
+  );
 
   /**
    * Liveness only. No version, no commit, no database host, no dependency
@@ -236,6 +261,7 @@ export async function buildApp(
       registerDashboardRoutes(v1, dashboardService);
       registerSourcesRoutes(v1, sourcesService);
       registerDiscoveryRoutes(v1, discoveryService, marketPricingService);
+      registerMarketRoutes(v1, marketService, marketPricingService);
       registerIngestionRoutes(v1, ingestionService);
     },
     { prefix: "/api/v1" }

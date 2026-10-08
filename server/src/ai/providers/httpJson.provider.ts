@@ -101,11 +101,42 @@ function buildPrompt(evidence: PricingEvidence): string {
   );
 
   for (const o of evidence.market.offers) {
-    const bits = [`${o.marketplace}: ${money(o.priceMinor)}`];
+    const who = o.seller && o.seller !== o.marketplace ? `${o.seller} on ${o.marketplace}` : o.marketplace;
+    const bits = [`${who}: ${money(o.priceMinor)}`];
     if (o.shippingFeeMinor != null) bits.push(`+${money(o.shippingFeeMinor)} shipping`);
     if (o.mrpMinor != null) bits.push(`MRP ${money(o.mrpMinor)}`);
-    if (o.rating != null) bits.push(`${o.rating}★${o.reviewCount != null ? ` (${o.reviewCount})` : ""}`);
+    if (o.rating != null) bits.push(`${o.rating} stars${o.reviewCount != null ? ` (${o.reviewCount})` : ""}`);
+    if (o.inStock === false) bits.push("out of stock");
     lines.push(`  - ${bits.join(", ")}`);
+  }
+
+  /**
+   * The structure, spelled out.
+   *
+   * A median alone cannot distinguish a defended price floor from a lone
+   * outlier, and those call for opposite decisions. Stating the shape stops
+   * the model having to guess at it from a truncated list of offers.
+   */
+  if (evidence.competition) {
+    const c = evidence.competition;
+    lines.push(
+      "",
+      "Competitive structure:",
+      `  cheapest ${money(c.floorMinor)}${c.secondFloorMinor != null ? `, next cheapest ${money(c.secondFloorMinor)}` : ""}` +
+        `${c.floorGapMinor != null ? ` (gap ${money(c.floorGapMinor)})` : ""}`,
+      `  sellers within 2% of the cheapest: ${c.atFloorCount}`,
+      `  share of sellers within 5% of the median: ${(c.clustering * 100).toFixed(0)}%`,
+      `  spread high-to-low: ${c.spreadPct.toFixed(1)}% of the median`,
+      `  confirmed in stock: ${c.inStockCount} of ${evidence.market.offerCount}`,
+      "",
+      "Read that structure before answering. A crowded floor means a price there will be matched;",
+      "a lone cheap seller well below the rest is an outlier, not the market."
+    );
+  } else {
+    lines.push(
+      "",
+      "Competitive structure: too few sellers to establish one. Treat the figures above as indicative only."
+    );
   }
 
   if (evidence.history) {
@@ -115,7 +146,10 @@ function buildPrompt(evidence: PricingEvidence): string {
       `Observed history — ${h.observationCount} real observation(s), ${h.firstObservedAt} to ${h.lastObservedAt}:`,
       `  median ${money(h.medianMinor)}, range ${money(h.minMinor)}–${money(h.maxMinor)}`,
       h.changePct != null ? `  change first to last: ${h.changePct.toFixed(1)}%` : "  change: not established",
-      h.volatilityPct != null ? `  volatility: ${h.volatilityPct.toFixed(1)}%` : "  volatility: not established"
+      h.volatilityPct != null ? `  volatility: ${h.volatilityPct.toFixed(1)}%` : "  volatility: not established",
+      h.comparable === false
+        ? "  CAUTION: the number of sellers changed materially across this window, so part of that movement describes who was counted rather than what was charged."
+        : ""
     );
   } else {
     lines.push(
@@ -124,7 +158,8 @@ function buildPrompt(evidence: PricingEvidence): string {
     );
   }
 
-  return lines.join("\n");
+  // Conditional lines above push "" when they have nothing to say.
+  return lines.filter((line, i) => line !== "" || lines[i - 1] !== "").join("\n");
 }
 
 export class HttpJsonAIProvider implements AIProvider {

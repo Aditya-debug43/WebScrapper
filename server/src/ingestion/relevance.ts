@@ -242,10 +242,36 @@ export function scoreResults<T extends RelevanceInput>(query: string, items: T[]
     const upper = measured.filter((m) => (m.item.priceMinor ?? 0) >= boundary);
     const lower = measured.filter((m) => (m.item.priceMinor ?? 0) < boundary);
 
-    /** Query tokens that are not simply everywhere. */
+    /**
+     * Query tokens that separate the two COHORTS — not merely tokens that
+     * some row happens to lack.
+     *
+     * The distinction is the whole correctness of this function, and getting
+     * it wrong inverted the result completely. Searching "sony wh-1000xm5"
+     * returns four headphones and two accessories, and every one of the six
+     * titles says "sony". "wh-1000xm5" appears in five of them: the three
+     * real listings, and both accessories — the missing one is a WH-1000XM4
+     * that the search dragged in.
+     *
+     * Counting a token as discriminating because ANY row lacks it made
+     * "wh-1000xm5" qualify on the strength of that one near-miss. Its share
+     * was then 0.75 in the dear cohort (diluted by the XM4) against 1.0 in
+     * the cheap one, the cheap cohort won, and the headphones were classified
+     * as accessories of their own carry case.
+     *
+     * A token only tells us which cohort the user meant if it is largely
+     * PRESENT on one side and largely ABSENT from the other. A token both
+     * cohorts use says nothing about which was wanted, however unevenly it
+     * is spread within them.
+     */
+    const shareIn = (rows: typeof measured, token: string) =>
+      rows.length === 0 ? 0 : rows.filter((m) => tokenize(m.item.title).includes(token)).length / rows.length;
+
     const discriminating = [...queryTokens].filter((token) => {
-      const hits = measured.filter((m) => tokenize(m.item.title).includes(token)).length;
-      return hits > 0 && hits < measured.length;
+      const inUpper = shareIn(upper, token);
+      const inLower = shareIn(lower, token);
+      // Half the rows of one cohort and not the other: a real separation.
+      return Math.abs(inUpper - inLower) >= 0.5;
     });
 
     if (discriminating.length > 0 && upper.length > 0 && lower.length > 0) {

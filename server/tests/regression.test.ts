@@ -80,29 +80,40 @@ describe("REG — Phase 2 baseline is undisturbed", () => {
    * frozen total would now fail the moment the system did its job, which
    * would make the test an obstacle rather than a guard.
    *
-   * No provenance column was needed for this — the existing fields already
-   * separate the two exactly:
+   * Each table's probe uses the narrowest honest signal it has:
+   *
+   *   products       `origin`. Added because this table IS now written by
+   *   sellers        ingestion. Before the competitive redesign a product
+   *   listings       could only be seeded and a live capture recorded one
+   *                  seller against it, so this test asserted that products
+   *                  never grew. That assumption is now false BY DESIGN —
+   *                  identifying a product from the market is the point —
+   *                  and `origin` ('seed' | 'live' | 'manual') is the column
+   *                  that was added for exactly this distinction.
+   *
+   *                  Sellers previously carried the placeholder external id
+   *                  `storefront`, and this test counted that. They are now
+   *                  keyed on the provider's merchant id, so that predicate
+   *                  silently matched nothing and every live seller looked
+   *                  like unexplained drift. `origin` does not depend on the
+   *                  shape of an id and will not rot the same way.
    *
    *   observations   `parser_version` ('market-data-v1' vs the seeded
    *                  dataset's 'catalogue-parser-v1.2', 'fk-parser-v2.1', …),
    *                  and `raw_document_id` resolves to the capture run and
    *                  its provider
    *   marketplaces   `is_discovered`
-   *   sellers        the `storefront` external id ingestion assigns
-   *   listings       has live observations and no seeded ones. A listing
-   *   offers         ingestion REUSES rather than creates still fails that
+   *   offers         has live observations and no seeded ones. An offer
+   *                  ingestion REUSES rather than creates still fails that
    *                  test, which is right: it is a seeded row.
    */
   const LIVE = "market-data-v1";
   const liveOnly: Record<string, string> = {
+    products: `select count(*)::int n from products where origin <> 'seed'`,
     marketplaces: `select count(*)::int n from marketplaces where is_discovered`,
-    sellers: `select count(*)::int n from sellers where external_seller_id = 'storefront'`,
+    sellers: `select count(*)::int n from sellers where origin <> 'seed'`,
     price_observations: `select count(*)::int n from price_observations where parser_version = '${LIVE}'`,
-    listings: `select count(*)::int n from listings l
-       where exists (select 1 from offers o join price_observations po on po.offer_id = o.id
-                     where o.listing_id = l.id and po.parser_version = '${LIVE}')
-         and not exists (select 1 from offers o join price_observations po on po.offer_id = o.id
-                         where o.listing_id = l.id and po.parser_version is distinct from '${LIVE}')`,
+    listings: `select count(*)::int n from listings where origin <> 'seed'`,
     offers: `select count(*)::int n from offers o
        where exists (select 1 from price_observations po where po.offer_id = o.id and po.parser_version = '${LIVE}')
          and not exists (select 1 from price_observations po where po.offer_id = o.id and po.parser_version is distinct from '${LIVE}')`,
@@ -142,6 +153,45 @@ describe("REG — Phase 2 baseline is undisturbed", () => {
     }
 
     assert.deepEqual(drift, [], `baseline counts drifted:\n${drift.join("\n")}`);
+  });
+
+  /**
+   * REG-11d: PROVENANCE CANNOT LIE ABOUT ITSELF.
+   *
+   * A discovered marketplace exists only because ingestion created it, so
+   * nothing on one can be a seeded row. The two claims are contradictory and
+   * one of them is wrong.
+   *
+   * This exists because such a row was really there: a seller called
+   * "myG (storefront)" marked `origin='seed'`, on a discovered marketplace,
+   * whose single observation carried the live parser version. It was created
+   * by an earlier ingestion that did not set `origin`, and it was invisible —
+   * every provenance query trusted the column. It surfaced only as one
+   * unexplained row in the baseline count above, which is a long way from
+   * the actual problem.
+   *
+   * The consequence it would have had is the one worth guarding: the
+   * synthetic-data cleanup decides what to delete from `origin`. A live row
+   * labelled seeded survives a purge of seeded data; a seeded row labelled
+   * live would be destroyed by it.
+   */
+  it("REG-11d: nothing on a discovered marketplace claims to be seeded", async (t) => {
+    if (!available) return t.skip("development database not seeded");
+
+    for (const table of ["sellers", "listings"]) {
+      const rows = await db!.query<{ id: string }>(
+        `select t.id from "${table}" t
+            join marketplaces m on m.id = t.marketplace_id
+           where m.is_discovered and t.origin = 'seed'
+           limit 5`
+      );
+      assert.deepEqual(
+        rows.rows,
+        [],
+        `${table}: rows on a provider-discovered marketplace cannot be seeded — ` +
+          `whichever way round it is, the provenance column is wrong and the purge will act on it`
+      );
+    }
   });
 
   it("REG-11c: seeded observations are untouched by ingestion", async (t) => {

@@ -2,7 +2,9 @@ import "../config/env.js";
 import { env } from "../config/env.js";
 import { createDb } from "../db/client.js";
 import { SnapshotService, FRESHNESS } from "../ingestion/snapshot.service.js";
-import { DiscoveryRepository } from "../modules/discovery/discovery.repository.js";
+import { createProductMarketProvider } from "../ingestion/index.js";
+import { MarketRepository } from "../modules/market/market.repository.js";
+import { MarketService } from "../modules/market/market.service.js";
 import { CaptureScheduler } from "../modules/discovery/capture.scheduler.js";
 
 /**
@@ -23,9 +25,10 @@ import { CaptureScheduler } from "../modules/discovery/capture.scheduler.js";
 async function main() {
   const conn = await createDb();
   try {
+    const snapshots = new SnapshotService(conn.db);
     const scheduler = new CaptureScheduler(
-      new DiscoveryRepository(conn.db),
-      new SnapshotService(conn.db),
+      new MarketService(new MarketRepository(conn.db), snapshots, createProductMarketProvider()),
+      snapshots,
       conn.db
     );
 
@@ -38,8 +41,8 @@ async function main() {
     const seconds = ((Date.now() - started) / 1000).toFixed(1);
     console.log(
       `· swept in ${seconds}s — due ${result.due}; captured ${result.captured}; ` +
-        `reused ${result.reused}; failed ${result.failed}; observations ${result.observations}; ` +
-        `provider calls ${result.providerCalls}`
+        `reused ${result.reused}; failed ${result.failed}; sellers ${result.sellers}; ` +
+        `observations ${result.observations}; provider calls ${result.providerCalls}`
     );
     for (const note of result.notes) console.log(`  ${note}`);
   } finally {

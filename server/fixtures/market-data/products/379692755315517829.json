@@ -1,0 +1,68 @@
+{
+  "search_metadata": {
+    "id": "fixture_379692755315517829",
+    "status": "Success"
+  },
+  "search_parameters": {
+    "engine": "google_product",
+    "product_id": "379692755315517829",
+    "gl": "in",
+    "hl": "en"
+  },
+  "product_results": {
+    "title": "Xiaomi Poco X6 Pro 5G",
+    "brand": "Poco",
+    "thumbnails": [
+      "https://fixture.test/379692755315517829.jpg"
+    ],
+    "price_range": "₹26,999-₹26,999",
+    "product_attributes": [
+      {
+        "name": "brand",
+        "value": "Poco"
+      }
+    ],
+    "price_insights": {
+      "price_history": true,
+      "price_tracking_available": true
+    },
+    "stores": [
+      {
+        "position": 1,
+        "name": "Flipkart",
+        "merchant_id": "fk002",
+        "link": "https://flipkart.test/p",
+        "title": "Flipkart",
+        "price": "₹27,999",
+        "extracted_price": 27999,
+        "total": "₹27,999",
+        "extracted_total": 27999,
+        "shipping": "Free",
+        "rating": 4.2,
+        "reviews": 480,
+        "details_and_offers": [
+          "In stock online",
+          "Free delivery"
+        ]
+      },
+      {
+        "position": 2,
+        "name": "Vijay Sales",
+        "merchant_id": "vs002",
+        "link": "https://vijaysales.test/p",
+        "title": "Vijay Sales",
+        "price": "₹26,999",
+        "extracted_price": 26999,
+        "total": "₹26,999",
+        "extracted_total": 26999,
+        "shipping": "Free",
+        "rating": 4.2,
+        "reviews": 480,
+        "details_and_offers": [
+          "In stock online",
+          "Free delivery"
+        ]
+      }
+    ]
+  }
+}

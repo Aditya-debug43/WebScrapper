@@ -82,6 +82,7 @@ export default function ProductWorkspaceLayout() {
   }
 
   const sectionLabel = (() => {
+    if (location.pathname.endsWith("/market")) return "Competitive Market";
     if (location.pathname.endsWith("/marketplaces")) return "Marketplace Comparison";
     if (location.pathname.endsWith("/analysis")) return "Cross-Marketplace Analysis";
     if (location.pathname.endsWith("/recommendation")) return "Pricing Recommendation";
@@ -131,6 +132,12 @@ export default function ProductWorkspaceLayout() {
       <WorkspaceTabs
         tabs={[
           { label: "Overview", to: `/products/${productId}`, end: true },
+          /*
+           * Before the curated marketplace comparison, because it is the
+           * broader view: every seller rather than the six platforms this
+           * system was originally built around.
+           */
+          { label: "Competition", to: `/products/${productId}/market` },
           { label: "Marketplaces", to: `/products/${productId}/marketplaces`, count: listingCount },
           ...(defaultListingId
             ? [

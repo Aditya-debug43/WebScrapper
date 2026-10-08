@@ -309,13 +309,22 @@ export class SnapshotService {
   }
 
   /**
-   * The exact offer a user selected, re-read from the stored capture.
+   * The exact offer a user selected, re-read from the stored capture — AND
+   * the rest of that capture alongside it.
    *
    * The browser sends a signed reference, never the product data itself. What
    * it displays is a copy; this is the record. Resolving from storage is what
    * stops a client inventing a cheap price and asking for it to be tracked.
+   *
+   * The siblings are returned because identifying a product is only half the
+   * work: the same product is published under several catalogue ids, each
+   * exposing different sellers, and they can only be clustered against one
+   * another from the same capture. Re-searching to find them would cost a
+   * second call and could return a different set of rows.
    */
-  async resolveResult(ref: ResultRef): Promise<{ offer: SnapshotOffer; captureRunId: string; query: string } | null> {
+  async resolveResult(
+    ref: ResultRef
+  ): Promise<{ offer: SnapshotOffer; snapshotOffers: SnapshotOffer[]; captureRunId: string; query: string } | null> {
     const parsed = verifyResultRef(ref);
     if (!parsed) return null;
 
@@ -335,6 +344,7 @@ export class SnapshotService {
     if (!offer) return null;
     return {
       offer: { ...offer, resultIndex: parsed.resultIndex },
+      snapshotOffers: batch.offers.map((o, resultIndex) => ({ ...o, resultIndex })),
       captureRunId: parsed.captureRunId,
       query: run.sourceQuery ?? "",
     };

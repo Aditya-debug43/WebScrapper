@@ -49,17 +49,55 @@ export type PricingEvidence = {
     minMinor: number;
     maxMinor: number;
     medianMinor: number;
-    /** Per-store, trimmed to the cheapest few — the shape, not the whole list. */
+    /** Per-SELLER, cheapest first, trimmed — the shape, not the whole list. */
     offers: Array<{
+      /** The store this seller trades on. */
       marketplace: string;
+      /** The merchant. Often the same as the store, not always. */
+      seller?: string | null;
       priceMinor: number;
       shippingFeeMinor: number | null;
       mrpMinor: number | null;
       rating: number | null;
       reviewCount: number | null;
+      inStock?: boolean | null;
     }>;
   };
-  /** Absent entirely at cold start rather than zero-filled. */
+
+  /**
+   * THE SHAPE OF THE COMPETITION, not just its summary statistics.
+   *
+   * Added because a median alone cannot answer the question being asked. "Six
+   * sellers are within 2% of the cheapest price" and "one seller is 15% below
+   * everyone else" produce the same median and call for opposite decisions —
+   * in the first the floor is a defended position, in the second it is an
+   * outlier worth ignoring. Without this the model was being asked to judge a
+   * market it could not see the structure of.
+   *
+   * Null when there are too few sellers for structure to mean anything.
+   */
+  competition: {
+    /** The cheapest price anyone is charging. */
+    floorMinor: number;
+    /** The next cheapest, and the gap — what it costs to take the floor. */
+    secondFloorMinor: number | null;
+    floorGapMinor: number | null;
+    /** How many sellers sit within 2% of the floor. A crowded floor is war. */
+    atFloorCount: number;
+    /** 0..1 — share of sellers within 5% of the median. */
+    clustering: number;
+    /** (high − low) / median, as a percentage. */
+    spreadPct: number;
+    inStockCount: number;
+  } | null;
+  /**
+   * Absent entirely at cold start rather than zero-filled.
+   *
+   * Every figure here was observed and timestamped by this system. The data
+   * provider supplies no past series, so there is nothing imported and
+   * nothing backfilled — which is why `observationCount` is stated: a median
+   * over three captures and one over thirty are different claims.
+   */
   history: {
     observationCount: number;
     firstObservedAt: string;
@@ -70,6 +108,11 @@ export type PricingEvidence = {
     /** Percent, first to last. */
     changePct: number | null;
     volatilityPct: number | null;
+    /**
+     * Whether the seller population stayed stable enough across the window
+     * for the change to be about price rather than about who was counted.
+     */
+    comparable?: boolean | null;
   } | null;
   currency: string;
 };

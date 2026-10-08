@@ -1,0 +1,72 @@
+{
+  "search_metadata": {
+    "id": "fixture_3940223252231470074",
+    "status": "Success"
+  },
+  "search_parameters": {
+    "engine": "google_product",
+    "product_id": "3940223252231470074",
+    "gl": "in",
+    "hl": "en"
+  },
+  "product_results": {
+    "title": "Xiaomi Poco X6 Pro 5G",
+    "brand": "Poco",
+    "thumbnails": [
+      "https://fixture.test/3940223252231470074.jpg"
+    ],
+    "price_range": "₹26,999-₹28,499",
+    "product_attributes": [
+      {
+        "name": "storage capacity",
+        "value": "256 GB"
+      },
+      {
+        "name": "brand",
+        "value": "Poco"
+      }
+    ],
+    "price_insights": {
+      "price_history": true,
+      "price_tracking_available": true
+    },
+    "stores": [
+      {
+        "position": 1,
+        "name": "Mobile Ki Dukan",
+        "merchant_id": "mk002",
+        "link": "https://mobilekidukan.test/p",
+        "title": "Mobile Ki Dukan",
+        "price": "₹26,999",
+        "extracted_price": 26999,
+        "total": "₹26,999",
+        "extracted_total": 26999,
+        "shipping": "Free",
+        "rating": 4.2,
+        "reviews": 480,
+        "details_and_offers": [
+          "In stock online",
+          "Free delivery"
+        ]
+      },
+      {
+        "position": 2,
+        "name": "Gadgets Now",
+        "merchant_id": "gn002",
+        "link": "https://gadgetsnow.test/p",
+        "title": "Gadgets Now",
+        "price": "₹28,499",
+        "extracted_price": 28499,
+        "total": "₹28,499",
+        "extracted_total": 28499,
+        "shipping": "Free",
+        "rating": 4.2,
+        "reviews": 480,
+        "details_and_offers": [
+          "In stock online",
+          "Free delivery"
+        ]
+      }
+    ]
+  }
+}

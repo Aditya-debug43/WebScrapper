@@ -3,6 +3,7 @@ import { AppError } from "../../lib/errors.js";
 import { FRESHNESS, signResultRef, type MarketSnapshot, type SnapshotService } from "../../ingestion/snapshot.service.js";
 import { ProviderError } from "../../ingestion/types.js";
 import { scoreResults } from "../../ingestion/relevance.js";
+import type { MarketService } from "../market/market.service.js";
 import type { DiscoveryRepository } from "./discovery.repository.js";
 
 /**
@@ -30,7 +31,8 @@ import type { DiscoveryRepository } from "./discovery.repository.js";
 export class DiscoveryService {
   constructor(
     private readonly repo: DiscoveryRepository,
-    private readonly snapshots: SnapshotService
+    private readonly snapshots: SnapshotService,
+    private readonly market: MarketService
   ) {}
 
   /**
@@ -132,53 +134,81 @@ export class DiscoveryService {
   }
 
   /**
-   * Start following a product, from a result the user picked.
+   * TRACK A PRODUCT'S MARKET — not the listing that was clicked.
    *
-   * The reference is resolved against the STORED capture rather than trusted
-   * from the request body. What the browser displayed is a copy; the capture
-   * is the record. Without this a client could ask to track a product at a
-   * price nobody ever offered.
+   * This is the change at the centre of the redesign. Before, a chosen search
+   * result became a product with exactly ONE seller: the store on that row.
+   * Every screen downstream then described a market of one, and the price
+   * recommendation was positioned against a single competitor while calling
+   * itself market intelligence.
+   *
+   * The chosen result is now used for what it is genuinely good for —
+   * identifying WHICH product the user means — and then discarded as a source
+   * of market data. What gets stored is the product's competitive market:
+   * every seller the provider returns for every catalogue id that product is
+   * published under. On live data that is around ten sellers across five
+   * stores rather than one.
+   *
+   * The reference is still resolved against the STORED capture rather than
+   * trusted from the request body. What the browser displayed is a copy; the
+   * capture is the record. Without that a client could ask to track a product
+   * at a price nobody ever offered.
    */
   async track(userId: string, ref: string) {
-    const resolved = await this.snapshots.resolveResult(ref);
-    if (!resolved) {
-      throw new AppError("NOT_FOUND", "That search result could not be resolved. Search again and retry.");
-    }
-
-    const { offer, captureRunId, query } = resolved;
-    if (offer.priceMinor == null || offer.priceMinor <= 0) {
-      throw new AppError("VALIDATION_FAILED", "That result carries no usable price, so there is nothing to track yet.");
-    }
-
-    const product = await this.repo.resolveOrCreateProduct({
-      title: offer.rawTitle,
-      searchQuery: query || offer.rawTitle,
-      captureRunId,
-    });
-
     /**
-     * The first observation comes from the result they chose, immediately.
-     *
-     * Waiting for the scheduler would mean a user who just tracked something
-     * sees an empty chart for a day, when a real current price was already in
-     * hand. It is a genuine observation: captured, timestamped, provenanced.
+     * Identify, then open the market. `captureFromResult` resolves the
+     * reference itself and refuses a row with no catalogue identity, because
+     * for such a row the only thing that COULD be stored is the single
+     * listing — which is the defect, not a fallback.
      */
-    await this.repo.recordSelectedOffer({ productId: product.id, offer, captureRunId });
+    let capture: Awaited<ReturnType<MarketService["captureFromResult"]>>;
+    try {
+      capture = await this.market.captureFromResult(ref);
+    } catch (cause) {
+      if (cause instanceof ProviderError) {
+        throw new AppError("MARKET_DATA_UNAVAILABLE", cause.message, {
+          details: { provider: cause.provider, kind: cause.kind, retryable: cause.retryable },
+        });
+      }
+      throw cause;
+    }
 
     const tracking = await this.repo.startTracking({
       userId,
-      productId: product.id,
-      searchQuery: query || offer.rawTitle,
-      sourceUrl: offer.url,
+      productId: capture.productId,
+      /**
+       * What the PERSON typed, not what the product turned out to be called.
+       * Those are different facts and only the first is provenance for why
+       * this row exists.
+       */
+      searchQuery: capture.query,
+      sourceUrl: capture.anchorUrl,
     });
 
     /**
      * Interest is what earns a product a place in the schedule. A product
      * with no followers and no recent views is never captured automatically.
      */
-    await this.repo.noteInterest(product.id);
+    await this.repo.noteInterest(capture.productId);
 
-    return { data: { tracking, product: { id: product.id, name: product.canonicalName, created: product.created } } };
+    return {
+      data: {
+        tracking,
+        product: { id: capture.productId, name: capture.productName, created: capture.created },
+        /**
+         * What the tracking actually bought, stated rather than implied. A
+         * user who follows a product should be able to see immediately how
+         * much of its market this system can see, and what it cost.
+         */
+        market: {
+          sellers: capture.persisted.sellersWritten,
+          marketplaces: capture.persisted.marketplacesWritten,
+          observations: capture.persisted.observationsWritten,
+          catalogIdsOpened: capture.catalogIds.length,
+          providerCalls: capture.providerCalls,
+        },
+      },
+    };
   }
 
   async listTracked(userId: string) {
@@ -196,6 +226,8 @@ export class DiscoveryService {
     return {
       data: {
         ...this.snapshots.usage,
+        /** The competitive endpoint, metered separately — it is the costlier half. */
+        ...this.market.usage,
         searchTtlSeconds: FRESHNESS.search(),
         snapshotTtlSeconds: env.MARKET_DATA_TTL_SECONDS,
         refreshFloorSeconds: FRESHNESS.userRefresh(),

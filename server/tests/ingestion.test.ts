@@ -560,8 +560,19 @@ describe("SerpApi stays inside its adapter", () => {
     "serpapi.com",
   ];
 
-  /** The single file allowed to know them, plus the test asserting all this. */
-  const PERMITTED = ["src/ingestion/providers/serpapi.provider.ts"];
+  /**
+   * The files allowed to know them.
+   *
+   * Two now, because the provider has two endpoints answering two different
+   * questions — "what matches these words" and "who sells this product" — and
+   * they return different shapes. Each has its own adapter, and the rule is
+   * unchanged: the vocabulary stops at the adapter. Everything above them
+   * sees `MarketOfferBatch` or `ProductMarket`.
+   */
+  const PERMITTED = [
+    "src/ingestion/providers/serpapi.provider.ts",
+    "src/ingestion/providers/serpapi.market.ts",
+  ];
 
   test("no provider field name appears anywhere else in src/", async () => {
     const { readdir, readFile } = await import("node:fs/promises");

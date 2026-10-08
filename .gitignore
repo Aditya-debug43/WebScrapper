@@ -50,3 +50,10 @@ server/dist/
 
 # End-to-end run artefacts (server log, throwaway data)
 tests/e2e/.run/
+
+# Local backup archives. Snapshots of the working tree taken by hand; they
+# duplicate the repository's own history and would be committed by `git add -A`.
+*.zip
+
+# Generated local test-account credentials. Never committed.
+.dev-credentials

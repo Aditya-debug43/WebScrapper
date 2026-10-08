@@ -86,13 +86,24 @@ for (const m of MUTATIONS) {
   const backup = `${m.file}.bak`;
   copyFileSync(m.file, backup);
   const src = readFileSync(m.file, "utf8");
-  if (!src.includes(m.find)) {
-    console.log(`${m.id}: ANCHOR MISSING — ${m.find.slice(0, 60)}`);
+
+  /**
+   * The repository's files are CRLF. A multi-line anchor written with "\n"
+   * matches nothing, the mutant is never applied, and the run reports
+   * ANCHOR MISSING for a guarantee that is in fact still in the code — which
+   * reads as a broken harness rather than as the untested property it would
+   * be if the anchor were genuinely gone.
+   */
+  const find = src.includes("\r\n") ? m.find.replace(/\n/g, "\r\n") : m.find;
+  const to = src.includes("\r\n") ? m.to.replace(/\n/g, "\r\n") : m.to;
+
+  if (!src.includes(find)) {
+    console.log(`${m.id}: ANCHOR MISSING — ${m.find.slice(0, 60).replace(/\n/g, "\\n")}`);
     results.push({ ...m, verdict: "ANCHOR MISSING" });
     unlinkSync(backup);
     continue;
   }
-  writeFileSync(m.file, src.replace(m.find, m.to));
+  writeFileSync(m.file, src.replace(find, to));
   let verdict;
   try {
     execSync("npx tsx --test tests/ingestion.test.ts", { stdio: "pipe", timeout: 300000 });

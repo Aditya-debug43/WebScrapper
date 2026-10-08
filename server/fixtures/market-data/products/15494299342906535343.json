@@ -1,0 +1,94 @@
+{
+  "search_metadata": {
+    "id": "fixture_15494299342906535343",
+    "status": "Success"
+  },
+  "search_parameters": {
+    "engine": "google_product",
+    "product_id": "15494299342906535343",
+    "gl": "in",
+    "hl": "en"
+  },
+  "product_results": {
+    "title": "Poco X6 Pro 5G 256GB",
+    "brand": "Poco",
+    "thumbnails": [
+      "https://fixture.test/15494299342906535343.jpg"
+    ],
+    "price_range": "₹25,789-₹33,499",
+    "product_attributes": [
+      {
+        "name": "storage capacity",
+        "value": "256 GB"
+      },
+      {
+        "name": "ram",
+        "value": "8 GB"
+      },
+      {
+        "name": "brand",
+        "value": "Poco"
+      }
+    ],
+    "price_insights": {
+      "price_history": true,
+      "price_tracking_available": true
+    },
+    "stores": [
+      {
+        "position": 1,
+        "name": "Amazon.in",
+        "merchant_id": "am002",
+        "link": "https://amazonin.test/p",
+        "title": "Amazon.in",
+        "price": "₹33,499",
+        "extracted_price": 33499,
+        "total": "₹33,499",
+        "extracted_total": 33499,
+        "shipping": "Free",
+        "rating": 4.2,
+        "reviews": 480,
+        "details_and_offers": [
+          "In stock online",
+          "Free delivery"
+        ]
+      },
+      {
+        "position": 2,
+        "name": "Flipkart",
+        "merchant_id": "fk002",
+        "link": "https://flipkart.test/p",
+        "title": "Flipkart",
+        "price": "₹27,499",
+        "extracted_price": 27499,
+        "total": "₹27,499",
+        "extracted_total": 27499,
+        "shipping": "Free",
+        "rating": 4.2,
+        "reviews": 480,
+        "details_and_offers": [
+          "In stock online",
+          "Free delivery"
+        ]
+      },
+      {
+        "position": 3,
+        "name": "Croma",
+        "merchant_id": "cr002",
+        "link": "https://croma.test/p",
+        "title": "Croma",
+        "price": "₹28,999",
+        "extracted_price": 28999,
+        "total": "₹28,999",
+        "extracted_total": 28999,
+        "shipping": "₹99",
+        "rating": 4.2,
+        "reviews": 480,
+        "details_and_offers": [
+          "In stock online",
+          "Free delivery"
+        ]
+      }
+    ]
+  }
+}

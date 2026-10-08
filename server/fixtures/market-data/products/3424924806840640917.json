@@ -1,0 +1,112 @@
+{
+  "search_metadata": {
+    "id": "fixture_3424924806840640917",
+    "status": "Success"
+  },
+  "search_parameters": {
+    "engine": "google_product",
+    "product_id": "3424924806840640917",
+    "gl": "in",
+    "hl": "en"
+  },
+  "product_results": {
+    "title": "Apple iPhone 15 128GB",
+    "brand": "Apple",
+    "thumbnails": [
+      "https://fixture.test/3424924806840640917.jpg"
+    ],
+    "price_range": "₹53,999-₹62,900",
+    "product_attributes": [
+      {
+        "name": "screen size",
+        "value": "6.1 inches"
+      },
+      {
+        "name": "storage capacity",
+        "value": "128 GB"
+      },
+      {
+        "name": "brand",
+        "value": "Apple"
+      }
+    ],
+    "price_insights": {
+      "price_history": true,
+      "price_tracking_available": true
+    },
+    "stores": [
+      {
+        "position": 1,
+        "name": "myG",
+        "merchant_id": "mg001",
+        "link": "https://myg.test/p",
+        "title": "myG",
+        "price": "₹59,900",
+        "extracted_price": 59900,
+        "total": "₹59,900",
+        "extracted_total": 59900,
+        "shipping": "Free",
+        "rating": 4.2,
+        "reviews": 480,
+        "details_and_offers": [
+          "In stock online",
+          "Free delivery"
+        ]
+      },
+      {
+        "position": 2,
+        "name": "Croma",
+        "merchant_id": "cr001",
+        "link": "https://croma.test/p",
+        "title": "Croma",
+        "price": "₹61,900",
+        "extracted_price": 61900,
+        "total": "₹61,900",
+        "extracted_total": 61900,
+        "shipping": "Free",
+        "rating": 4.2,
+        "reviews": 480,
+        "details_and_offers": [
+          "In stock online",
+          "Free delivery"
+        ]
+      },
+      {
+        "position": 3,
+        "name": "Vijay Sales",
+        "merchant_id": "vs001",
+        "link": "https://vijaysales.test/p",
+        "title": "Vijay Sales",
+        "price": "₹58,499",
+        "extracted_price": 58499,
+        "total": "₹58,499",
+        "extracted_total": 58499,
+        "shipping": "Free",
+        "rating": 4.2,
+        "reviews": 480,
+        "details_and_offers": [
+          "In stock online",
+          "Free delivery"
+        ]
+      },
+      {
+        "position": 4,
+        "name": "Reliance Digital",
+        "merchant_id": "rd001",
+        "link": "https://reliancedigital.test/p",
+        "title": "Reliance Digital",
+        "price": "₹62,900",
+        "extracted_price": 62900,
+        "total": "₹62,900",
+        "extracted_total": 62900,
+        "shipping": "Free",
+        "rating": 4.2,
+        "reviews": 480,
+        "details_and_offers": [
+          "In stock online",
+          "Free delivery"
+        ]
+      }
+    ]
+  }
+}

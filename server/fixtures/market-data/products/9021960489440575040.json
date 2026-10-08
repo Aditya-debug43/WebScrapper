@@ -1,0 +1,76 @@
+{
+  "search_metadata": {
+    "id": "fixture_9021960489440575040",
+    "status": "Success"
+  },
+  "search_parameters": {
+    "engine": "google_product",
+    "product_id": "9021960489440575040",
+    "gl": "in",
+    "hl": "en"
+  },
+  "product_results": {
+    "title": "Apple iPhone 15 Pro",
+    "brand": "Apple",
+    "thumbnails": [
+      "https://fixture.test/9021960489440575040.jpg"
+    ],
+    "price_range": "₹72,990-₹81,900",
+    "product_attributes": [
+      {
+        "name": "screen size",
+        "value": "6.1 inches"
+      },
+      {
+        "name": "storage capacity",
+        "value": "256 GB"
+      },
+      {
+        "name": "brand",
+        "value": "Apple"
+      }
+    ],
+    "price_insights": {
+      "price_history": true,
+      "price_tracking_available": true
+    },
+    "stores": [
+      {
+        "position": 1,
+        "name": "Tata CLiQ",
+        "merchant_id": "tc001",
+        "link": "https://tatacliq.test/p",
+        "title": "Tata CLiQ",
+        "price": "₹72,990",
+        "extracted_price": 72990,
+        "total": "₹72,990",
+        "extracted_total": 72990,
+        "shipping": "Free",
+        "rating": 4.2,
+        "reviews": 480,
+        "details_and_offers": [
+          "In stock online",
+          "Free delivery"
+        ]
+      },
+      {
+        "position": 2,
+        "name": "Poorvika",
+        "merchant_id": "pv001",
+        "link": "https://poorvika.test/p",
+        "title": "Poorvika",
+        "price": "₹81,900",
+        "extracted_price": 81900,
+        "total": "₹81,900",
+        "extracted_total": 81900,
+        "shipping": "Free",
+        "rating": 4.2,
+        "reviews": 480,
+        "details_and_offers": [
+          "In stock online",
+          "Free delivery"
+        ]
+      }
+    ]
+  }
+}

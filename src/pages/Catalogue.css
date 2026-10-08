@@ -344,3 +344,23 @@
 .disc-card-muted:hover { opacity: 1; }
 .disc-card-muted .disc-thumb { height: 110px; }
 .disc-card-muted .disc-title { font-size: 13px; }
+
+/*
+ * WHAT FOLLOWING A PRODUCT ACTUALLY BOUGHT.
+ *
+ * The user clicked one listing; what was stored is that product's whole
+ * competitive market. Saying so here closes the gap between the action and
+ * its effect — without it, "Tracking" reads as "saved this row", which is
+ * the behaviour this version of the application exists to replace.
+ */
+.disc-tracked-market {
+  margin: var(--s-3) 0 0;
+  font-size: var(--t-micro);
+  line-height: 1.5;
+  color: var(--text-muted);
+}
+
+.disc-tracked-market a {
+  color: var(--accent-ink);
+  text-decoration-color: var(--rule-strong);
+}

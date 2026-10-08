@@ -1,11 +1,10 @@
 import { sql } from "drizzle-orm";
 import type { Db } from "../../db/client.js";
 import { env } from "../../config/env.js";
+import { AppError } from "../../lib/errors.js";
 import { ProviderError } from "../../ingestion/types.js";
 import type { SnapshotService } from "../../ingestion/snapshot.service.js";
-import type { DiscoveryRepository } from "./discovery.repository.js";
-import { bandAroundAnchor, provisionalAnchor } from "../../lib/marketBand.js";
-import { productMatches } from "../../ingestion/relevance.js";
+import type { MarketService } from "../market/market.service.js";
 
 /**
  * ADAPTIVE CAPTURE
@@ -67,13 +66,15 @@ export type SweepResult = {
   reused: number;
   failed: number;
   observations: number;
+  /** Distinct competing sellers written across the sweep. */
+  sellers: number;
   providerCalls: number;
   notes: string[];
 };
 
 export class CaptureScheduler {
   constructor(
-    private readonly repo: DiscoveryRepository,
+    private readonly market: MarketService,
     private readonly snapshots: SnapshotService,
     private readonly db: Db
   ) {}
@@ -81,8 +82,10 @@ export class CaptureScheduler {
   /**
    * Products whose market is due a look.
    *
-   * Only live products with a query to re-run: a seeded row has no live query
-   * behind it and must never cost a call.
+   * Only live products this system can actually re-open: one with a catalogue
+   * id can have its sellers re-read directly, and one with only a query can
+   * be re-identified first. A seeded row has neither and must never cost a
+   * call.
    */
   async due(limit: number) {
     const rows = (await this.db.execute(sql`
@@ -91,7 +94,7 @@ export class CaptureScheduler {
              last_captured_at as "lastCapturedAt", next_capture_at as "nextCaptureAt"
         from products
        where origin = 'live'
-         and canonical_query is not null
+         and (canonical_query is not null or external_product_id is not null)
          and next_capture_at is not null
          and next_capture_at <= now()
        order by tracker_count desc, next_capture_at asc
@@ -134,6 +137,7 @@ export class CaptureScheduler {
       reused: 0,
       failed: 0,
       observations: 0,
+      sellers: 0,
       providerCalls: 0,
       notes: [],
     };
@@ -156,61 +160,44 @@ export class CaptureScheduler {
       }
 
       try {
-        const snapshot = await this.snapshots.snapshotFor(product.canonicalQuery, {
-          maxAgeSeconds: opts.maxAgeSeconds,
-        });
-
         /**
-         * Every offer that is describing THIS product — not just the
-         * cheapest, and not everything the search returned.
+         * RE-OPEN THE PRODUCT'S MARKET, rather than re-running its search.
          *
-         * One capture already contains Amazon, Flipkart and the rest, so
-         * recording them all is free, and it is what makes marketplace
-         * comparison and a real market median possible later. But a shopping
-         * search also returns the cases and skins sold alongside, and writing
-         * those as observations would corrupt this product's price history
-         * permanently — a phone whose recorded history says it once cost
-         * ₹958. The band is anchored on what the product has actually been
-         * observed at; see `lib/marketBand.ts`.
+         * This is the correction that matters most in this file, because the
+         * previous version wrote the wrong rows into a place nothing
+         * downstream could question them. It re-ran the text search, filtered
+         * the results for relevance and price, and recorded whatever survived
+         * as observations OF THIS PRODUCT. But a shopping search returns one
+         * row per catalogue id — forty rows are forty different products. So
+         * a neighbouring variant that passed both filters became a price this
+         * product was "observed" at, and once written, nothing could tell it
+         * apart from a real one: the observation was genuine, it was simply
+         * about something else.
+         *
+         * Re-opening the market cannot make that mistake. The sellers come
+         * back from the provider's own catalogue entry for this product, so
+         * they are its sellers by the provider's definition rather than by a
+         * similarity judgement of ours. The relevance and price-band filters
+         * that used to guard this path are no longer needed here — they were
+         * compensating for the wrong question.
+         *
+         * It is also cheaper per product in the common case. A product whose
+         * catalogue ids are already clustered is refreshed without a search
+         * call at all.
          */
-        const priced = snapshot.offers.filter((o) => o.priceMinor != null && o.priceMinor > 0);
+        const capture = await this.market.refreshProduct(product.id);
 
-        /**
-         * The same identity rule search and pricing use. A case price written
-         * into a phone's history corrupts it permanently — the observation is
-         * real, so nothing downstream can tell it was the wrong product.
-         */
-        const relevant = productMatches(
-          product.canonicalQuery,
-          priced.map((o) => ({ title: o.rawTitle, priceMinor: o.priceMinor, source: o.sourceName, offer: o }))
-        ).map((r) => r.offer);
-
-        const anchor =
-          (await this.lastObservedPrice(product.id)) ?? provisionalAnchor(relevant.map((o) => o.priceMinor!));
-
-        const inBand = anchor
-          ? bandAroundAnchor(relevant, (o) => o.priceMinor, anchor).kept
-          : relevant;
-
-        let written = 0;
-        for (const offer of inBand) {
-          await this.repo.recordSelectedOffer({
-            productId: product.id,
-            offer,
-            captureRunId: snapshot.captureRunId,
-          });
-          written++;
-        }
-        const skipped = priced.length - inBand.length;
-
-        result.observations += written;
-        if (snapshot.reused) result.reused++;
+        result.observations += capture.persisted.observationsWritten;
+        result.sellers += capture.persisted.sellersWritten;
+        result.providerCalls += capture.providerCalls;
+        if (capture.providerCalls === 0) result.reused++;
         else result.captured++;
 
         await this.reschedule(product.id, tier.intervalHours, true);
         result.notes.push(
-          `${product.id}: ${snapshot.reused ? "reused" : "captured"} ${written} offer(s)` +
-            `${skipped > 0 ? `, ${skipped} outside the product band` : ""}, tier ${tier.name}`
+          `${product.id}: ${capture.persisted.sellersWritten} seller(s) across ` +
+            `${capture.persisted.marketplacesWritten} marketplace(s) from ${capture.catalogIds.length} catalogue id(s), ` +
+            `${capture.providerCalls} provider call(s), tier ${tier.name}`
         );
       } catch (cause) {
         /**
@@ -220,13 +207,23 @@ export class CaptureScheduler {
          * so one unreachable provider does not retry in a tight loop.
          */
         result.failed++;
-        const why = cause instanceof ProviderError ? `${cause.kind}: ${cause.message}` : String(cause);
+        const why =
+          cause instanceof ProviderError
+            ? `${cause.kind}: ${cause.message}`
+            : cause instanceof AppError
+              ? cause.message
+              : String(cause);
         await this.reschedule(product.id, tier.intervalHours, false);
         result.notes.push(`${product.id}: FAILED — ${why}`);
       }
     }
 
-    result.providerCalls = this.snapshots.usage.providerCalls - before.providerCalls;
+    /**
+     * Both endpoints. The search half comes from the snapshot counters; the
+     * product half is returned by each capture, because a sweep that reported
+     * only its searches would understate what it spent several times over.
+     */
+    result.providerCalls += this.snapshots.usage.providerCalls - before.providerCalls;
     return result;
   }
 
@@ -242,20 +239,6 @@ export class CaptureScheduler {
              next_capture_at = now() + (${intervalHours} || ' hours')::interval
        where id = ${productId}
     `);
-  }
-
-  /** The newest price this product was really observed at — the band anchor. */
-  private async lastObservedPrice(productId: string): Promise<number | null> {
-    const rows = (await this.db.execute(sql`
-      select po.selling_price_minor as "minor"
-        from price_observations po
-        join offers   o on o.id = po.offer_id
-        join listings l on l.id = o.listing_id
-       where l.product_id = ${productId}
-       order by po.observed_at desc, po.recorded_at desc
-       limit 1
-    `)) as unknown as { rows: Array<{ minor: number }> };
-    return rows.rows[0]?.minor ?? null;
   }
 
   /** Prune full response bodies past the retention window, keeping the hashes. */

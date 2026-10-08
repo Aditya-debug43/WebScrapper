@@ -69,13 +69,23 @@ async function main() {
     const LIVE = "market-data-v1";
     const seededOnly: Record<string, string> = {
       marketplaces: `select count(*)::int n from marketplaces where not is_discovered`,
-      sellers: `select count(*)::int n from sellers where external_seller_id <> 'storefront'`,
+      /**
+       * `origin` for the tables a live capture now creates rows in.
+       *
+       * PRODUCTS belongs here, and did not before: identifying a product
+       * from the market is what the competitive redesign added, so a frozen
+       * product total now fails the moment the system does its job.
+       *
+       * SELLERS was counted by excluding the placeholder external id
+       * `storefront`. Sellers are now keyed on the provider's merchant id,
+       * so that predicate stopped matching anything and every live seller
+       * was counted as a missing seeded one. `origin` does not depend on the
+       * shape of an id and cannot rot the same way.
+       */
+      products: `select count(*)::int n from products where origin = 'seed'`,
+      sellers: `select count(*)::int n from sellers where origin = 'seed'`,
       price_observations: `select count(*)::int n from price_observations where parser_version is distinct from '${LIVE}'`,
-      listings: `select count(*)::int n from listings l
-         where not (exists (select 1 from offers o join price_observations po on po.offer_id = o.id
-                            where o.listing_id = l.id and po.parser_version = '${LIVE}')
-               and not exists (select 1 from offers o join price_observations po on po.offer_id = o.id
-                               where o.listing_id = l.id and po.parser_version is distinct from '${LIVE}'))`,
+      listings: `select count(*)::int n from listings where origin = 'seed'`,
       offers: `select count(*)::int n from offers o
          where not (exists (select 1 from price_observations po where po.offer_id = o.id and po.parser_version = '${LIVE}')
                and not exists (select 1 from price_observations po where po.offer_id = o.id and po.parser_version is distinct from '${LIVE}'))`,

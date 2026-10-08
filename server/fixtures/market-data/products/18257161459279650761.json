@@ -1,0 +1,72 @@
+{
+  "search_metadata": {
+    "id": "fixture_18257161459279650761",
+    "status": "Success"
+  },
+  "search_parameters": {
+    "engine": "google_product",
+    "product_id": "18257161459279650761",
+    "gl": "in",
+    "hl": "en"
+  },
+  "product_results": {
+    "title": "Apple iPhone 15",
+    "brand": "Apple",
+    "thumbnails": [
+      "https://fixture.test/18257161459279650761.jpg"
+    ],
+    "price_range": "₹53,999-₹57,999",
+    "product_attributes": [
+      {
+        "name": "screen size",
+        "value": "6.1 inches"
+      },
+      {
+        "name": "brand",
+        "value": "Apple"
+      }
+    ],
+    "price_insights": {
+      "price_history": true,
+      "price_tracking_available": true
+    },
+    "stores": [
+      {
+        "position": 1,
+        "name": "Amazon.in",
+        "merchant_id": "am001",
+        "link": "https://amazonin.test/p",
+        "title": "Amazon.in",
+        "price": "₹53,999",
+        "extracted_price": 53999,
+        "total": "₹53,999",
+        "extracted_total": 53999,
+        "shipping": "Free",
+        "rating": 4.2,
+        "reviews": 480,
+        "details_and_offers": [
+          "In stock online",
+          "Free delivery"
+        ]
+      },
+      {
+        "position": 2,
+        "name": "Flipkart",
+        "merchant_id": "fk001",
+        "link": "https://flipkart.test/p",
+        "title": "Flipkart",
+        "price": "₹57,999",
+        "extracted_price": 57999,
+        "total": "₹57,999",
+        "extracted_total": 57999,
+        "shipping": "Free",
+        "rating": 4.2,
+        "reviews": 480,
+        "details_and_offers": [
+          "In stock online",
+          "Free delivery"
+        ]
+      }
+    ]
+  }
+}

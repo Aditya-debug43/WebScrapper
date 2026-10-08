@@ -7,7 +7,12 @@ import { createDiscoveryTestApp, signIn, bearer, type Harness } from "./helpers/
 import { normalizeQuery } from "../src/ingestion/queryKey.js";
 import { tierFor, CAPTURE_TIERS } from "../src/modules/discovery/capture.scheduler.js";
 import { validateVerdict, AIProviderError, type AIProvider, type PricingEvidence } from "../src/ai/index.js";
-import { ProviderError, type MarketOfferBatch, type MarketOfferProvider } from "../src/ingestion/types.js";
+import {
+  ProviderError,
+  type MarketOfferBatch,
+  type MarketOfferProvider,
+  type ProductMarketProvider,
+} from "../src/ingestion/types.js";
 
 /**
  * REAL-DATA DISCOVERY
@@ -23,6 +28,9 @@ import { ProviderError, type MarketOfferBatch, type MarketOfferProvider } from "
  * could be asserted exactly. What the stub makes testable is the thing that
  * actually matters here: HOW MANY TIMES the provider is asked.
  */
+
+/** `Brand New Widget` → `brand-new-widget`, the stub's catalogue namespace. */
+const slugId = (text: string) => text.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
 
 /** A provider that counts its calls and returns a fixed market. */
 class CountingProvider implements MarketOfferProvider {
@@ -61,7 +69,12 @@ class CountingProvider implements MarketOfferProvider {
         source: stores[i % stores.length],
         price: `₹${70000 + i * 1000}`,
         extracted_price: 70000 + i * 1000,
-        product_id: `ext_${i}`,
+        /**
+         * Catalogue ids are SCOPED TO THE PRODUCT, as the provider's are.
+         * A fixed `ext_0` shared across queries made every query resolve to
+         * one product, which hid real identity bugs behind a stub artefact.
+         */
+        product_id: `${slugId(query.query)}_${i}`,
         product_link: `https://store.test/${i}`,
         thumbnail: `https://serpapi.test/images/${i}.jpg`,
         rating: 4.2,
@@ -83,6 +96,113 @@ class CountingProvider implements MarketOfferProvider {
       query.query,
       `https://serpapi.test/search?q=${encodeURIComponent(query.query)}`,
       "INR",
+      this.name
+    );
+  }
+}
+
+/**
+ * A PRODUCT-MARKET PROVIDER THAT COUNTS ITS CALLS.
+ *
+ * Mirrors the live endpoint's actual behaviour, which is the whole reason the
+ * clustering exists: ONE catalogue id returns only two or three stores, and
+ * DIFFERENT ids return different ones, overlapping partially. A stub that
+ * returned all ten sellers for every id would make the fan-out look
+ * unnecessary and would let a regression that stopped clustering pass.
+ *
+ * The store lists below are shifted per catalogue id so that the union across
+ * four ids is strictly larger than any single id — the measured property the
+ * architecture depends on.
+ */
+class CountingMarketProvider implements ProductMarketProvider {
+  readonly name = "serpapi";
+  calls = 0;
+  ids: string[] = [];
+  failNext = false;
+  /** Stores available, in merchant-id order. */
+  private readonly stores = [
+    { name: "Amazon.in", merchant: "141020976", price: 70000 },
+    { name: "Flipkart", merchant: "687512769", price: 70500 },
+    { name: "Croma", merchant: "525733885", price: 71200 },
+    { name: "Vijay Sales", merchant: "9705343", price: 69800 },
+    { name: "Reliance Digital", merchant: "123032650", price: 72400 },
+    { name: "Tata CLiQ", merchant: "388119669", price: 70900 },
+    { name: "JioMart", merchant: "542431472", price: 71800 },
+    { name: "Excess2Sell", merchant: "5348309716", price: 68900 },
+  ];
+
+  constructor(private readonly storesPerId = 3) {}
+
+  /**
+   * Catalogue ids listed here answer as a DIFFERENT product: same wording,
+   * different screen size. Nothing in a store listing title separates an
+   * iPhone 15 from an iPhone 15 Plus, so the attributes are the only thing
+   * that can, and this is how that path gets exercised.
+   */
+  variantIds = new Set<string>();
+
+  async fetchProduct(externalProductId: string, opts: { currency?: string } = {}) {
+    this.calls++;
+    this.ids.push(externalProductId);
+
+    if (this.failNext) {
+      this.failNext = false;
+      throw new ProviderError(this.name, "product endpoint exploded", "unavailable", true);
+    }
+
+    /** A stable per-id window into the store list, so ids overlap but differ. */
+    const seed = [...externalProductId].reduce((a, c) => a + c.charCodeAt(0), 0);
+    const picked = Array.from({ length: this.storesPerId }, (_, i) => this.stores[(seed + i * 2) % this.stores.length]!);
+
+    /**
+     * The title is derived from the catalogue id's namespace, so every
+     * sibling id of one product reports the SAME title — which is what makes
+     * them clusterable — while different products report different ones.
+     */
+    const namespace = externalProductId.replace(/_d+$/, "");
+    const title = namespace.split("-").map((w) => w.charAt(0).toUpperCase() + w.slice(1)).join(" ");
+
+    const raw = {
+      product_results: {
+        title,
+        brand: "TestCo",
+        thumbnails: ["https://serpapi.test/p.jpg"],
+        price_range: "₹68,900-₹72,400",
+        product_attributes: [
+          { name: "storage capacity", value: "256 GB" },
+          { name: "brand", value: "TestCo" },
+          { name: "screen size", value: this.variantIds.has(externalProductId) ? "6.7 inches" : "6.1 inches" },
+        ],
+        price_insights: { price_history: true, price_tracking_available: true },
+        stores: picked.map((s, i) => ({
+          position: i + 1,
+          name: s.name,
+          merchant_id: s.merchant,
+          link: `https://${s.name.toLowerCase().replace(/[^a-z]/g, "")}.test/p`,
+          title: `Test Phone 12 Pro 256GB (${s.name})`,
+          price: `₹${s.price}`,
+          extracted_price: s.price,
+          total: `₹${s.price}`,
+          extracted_total: s.price,
+          shipping: "Free",
+          rating: 4.1,
+          reviews: 200 + i,
+          details_and_offers: ["In stock online", "Free delivery"],
+        })),
+      },
+    };
+
+    /**
+     * Normalised by the PRODUCTION parser, for the same reason the search
+     * stub is: a hand-built `ProductMarket` would skip the code that turns a
+     * provider response into our vocabulary.
+     */
+    const { normaliseProductMarket } = await import("../src/ingestion/providers/serpapi.market.js");
+    return normaliseProductMarket(
+      raw,
+      externalProductId,
+      `https://serpapi.test/product?id=${externalProductId}`,
+      opts.currency ?? "INR",
       this.name
     );
   }
@@ -119,6 +239,7 @@ class StubAI implements AIProvider {
 
 let h: Harness;
 let provider: CountingProvider;
+let marketProvider: CountingMarketProvider;
 let ai: StubAI;
 let token: string;
 
@@ -145,8 +266,13 @@ const api = async (method: string, url: string, payload?: unknown, as = token) =
 
 before(async () => {
   provider = new CountingProvider();
+  marketProvider = new CountingMarketProvider();
   ai = new StubAI();
-  h = await createDiscoveryTestApp({ marketProvider: provider, aiProvider: ai });
+  h = await createDiscoveryTestApp({
+    marketProvider: provider,
+    productMarketProvider: marketProvider,
+    aiProvider: ai,
+  });
   const session = await signIn(h, "discovery@example.com");
   token = session.token;
 });
@@ -156,8 +282,12 @@ after(async () => {
 beforeEach(() => {
   provider.calls = 0;
   provider.queries = [];
+  marketProvider.calls = 0;
+  marketProvider.ids = [];
+  marketProvider.variantIds.clear();
   // A failure armed by one test must not fire inside the next one.
   provider.failNext = false;
+  marketProvider.failNext = false;
   ai.calls = 0;
   ai.mode = "ok";
 });
@@ -281,18 +411,31 @@ describe("one market question costs one provider call", () => {
   test("fifty users tracking one product do not cost fifty calls", async () => {
     const { body } = await api("GET", "/search?q=crowd%20favourite");
     const ref = body.data.results[0].ref;
-    const callsAfterSearch = provider.calls;
 
-    for (let i = 0; i < 50; i++) {
+    const first = await api("POST", "/tracked", { ref });
+    assert.equal(first.status, 201);
+    const productId = first.body.data.product.id;
+
+    /**
+     * Baseline taken AFTER the first follower, because the first one is the
+     * capture: it opens the product's market and legitimately costs calls.
+     * The claim being tested is that the forty-nine after it cost nothing.
+     */
+    const searchCalls = provider.calls;
+    const productCalls = marketProvider.calls;
+
+    for (let i = 0; i < 49; i++) {
       const session = await signIn(h, `crowd${i}@example.com`);
       const res = await api("POST", "/tracked", { ref }, session.token);
       assert.equal(res.status, 201);
+      assert.equal(res.body.data.product.id, productId, "all of them follow the same product");
     }
 
-    assert.equal(provider.calls, callsAfterSearch, "fifty followers, no additional provider call");
+    assert.equal(provider.calls, searchCalls, "forty-nine more followers, no additional search call");
+    assert.equal(marketProvider.calls, productCalls, "and no additional market call either");
 
     const trackers = (await h.db.execute(
-      sql`select tracker_count from products where canonical_query = ${normalizeQuery(body.data.results[0].title)}`
+      sql`select tracker_count from products where id = ${productId}`
     )) as unknown as { rows: { tracker_count: number }[] };
     assert.equal(trackers.rows[0]!.tracker_count, 50, "but all fifty are recorded as following it");
   });
@@ -301,7 +444,20 @@ describe("one market question costs one provider call", () => {
 /* ================================================================ tracking */
 
 describe("tracking a live result", () => {
-  test("creates the product, the observation and the relationship", async () => {
+  /**
+   * THE DEFECT THIS REDESIGN EXISTS TO REMOVE.
+   *
+   * The previous version of this test asserted exactly ONE observation after
+   * tracking, and it passed — because tracking recorded the single listing
+   * the user had clicked. That single row was then the entire "market" every
+   * screen and the price recommendation worked from.
+   *
+   * Following a product now means following its COMPETITION, so the
+   * assertion is inverted: several sellers, on several marketplaces, each a
+   * real timestamped observation. A regression that went back to storing the
+   * clicked listing would fail here rather than passing quietly.
+   */
+  test("creates the product, its competing sellers and the relationship", async () => {
     const { body: search } = await api("GET", "/search?q=brand%20new%20widget");
     const result = search.data.results[0];
 
@@ -309,21 +465,103 @@ describe("tracking a live result", () => {
     assert.equal(status, 201, JSON.stringify(body).slice(0, 400));
     assert.equal(body.data.product.created, true);
 
+    const productId = body.data.product.id;
     const product = (await h.db.execute(
-      sql`select origin, canonical_query, tracker_count from products where id = ${body.data.product.id}`
-    )) as unknown as { rows: Array<{ origin: string; canonical_query: string; tracker_count: number }> };
+      sql`select origin, canonical_query, external_product_id, tracker_count
+            from products where id = ${productId}`
+    )) as unknown as {
+      rows: Array<{ origin: string; canonical_query: string; external_product_id: string | null; tracker_count: number }>;
+    };
     assert.equal(product.rows[0]!.origin, "live", "marked live, so the cleanup can tell it apart from seed");
     assert.equal(product.rows[0]!.tracker_count, 1);
+    assert.ok(
+      product.rows[0]!.external_product_id,
+      "the provider's catalogue id is stored — without it the market cannot be re-opened"
+    );
 
-    // The first price arrives immediately — the user chose a result that
-    // already carried one, so waiting for the scheduler would be perverse.
-    const obs = (await h.db.execute(sql`
-      select count(*)::int as n from price_observations po
-        join offers o on o.id = po.offer_id
+    /** More than one seller, which is the whole point. */
+    assert.ok(body.data.market.sellers >= 3, `only ${body.data.market.sellers} seller(s) stored`);
+    assert.ok(body.data.market.marketplaces >= 3, "across several marketplaces");
+    assert.ok(body.data.market.catalogIdsOpened > 1, "assembled from more than one catalogue id");
+
+    const stored = (await h.db.execute(sql`
+      select count(*)::int as observations,
+             count(distinct o.seller_id)::int as sellers,
+             count(distinct l.marketplace_id)::int as marketplaces
+        from price_observations po
+        join offers o   on o.id = po.offer_id
         join listings l on l.id = o.listing_id
-       where l.product_id = ${body.data.product.id}
-    `)) as unknown as { rows: { n: number }[] };
-    assert.equal(obs.rows[0]!.n, 1);
+       where l.product_id = ${productId}
+    `)) as unknown as { rows: Array<{ observations: number; sellers: number; marketplaces: number }> };
+
+    assert.equal(stored.rows[0]!.observations, body.data.market.sellers, "one observation per competing seller");
+    assert.equal(stored.rows[0]!.sellers, body.data.market.sellers);
+    assert.ok(stored.rows[0]!.marketplaces >= 3, "and they are genuinely on different marketplaces");
+
+    /** The day's competitive aggregate exists, so a trend can start. */
+    const snap = (await h.db.execute(sql`
+      select seller_count, marketplace_count, low_minor, median_minor, high_minor
+        from product_market_snapshots where product_id = ${productId}
+    `)) as unknown as {
+      rows: Array<{ seller_count: number; marketplace_count: number; low_minor: number; median_minor: number; high_minor: number }>;
+    };
+    assert.equal(snap.rows.length, 1, "one competitive picture per product per day");
+    assert.equal(snap.rows[0]!.seller_count, body.data.market.sellers);
+    assert.ok(snap.rows[0]!.low_minor <= snap.rows[0]!.median_minor);
+    assert.ok(snap.rows[0]!.median_minor <= snap.rows[0]!.high_minor);
+  });
+
+  /**
+   * A NEAR-IDENTICAL VARIANT IS A DIFFERENT PRODUCT.
+   *
+   * The failure this guards against is invisible by construction. Clustering
+   * works from store listing titles, and nothing in "iPhone 15" against
+   * "iPhone 15 Plus" tells them apart: one ordinary English word, which no
+   * pattern can distinguish from a retailer's descriptive padding. Measured
+   * on the recorded fixtures, clustering "iPhone 15 128GB" admitted the Plus
+   * AND the Pro — three different phones pooled into one market and priced
+   * as one product, with a spread that looked like a market opportunity.
+   *
+   * The provider's structured attributes settle it: the two disagree on
+   * screen size as a matter of catalogue record. So every opened id is
+   * checked against the anchor's attributes AFTER fetching, when that better
+   * evidence is in hand, and a disagreement on any shared attribute removes
+   * the id and records why.
+   */
+  test("a sibling catalogue id that is really a different variant is discarded", async () => {
+    const { body: search } = await api("GET", "/search?q=variant%20probe%20phone");
+
+    /** Half the catalogue ids will answer as a 6.7-inch model. */
+    const ids = search.data.results.map((r: any) => r.externalId).filter(Boolean);
+    assert.ok(ids.length >= 4, "the fixture must offer several catalogue ids to cluster");
+    for (const id of ids.slice(2)) marketProvider.variantIds.add(id);
+
+    const { status, body } = await api("POST", "/tracked", { ref: search.data.results[0].ref });
+    assert.equal(status, 201, JSON.stringify(body).slice(0, 300));
+
+    const productId = body.data.product.id;
+    const market = await api("GET", `/products/${productId}/market`);
+
+    /**
+     * Only the ids agreeing with the anchor on screen size contributed, so
+     * the market is narrower than the number of ids opened — and that is the
+     * correct market rather than a wider wrong one.
+     */
+    const contributing = (await h.db.execute(
+      sql`select count(*)::int n from product_catalog_ids
+            where product_id = ${productId} and coalesce(seller_count, 0) > 0`
+    )) as unknown as { rows: Array<{ n: number }> };
+
+    assert.ok(
+      contributing.rows[0]!.n < body.data.market.catalogIdsOpened,
+      "at least one opened id was discarded for being a different variant"
+    );
+    assert.ok(market.body.data.sellers.length > 0, "and the product still has its own market");
+    assert.equal(
+      market.body.data.product.catalogIdCount >= 1,
+      true,
+      "the discarded ids keep their row, with the reason, rather than vanishing"
+    );
   });
 
   test("the same result tracked twice resolves to one product", async () => {
@@ -403,14 +641,26 @@ describe("capture frequency follows demand", () => {
 /* ========================================================= price history */
 
 describe("history is only what was really captured", () => {
-  test("a freshly tracked product has exactly one observation", async () => {
+  /**
+   * One CAPTURE is one history point, however many sellers it found.
+   *
+   * The distinction matters: a capture that found ten sellers has not
+   * observed ten days of history, and counting sellers as history points
+   * would make a product look like it had a trend on the day it was first
+   * tracked. The per-seller prices are held separately, and the history a
+   * trend is drawn from counts captures.
+   */
+  test("a freshly tracked product has one history point, however many sellers", async () => {
     const { body: search } = await api("GET", "/search?q=history%20probe%20one");
     const { body } = await api("POST", "/tracked", { ref: search.data.results[0].ref });
 
+    assert.ok(body.data.market.sellers > 1, "it did find several sellers");
+
     const rec = await api("GET", `/products/${body.data.product.id}/market-recommendation`);
-    assert.equal(rec.body.data.history.observationCount, 1);
+    assert.equal(rec.body.data.history.observationCount, 1, "but that is one capture, not several days");
     assert.equal(rec.body.data.history.changePct, null, "one point is a level, not a movement");
     assert.equal(rec.body.data.history.volatilityPct, null);
+    assert.equal(rec.body.data.history.trend, null, "and no trend is claimed from it");
   });
 
   test("a failed capture adds nothing and destroys nothing", async () => {
@@ -454,7 +704,14 @@ describe("a price can be recommended with no history at all", () => {
     assert.equal(body.data.available, true);
     assert.equal(body.data.mode, "cold_start");
     assert.ok(body.data.recommendedPriceMinor > 0);
-    assert.ok(body.data.market.offerCount >= 3, "argued against real offers");
+    assert.ok(body.data.market.sellerCount >= 3, "argued against real competing sellers");
+    assert.ok(body.data.market.marketplaceCount >= 3, "on several marketplaces");
+    assert.ok(Array.isArray(body.data.market.sellers), "and the sellers themselves are returned with the price");
+    assert.equal(
+      body.data.market.sellers.length,
+      body.data.market.sellerCount,
+      "the figure and the list it was computed from agree"
+    );
     assert.ok(
       body.data.warnings.some((w: string) => /history/i.test(w)),
       "and it says that is what it did"
@@ -485,9 +742,21 @@ describe("a price can be recommended with no history at all", () => {
     assert.ok(body.data.warnings.some((w: string) => /deterministic/i.test(w)));
   });
 
+  /**
+   * A product genuinely sold by one shop.
+   *
+   * The thinness that matters is now at the SELLER level, not the search
+   * level: a query can return forty rows and the product still have one
+   * seller. So the stub returns a single store per catalogue id and no
+   * siblings to cluster, which is what a real obscure item looks like.
+   */
   test("too thin a market refuses instead of inventing a number", async () => {
-    const thin = new CountingProvider(1);
-    const thinApp = await createDiscoveryTestApp({ marketProvider: thin, aiProvider: new StubAI() });
+    const thinMarket = new CountingMarketProvider(1);
+    const thinApp = await createDiscoveryTestApp({
+      marketProvider: new CountingProvider(1),
+      productMarketProvider: thinMarket,
+      aiProvider: new StubAI(),
+    });
     try {
       const session = await signIn(thinApp, "thin@example.com");
       const search = await thinApp.app.inject({
@@ -501,16 +770,22 @@ describe("a price can be recommended with no history at all", () => {
         payload: { ref: search.json().data.results[0].ref },
         headers: bearer(session.token),
       });
+      const trackedBody = tracked.json() as any;
+      assert.equal(tracked.statusCode, 201, JSON.stringify(trackedBody).slice(0, 300));
+      assert.equal(trackedBody.data.market.sellers, 1, "one shop sells it, and that is recorded honestly");
+
       const rec = await thinApp.app.inject({
         method: "GET",
-        url: `/api/v1/products/${tracked.json().data.product.id}/market-recommendation`,
+        url: `/api/v1/products/${trackedBody.data.product.id}/market-recommendation`,
         headers: bearer(session.token),
       });
 
       const body = rec.json() as any;
       assert.equal(body.data.available, false);
-      assert.equal(body.data.reason, "insufficient_market_evidence");
+      assert.equal(body.data.reason, "insufficient_competitive_evidence");
       assert.equal(body.data.recommendedPriceMinor, undefined, "no number is offered at all");
+      assert.equal(body.data.evidence.sellerCount, 1, "and it says exactly how thin the evidence was");
+      assert.match(body.data.message, /at least 3/, "including what would have been enough");
     } finally {
       await thinApp.close();
     }
@@ -564,9 +839,60 @@ describe("a product is not priced against its own accessories", () => {
     }
   }
 
+  /**
+   * The product endpoint for that contaminated search.
+   *
+   * Each catalogue id answers for what it actually is: the accessory ids
+   * return accessory sellers at accessory prices, the phone ids return phone
+   * sellers. That is the honest stub, and it is what makes the test
+   * meaningful — if the clustering opened an accessory's id, accessory prices
+   * really would be written into the phone's market, exactly as happened in
+   * production.
+   */
+  class ContaminatedMarketProvider implements ProductMarketProvider {
+    readonly name = "serpapi";
+    opened: string[] = [];
+
+    async fetchProduct(externalProductId: string, opts: { currency?: string } = {}) {
+      this.opened.push(externalProductId);
+
+      const index = Number(externalProductId.replace("acc_", ""));
+      const isAccessory = index < 4;
+      const base = isAccessory ? [1_899, 1_501, 958] : [179_900, 182_900, 176_500];
+      const title = isAccessory ? "Apple iPhone 18 Pro Max Silicone Case" : "Apple iPhone 18 Pro Max";
+
+      const { normaliseProductMarket } = await import("../src/ingestion/providers/serpapi.market.js");
+      return normaliseProductMarket(
+        {
+          product_results: {
+            title,
+            brand: "Apple",
+            stores: base.map((price, i) => ({
+              name: ["Amazon.in", "Flipkart", "Croma"][i],
+              merchant_id: `m${index}${i}`,
+              link: `https://store.test/${externalProductId}/${i}`,
+              title,
+              price: `Rs${price}`,
+              extracted_price: price,
+              extracted_total: price,
+              shipping: "Free",
+              details_and_offers: ["In stock online"],
+            })),
+          },
+        },
+        externalProductId,
+        "https://serpapi.test/p",
+        opts.currency ?? "INR",
+        this.name
+      );
+    }
+  }
+
   test("the phone is priced against phones, not against cases", async () => {
+    const marketStub = new ContaminatedMarketProvider();
     const app = await createDiscoveryTestApp({
       marketProvider: new ContaminatedProvider(),
+      productMarketProvider: marketStub,
       aiProvider: new StubAI(),
     });
     try {
@@ -596,24 +922,43 @@ describe("a product is not priced against its own accessories", () => {
       });
       const data = (rec.json() as any).data;
 
-      assert.equal(data.available, true);
-      assert.equal(data.market.offerCount, 3, "only the three phones counted as competitors");
-      assert.equal(data.market.excludedAsDifferentProduct, 4, "the four accessories were excluded and reported");
+      /**
+       * THE STRONGER GUARANTEE.
+       *
+       * The old architecture fetched everything and then filtered prices,
+       * which meant correctness depended on a judgement made after the data
+       * was in hand. Identity is now settled BEFORE any price is read: an
+       * accessory's catalogue id is never opened at all, so an accessory
+       * price has no path into this product's market. Asserting on which ids
+       * were opened tests that directly, rather than testing the cleanup.
+       */
+      const accessoryIdsOpened = marketStub.opened.filter((id) => Number(id.replace("acc_", "")) < 4);
+      assert.deepEqual(accessoryIdsOpened, [], "no accessory catalogue id was opened at all");
+      assert.ok(marketStub.opened.length >= 2, "and the phone's sibling listings were");
 
-      // The assertion that would have caught the original ₹6,040.
+      assert.equal(data.available, true);
+      assert.ok(data.market.sellerCount >= 3, "argued against several phone sellers");
+
+      // The assertion that would have caught the original Rs 6,040.
       assert.ok(
         data.recommendedPriceMinor > 10_000_000,
         `recommended ${data.recommendedPriceMinor} — a phone must not be priced against its own cases`
       );
-      assert.ok(data.market.medianMinor >= 17_650_000 && data.market.medianMinor <= 18_290_000);
+      assert.ok(
+        data.market.medianMinor >= 17_650_000 && data.market.medianMinor <= 18_290_000,
+        `median ${data.market.medianMinor} must be a phone price`
+      );
+      assert.ok(data.market.lowMinor > 10_000_000, "and so must the market floor");
     } finally {
       await app.close();
     }
   });
 
   test("an accessory price never enters the product's history", async () => {
+    const marketStub = new ContaminatedMarketProvider();
     const app = await createDiscoveryTestApp({
       marketProvider: new ContaminatedProvider(),
+      productMarketProvider: marketStub,
       aiProvider: new StubAI(),
     });
     try {
@@ -633,12 +978,14 @@ describe("a product is not priced against its own accessories", () => {
       const productId = (tracked.json() as any).data.product.id;
 
       const { CaptureScheduler } = await import("../src/modules/discovery/capture.scheduler.js");
-      const { DiscoveryRepository } = await import("../src/modules/discovery/discovery.repository.js");
+      const { MarketRepository } = await import("../src/modules/market/market.repository.js");
+      const { MarketService } = await import("../src/modules/market/market.service.js");
       const { SnapshotService } = await import("../src/ingestion/snapshot.service.js");
 
+      const snapshots = new SnapshotService(app.db, new ContaminatedProvider());
       const scheduler = new CaptureScheduler(
-        new DiscoveryRepository(app.db),
-        new SnapshotService(app.db, new ContaminatedProvider()),
+        new MarketService(new MarketRepository(app.db), snapshots, marketStub),
+        snapshots,
         app.db
       );
       // Force it due, then sweep.

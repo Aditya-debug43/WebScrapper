@@ -7,6 +7,8 @@
   "scripts": {
     "db:generate": "drizzle-kit generate",
     "db:migrate": "tsx src/scripts/migrate.ts",
+    "db:rebuild-market-snapshots": "tsx src/scripts/rebuild-market-snapshots.ts",
+    "db:rebuild-market-snapshots:prod": "node dist/scripts/rebuild-market-snapshots.js",
     "db:seed": "tsx src/scripts/seed.ts",
     "db:verify": "tsx src/scripts/verify.ts",
     "db:reset": "tsx src/scripts/migrate.ts --reset",

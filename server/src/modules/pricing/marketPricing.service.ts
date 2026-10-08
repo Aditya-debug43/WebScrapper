@@ -1,219 +1,215 @@
-import { sql } from "drizzle-orm";
-import type { Db } from "../../db/client.js";
 import { AppError } from "../../lib/errors.js";
 import { percentile, round } from "../../lib/series.js";
-import { FRESHNESS, type MarketSnapshot, type SnapshotService } from "../../ingestion/snapshot.service.js";
 import { ProviderError } from "../../ingestion/types.js";
 import { AIProviderError, type AIProvider, type PricingEvidence } from "../../ai/index.js";
-import { bandAroundAnchor, provisionalAnchor } from "../../lib/marketBand.js";
-import { productMatches } from "../../ingestion/relevance.js";
+import { positionOf, type CompetitorOffer, type MarketTrend } from "../market/competition.js";
+import { MIN_SELLERS_FOR_MARKET, type MarketService } from "../market/market.service.js";
+import {
+  deterministicPrice,
+  MIN_HISTORY_FOR_ENHANCEMENT,
+  MIN_USABLE_SELLERS,
+} from "./deterministic.js";
+import type { MarketRepository } from "../market/market.repository.js";
 
 /**
- * PRICING FROM REAL MARKET EVIDENCE
- * =================================
+ * PRICING FROM THE COMPETITION
+ * ============================
  *
- * The old engine needed competitors drawn from a populated catalogue and a
- * price history to position against. A product tracked ten minutes ago has
- * neither, and refusing on that basis would mean the first recommendation
- * arrives a month after the first capture.
+ * WHAT THIS REPLACED, AND WHY IT HAD TO GO.
  *
- * But "no history" is not the same as "no evidence". A single capture
- * already contains the thing a price has to be argued against: what every
- * marketplace is charging right now. That is enough for a defensible first
- * answer, and it is real.
+ * The previous engine built its "market" by re-running the text search that
+ * had found the product, then filtering the results. That is not a market. A
+ * shopping search returns one row per CATALOGUE ID — forty rows are forty
+ * different products, not forty sellers of one. So the engine was comparing a
+ * product against other products that happened to match the same words, and
+ * the relevance filter and price band in front of it were damage control on a
+ * question that was wrong before it was asked.
  *
- * So evidence is graded rather than required:
+ * It now prices against the actual competing SELLERS of the same product:
+ * merchants returned by the provider for this product's catalogue ids,
+ * deduplicated by merchant id, stored with their own identity and their own
+ * price series. The capture that produces them lives in `market.service.ts`;
+ * this file only reads and reasons.
  *
- *   COLD START        one capture. Position against the current market.
- *   HISTORY-ENHANCED  captures over time. Position against the market AND
+ * EVIDENCE IS GRADED, NEVER REQUIRED:
+ *
+ *   COLD START        one capture. Position against the current sellers.
+ *   HISTORY-ENHANCED  several captures. Position against the sellers AND
  *                     against where this product has actually traded.
  *
- * The mode is never chosen; it follows from what exists, and a product moves
- * from one to the other on its own as the scheduler accumulates observations.
- * Nothing is backfilled to get there sooner.
+ * The mode follows from what exists and a product moves between them on its
+ * own as the scheduler accumulates captures. Nothing is backfilled to get
+ * there sooner, and nothing can be: the data provider supplies no past
+ * series, so every historical figure here is one this system observed.
  *
  * WHAT IS NOT DONE HERE: inventing history, inferring a trend from one point,
- * or asking a model what something costs. If the current market is also too
- * thin, this refuses and says which part of the evidence was missing.
+ * asking a model what something costs, or treating the provider's stated
+ * price range as an offer. If the evidence is too thin, this refuses and says
+ * which part was missing.
  */
 
-/** Below this many usable offers, the current market is not a market. */
-const MIN_USABLE_OFFERS = 3;
-/** Below this many observations, history describes the sampling, not the product. */
-const MIN_HISTORY_FOR_ENHANCEMENT = 5;
-/** How many per-store rows the AI is shown. The shape, not the whole list. */
-const EVIDENCE_OFFER_SAMPLE = 12;
+/**
+ * The seller floor is shared with the market service rather than restated, so
+ * "enough sellers to call it a market" has one definition.
+ */
+const _assertFloorsAgree: typeof MIN_USABLE_SELLERS = MIN_SELLERS_FOR_MARKET;
+void _assertFloorsAgree;
+/** How many sellers the AI is shown. The shape, not the whole list. */
+const EVIDENCE_SELLER_SAMPLE = 12;
 
 export type RecommendationMode = "cold_start" | "history_enhanced";
 
+export type { DeterministicStructure } from "./deterministic.js";
+
 export class MarketPricingService {
   constructor(
-    private readonly db: Db,
-    private readonly snapshots: SnapshotService,
+    private readonly repo: MarketRepository,
+    private readonly market: MarketService,
     private readonly ai: AIProvider
   ) {}
 
   /**
-   * A price for a tracked product.
+   * A price for a product, argued from its competition.
    *
-   * Reuses whatever snapshot is already fresh — opening the recommendation
-   * right after a search must not buy a second provider call, which is the
-   * common path and the one most worth not paying for.
+   * Reads stored evidence by default. A capture is bought only when there is
+   * nothing stored, or when the caller explicitly asks to refresh — opening
+   * this screen must not silently spend provider calls.
    */
-  async recommend(productId: string, opts: { refresh?: boolean } = {}) {
-    const product = await this.product(productId);
+  async recommend(productId: string, opts: { refresh?: boolean; yourPriceMinor?: number | null } = {}) {
+    const product = await this.repo.productById(productId);
     if (!product) throw new AppError("NOT_FOUND", `No product with id ${productId}.`);
 
-    if (!product.canonicalQuery) {
-      /**
-       * A seeded product has no live query behind it, so there is no honest
-       * way to price it from current evidence. Refusing is correct: the
-       * alternative is pricing from synthetic comparables.
-       */
+    /**
+     * A SEEDED PRODUCT IS NOT PRICED HERE.
+     *
+     * It has no catalogue identity, so its competition cannot be looked up,
+     * and the offers filed against it are the synthetic dataset's. Refusing
+     * is the correct answer: the alternative is a confident price argued from
+     * invented competitors, which is worse than no price at all.
+     *
+     * Checked here as well as in the market query that excludes seeded
+     * listings, because the two say different things. That filter makes a
+     * synthetic competitor impossible; this makes the REASON explicit instead
+     * of reporting a real product with a mysteriously empty market.
+     */
+    if (!product.external_product_id && !product.canonical_query) {
       throw new AppError(
         "VALIDATION_FAILED",
-        "This product has no live market query, so it cannot be priced from real evidence. Track it from a live search result first."
+        "This product has no live market query or catalogue identity behind it, so it cannot be priced from real evidence. Track it from a live search result first."
       );
     }
 
-    /* ------------------------------------------------- current market */
+    /* ----------------------------------------- the competition, as stored */
 
-    let snapshot: MarketSnapshot | null = null;
-    let marketError: string | null = null;
-    try {
-      snapshot = await this.snapshots.snapshotFor(product.canonicalQuery, {
-        maxAgeSeconds: opts.refresh ? FRESHNESS.userRefresh() : FRESHNESS.recommendation(),
-      });
-    } catch (cause) {
-      // Recorded, not thrown: stored history may still support an answer.
-      marketError = cause instanceof ProviderError ? `${cause.kind}: ${cause.message}` : String(cause);
-    }
-
-    const priced = (snapshot?.offers ?? []).filter((o) => o.priceMinor != null && o.priceMinor > 0);
+    let captureError: string | null = null;
+    let captured = false;
 
     /**
-     * Keep the offers that are describing THIS product.
-     *
-     * THE SAME RULE THE SEARCH RESULTS ARE RANKED BY. That matters more than
-     * it sounds: when identity was decided one way for display and another
-     * for pricing, a product could be shown as a phone and priced as a case.
-     * `relevance.ts` is now the single definition, so the offers a user sees
-     * under a product are the offers its price is argued from.
-     *
-     * Two layers, in order:
-     *
-     *   RELEVANCE  semantic — does this title describe the product, or
-     *              something sold beside it? Self-calibrating, no accessory
-     *              word list, works for any category.
-     *
-     *   PRICE BAND numeric — a last guard against something that reads like
-     *              the product but is priced like a different class of
-     *              object, anchored on a price really observed for it.
-     *
-     * Either alone has a blind spot. Relevance cannot see a mispriced
-     * duplicate listing; the band cannot see a premium accessory that costs
-     * as much as the product. Together they are the identity rule.
+     * Counted on the market as the analysis will actually read it — the
+     * offers of ONE condition, not every offer on file. A product with two
+     * new sellers and two refurbished ones has a two-seller market for a
+     * new-stock seller, and treating it as four would skip the capture that
+     * might have found more real competitors.
      */
-    const relevant = productMatches(product.canonicalQuery, priced.map((o) => ({
-      title: o.rawTitle,
-      priceMinor: o.priceMinor,
-      source: o.sourceName,
-      offer: o,
-    }))).map((r) => r.offer);
+    let view = await this.market.marketFor(productId, { yourPriceMinor: opts.yourPriceMinor ?? null });
 
-    const anchorMinor =
-      (await this.latestObservedPrice(productId)) ?? provisionalAnchor(relevant.map((o) => o.priceMinor!));
-    const banded = anchorMinor
-      ? bandAroundAnchor(relevant, (o) => o.priceMinor, anchorMinor)
-      : { kept: relevant, excluded: [], anchorMinor: 0, loMinor: 0, hiMinor: 0 };
+    const needsCapture = opts.refresh || (view.distribution?.sellerCount ?? 0) < MIN_USABLE_SELLERS;
+    if (needsCapture) {
+      try {
+        await this.market.refreshProduct(productId, { force: Boolean(opts.refresh) });
+        view = await this.market.marketFor(productId, { yourPriceMinor: opts.yourPriceMinor ?? null });
+        captured = true;
+      } catch (cause) {
+        /**
+         * Recorded, not thrown. Whatever is already stored may still support
+         * an answer, and refusing outright because a refresh failed would
+         * throw away evidence that is merely a few hours old.
+         */
+        captureError =
+          cause instanceof ProviderError
+            ? `${cause.kind}: ${cause.message}`
+            : cause instanceof AppError
+              ? cause.message
+              : String(cause);
+      }
+    }
 
-    const usable = banded.kept;
-    /** Everything the identity rule rejected, by either layer. */
-    const rejected = priced.length - usable.length;
-    const prices = usable.map((o) => o.priceMinor!).sort((a, b) => a - b);
-    const marketplaces = new Set(usable.map((o) => o.sourceName));
+    const dist = view.distribution;
+    const struct = view.structure;
 
-    /* ------------------------------------------------- observed history */
+    /* -------------------------------------------------- observed history */
 
-    const history = await this.history(productId);
+    const history = await this.observedHistory(productId, view.history.trend);
     const mode: RecommendationMode =
       history && history.observationCount >= MIN_HISTORY_FOR_ENHANCEMENT ? "history_enhanced" : "cold_start";
 
-    /* ------------------------------------------------------ the refusal */
+    /* ------------------------------------------------------- the refusal */
 
-    if (prices.length < MIN_USABLE_OFFERS) {
+    if (!dist || !struct || dist.sellerCount < MIN_USABLE_SELLERS) {
       return {
         data: {
           productId,
           available: false,
           mode,
-          reason: "insufficient_market_evidence",
+          reason: "insufficient_competitive_evidence",
           /** Which part was missing, rather than a bare refusal. */
-          message: marketError
-            ? `The market could not be read: ${marketError}`
-            : `Only ${prices.length} usable offer(s) were found; at least ${MIN_USABLE_OFFERS} are needed to position a price.`,
+          message: captureError
+            ? `The competing sellers could not be read: ${captureError}`
+            : `Only ${dist?.sellerCount ?? 0} competing seller(s) are known for this product; at least ${MIN_USABLE_SELLERS} are needed to position a price against a market.`,
           evidence: {
-            usableOffers: prices.length,
-            excludedAsDifferentProduct: rejected,
-            marketplaces: marketplaces.size,
+            sellerCount: dist?.sellerCount ?? 0,
+            marketplaceCount: dist?.marketplaceCount ?? 0,
+            catalogIdCount: view.product.catalogIdCount,
             historyObservations: history?.observationCount ?? 0,
-            capturedAt: snapshot?.capturedAt ?? null,
+            lastCapturedAt: view.product.lastCapturedAt ?? null,
           },
         },
       };
     }
 
-    const market = {
-      capturedAt: snapshot!.capturedAt,
-      reused: snapshot!.reused,
-      offerCount: prices.length,
-      marketplaceCount: marketplaces.size,
-      minMinor: prices[0]!,
-      maxMinor: prices[prices.length - 1]!,
-      medianMinor: Math.round(percentile(prices, 0.5)),
-      q1Minor: Math.round(percentile(prices, 0.25)),
-      q3Minor: Math.round(percentile(prices, 0.75)),
-      /**
-       * How many offers shared the name but not the price range — cases,
-       * skins, bundles. Reported rather than silently dropped, because a
-       * large number here means the search query is too broad.
-       */
-      excludedAsDifferentProduct: rejected,
-      anchorMinor: banded.anchorMinor,
-    };
-
     /* ------------------------------------------- the deterministic view */
 
-    const deterministic = this.deterministic(market, history);
+    const deterministic = deterministicPrice(dist, struct, history);
 
     /* -------------------------------------------------- the AI opinion */
 
+    const sample = [...view.sellers].sort((a, b) => a.priceMinor - b.priceMinor).slice(0, EVIDENCE_SELLER_SAMPLE);
+
     const evidence: PricingEvidence = {
-      product: { name: product.canonicalName, brand: product.brandName, category: product.categoryName },
+      product: {
+        name: view.product.name,
+        brand: typeof view.product.specifications?.brand === "string" ? view.product.specifications.brand : null,
+        category: null,
+      },
       market: {
-        capturedAt: market.capturedAt,
-        offerCount: market.offerCount,
-        marketplaceCount: market.marketplaceCount,
-        minMinor: market.minMinor,
-        maxMinor: market.maxMinor,
-        medianMinor: market.medianMinor,
-        // Cheapest first and trimmed: the AI needs the shape of the market,
-        // not forty near-identical rows, and tokens are the cost here.
-        offers: usable
-          .slice()
-          .sort((a, b) => a.priceMinor! - b.priceMinor!)
-          .slice(0, EVIDENCE_OFFER_SAMPLE)
-          .map((o) => ({
-            marketplace: o.sourceName,
-            priceMinor: o.priceMinor!,
-            shippingFeeMinor: o.shippingFeeMinor,
-            mrpMinor: o.mrpMinor,
-            rating: o.rating,
-            reviewCount: o.reviewCount,
-          })),
+        capturedAt: this.isoOf(view.product.lastCapturedAt),
+        offerCount: dist.sellerCount,
+        marketplaceCount: dist.marketplaceCount,
+        minMinor: dist.lowMinor,
+        maxMinor: dist.highMinor,
+        medianMinor: dist.medianMinor,
+        offers: sample.map((o) => ({
+          marketplace: o.marketplaceName,
+          seller: o.sellerName,
+          priceMinor: o.priceMinor,
+          shippingFeeMinor: o.shippingMinor,
+          mrpMinor: null,
+          rating: o.rating,
+          reviewCount: o.reviewCount,
+          inStock: o.inStock,
+        })),
+      },
+      competition: {
+        floorMinor: struct.floorMinor,
+        secondFloorMinor: struct.secondFloorMinor,
+        floorGapMinor: struct.floorGapMinor,
+        atFloorCount: struct.atFloorCount,
+        clustering: struct.clustering,
+        spreadPct: dist.spreadPct,
+        inStockCount: dist.inStockCount,
       },
       history: history && history.observationCount >= 2 ? history : null,
-      currency: usable[0]?.currency ?? "INR",
+      currency: "INR",
     };
 
     let ai: {
@@ -255,6 +251,9 @@ export class MarketPricingService {
       }
     }
 
+    /** Where the recommendation itself would land among the competition. */
+    const resultingPosition = positionOf(recommended, view.sellers);
+
     return {
       data: {
         productId,
@@ -269,168 +268,123 @@ export class MarketPricingService {
         deterministic,
         ai,
         aiError,
-        market,
-        history,
+
+        /**
+         * THE COMPETITION THE NUMBER WAS ARGUED FROM, in full.
+         *
+         * Returned with the recommendation rather than behind a second
+         * request, because a price without the market it was derived from is
+         * an assertion. A seller should be able to see every competitor the
+         * figure accounted for.
+         */
+        market: {
+          sellerCount: dist.sellerCount,
+          marketplaceCount: dist.marketplaceCount,
+          inStockCount: dist.inStockCount,
+          catalogIdCount: view.product.catalogIdCount,
+          /** Which condition this price was argued for, and what was set aside. */
+          condition: view.condition,
+          otherConditions: view.otherConditions,
+          lowMinor: dist.lowMinor,
+          q1Minor: dist.p25Minor,
+          medianMinor: dist.medianMinor,
+          q3Minor: dist.p75Minor,
+          highMinor: dist.highMinor,
+          spreadPct: dist.spreadPct,
+          lastCapturedAt: view.product.lastCapturedAt ?? null,
+          refreshed: captured,
+          structure: view.structure,
+          sellers: view.sellers,
+          marketplaces: view.marketplaces,
+        },
+
+        /** Where this recommendation would place the seller. */
+        position: resultingPosition,
+        /** Where the seller's current price places them, when they gave one. */
+        yourPosition: view.position,
+
+        history: {
+          ...(history ?? { observationCount: 0 }),
+          points: view.history.points,
+          trend: view.history.trend,
+        },
+
         warnings: [
           ...(ai?.warnings ?? []),
           ...(mode === "cold_start"
             ? [
                 history
-                  ? `Only ${history.observationCount} observation(s) so far — fewer than the ${MIN_HISTORY_FOR_ENHANCEMENT} needed before history informs the price. The current market is doing the work.`
-                  : "No price history yet. This is positioned against the current market alone.",
+                  ? `Only ${history.observationCount} capture(s) so far — fewer than the ${MIN_HISTORY_FOR_ENHANCEMENT} needed before history informs the price. The current competition is doing the work.`
+                  : "No price history yet. This is positioned against the current competition alone. The data provider supplies no past prices, so history begins with this system's own captures.",
               ]
             : []),
-          ...(aiError ? [`The AI provider did not answer (${aiError}); this is the deterministic figure.`] : []),
-          ...(snapshot!.reused
-            ? [`Market last captured ${new Date(market.capturedAt).toISOString()}; reused rather than re-fetched.`]
+          ...(history?.comparable === false
+            ? ["The number of competing sellers changed materially across the history window, so part of that movement describes coverage rather than price."]
             : []),
+          ...(dist.marketplaceCount < 3
+            ? [`Only ${dist.marketplaceCount} marketplace(s) are represented, so this is a narrow view of the competition.`]
+            : []),
+          /**
+           * Said out loud, because the figure would otherwise look like it
+           * accounted for sellers it deliberately excluded.
+           */
+          ...view.otherConditions.map(
+            (group) =>
+              `${group.sellerCount} ${group.condition} offer(s) were excluded from this comparison` +
+              `${group.lowMinor != null ? `, from ${(group.lowMinor / 100).toFixed(2)}` : ""}` +
+              `. A ${view.condition} listing does not compete with them.`
+          ),
+          ...(aiError ? [`The AI provider did not answer (${aiError}); this is the deterministic figure.`] : []),
+          ...(captureError ? [`A refresh was attempted and failed (${captureError}); this uses the most recent stored capture.`] : []),
         ],
       },
     };
   }
 
   /**
-   * The statistical position, with no model involved.
+   * Observed history — only what this system really captured.
    *
-   * Deliberately simple and explicable: the median is the market's centre of
-   * gravity, and a small undercut is the defensible opening position when
-   * nothing is known about brand strength. It exists to be a floor under the
-   * answer — if the AI is unavailable or wrong, there is still something
-   * defensible, and it can be shown next to the AI's view for comparison.
-   */
-  private deterministic(
-    market: { medianMinor: number; q1Minor: number; q3Minor: number; minMinor: number; maxMinor: number; offerCount: number; marketplaceCount: number },
-    history: Awaited<ReturnType<MarketPricingService["history"]>>
-  ) {
-    // Just under the median: competitive without starting a race to the floor.
-    let target = Math.round(market.medianMinor * 0.98);
-
-    const factors: string[] = [
-      `Market median ${(market.medianMinor / 100).toFixed(2)} across ${market.offerCount} offer(s) on ${market.marketplaceCount} marketplace(s).`,
-      "Positioned 2% under the median — competitive without undercutting the floor.",
-    ];
-
-    if (history && history.observationCount >= MIN_HISTORY_FOR_ENHANCEMENT) {
-      /**
-       * With real history, the current market is weighed against where this
-       * product has actually traded — 70/30 toward the present, because the
-       * market now is what a buyer sees and history is context for it.
-       */
-      target = Math.round(target * 0.7 + history.medianMinor * 0.3);
-      factors.push(
-        `Blended with an observed median of ${(history.medianMinor / 100).toFixed(2)} over ${history.observationCount} observation(s).`
-      );
-    }
-
-    // Never below the cheapest real offer: the floor is a fact, not a target.
-    const floor = market.minMinor;
-    if (target < floor) {
-      target = floor;
-      factors.push("Raised to the cheapest observed offer — recommending below the market floor would not be defensible.");
-    }
-
-    /**
-     * Confidence follows the breadth of the evidence, not the tidiness of
-     * the answer. A narrow spread across two stores is not strong evidence.
-     */
-    const confidence: "low" | "medium" | "high" =
-      market.marketplaceCount >= 4 && (history?.observationCount ?? 0) >= MIN_HISTORY_FOR_ENHANCEMENT
-        ? "high"
-        : market.marketplaceCount >= 3
-          ? "medium"
-          : "low";
-
-    return {
-      recommendedMinor: target,
-      rangeMinMinor: Math.min(market.q1Minor, target),
-      rangeMaxMinor: Math.max(market.q3Minor, target),
-      confidence,
-      factors,
-    };
-  }
-
-  /**
-   * The most recent price this product was really observed at.
-   *
-   * The anchor the competitive band is drawn around. It exists because the
-   * user chose a specific offer when they started tracking, so there is
-   * always at least one — and a real observation is a far better anchor than
-   * anything inferred from a contaminated search result.
-   */
-  private async latestObservedPrice(productId: string): Promise<number | null> {
-    const rows = (await this.db.execute(sql`
-      select po.selling_price_minor as "minor"
-        from price_observations po
-        join offers   o on o.id = po.offer_id
-        join listings l on l.id = o.listing_id
-       where l.product_id = ${productId}
-       order by po.observed_at desc, po.recorded_at desc
-       limit 1
-    `)) as unknown as { rows: Array<{ minor: number }> };
-    return rows.rows[0]?.minor ?? null;
-  }
-
-  private async product(productId: string) {
-    const rows = (await this.db.execute(sql`
-      select p.id, p.canonical_name as "canonicalName", p.canonical_query as "canonicalQuery",
-             p.origin as "origin", b.name as "brandName", c.name as "categoryName"
-        from products p
-        left join brands b     on b.id = p.brand_id
-        left join categories c on c.id = p.category_id
-       where p.id = ${productId}
-       limit 1
-    `)) as unknown as {
-      rows: Array<{
-        id: string;
-        canonicalName: string;
-        canonicalQuery: string | null;
-        origin: string;
-        brandName: string | null;
-        categoryName: string | null;
-      }>;
-    };
-    return rows.rows[0] ?? null;
-  }
-
-  /**
-   * Observed history — only what was really captured.
+   * Built from the per-product market aggregate rather than from individual
+   * offers. That is the correction that matters: a median taken across all
+   * offers on a day moves when a seller joins or leaves, so a chart drawn
+   * from it showed movements no price ever made. The aggregate records the
+   * seller count behind each point, so a move can be checked against it.
    *
    * Returns null for a product with nothing recorded. Not a zeroed object: a
-   * zero-filled history reads as "we looked and the price was nothing",
-   * which is a different and false claim.
+   * zero-filled history reads as "we looked and the price was nothing".
    */
-  private async history(productId: string) {
-    const rows = (await this.db.execute(sql`
-      select po.observed_at::text as "date",
-             min(po.selling_price_minor + coalesce(po.shipping_fee_minor, 0))::int as "minor"
-        from price_observations po
-        join offers   o on o.id = po.offer_id
-        join listings l on l.id = o.listing_id
-       where l.product_id = ${productId}
-       group by po.observed_at
-       order by po.observed_at asc
-    `)) as unknown as { rows: Array<{ date: string; minor: number }> };
+  private async observedHistory(productId: string, movement: MarketTrend | null) {
+    const points = await this.repo.marketTrendPoints(productId);
+    if (points.length === 0) return null;
 
-    const series = rows.rows;
-    if (series.length === 0) return null;
-
-    const values = series.map((p) => p.minor).sort((a, b) => a - b);
-    const first = series[0]!;
-    const last = series[series.length - 1]!;
+    const values = points.map((p) => p.medianMinor).sort((a, b) => a - b);
+    const first = points[0]!;
+    const last = points[points.length - 1]!;
     const mean = values.reduce((s, v) => s + v, 0) / values.length;
     const variance = values.reduce((s, v) => s + (v - mean) ** 2, 0) / values.length;
 
     return {
-      observationCount: series.length,
-      firstObservedAt: first.date,
-      lastObservedAt: last.date,
+      observationCount: points.length,
+      firstObservedAt: first.capturedOn,
+      lastObservedAt: last.capturedOn,
       medianMinor: Math.round(percentile(values, 0.5)),
       minMinor: values[0]!,
       maxMinor: values[values.length - 1]!,
       // A single point carries a level, not a movement.
-      changePct: series.length >= 2 && first.minor !== 0 ? round(((last.minor - first.minor) / first.minor) * 100, 2) : null,
+      changePct: movement?.changePct ?? null,
       // A coefficient of variation over three points describes the sampling.
-      volatilityPct: series.length >= MIN_HISTORY_FOR_ENHANCEMENT && mean !== 0 ? round((Math.sqrt(variance) / mean) * 100, 2) : null,
+      volatilityPct:
+        points.length >= MIN_HISTORY_FOR_ENHANCEMENT && mean !== 0 ? round((Math.sqrt(variance) / mean) * 100, 2) : null,
+      /** Whether the seller population was stable enough to compare across. */
+      comparable: movement?.comparable ?? null,
     };
   }
+
+  private isoOf(value: string | Date | null | undefined): string {
+    if (!value) return new Date().toISOString();
+    return value instanceof Date ? value.toISOString() : new Date(value).toISOString();
+  }
 }
+
+/** Re-exported for callers that only need the seller shape. */
+export type { CompetitorOffer };

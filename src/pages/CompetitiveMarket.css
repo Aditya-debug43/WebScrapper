@@ -1,0 +1,550 @@
+/* ==========================================================================
+   COMPETITIVE MARKET
+
+   A page about a DISTRIBUTION, so the distribution is drawn once, properly,
+   and everything else is read against it.
+
+   The dot plot is the centre. Bars were rejected for the same reason the
+   marketplace comparison rejects them: a 30% spread on a ₹27,000 product
+   drawn from a zero baseline is three indistinguishable full-height bars,
+   and drawn from a truncated baseline it exaggerates. Dots on a zoomed axis
+   need no baseline at all.
+
+   Numbers that mean different things look different. Every statistic carries
+   the seller count it was computed over in the line beneath it, at micro
+   size, because the count is the qualifier that stops a median over three
+   sellers being read as a median over twenty.
+   ========================================================================== */
+
+.cm {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-7);
+}
+
+/* ------------------------------------------------------------- the summary */
+
+.cm-head {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s-5);
+  align-items: flex-end;
+  justify-content: space-between;
+  padding-bottom: var(--s-5);
+  border-bottom: 1px solid var(--rule-heavy);
+}
+
+.cm-head-figures {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(9rem, 1fr));
+  gap: var(--s-5) var(--s-7);
+  flex: 1 1 28rem;
+}
+
+.cm-figure {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.cm-figure-label {
+  font-size: var(--t-micro);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.cm-figure-value {
+  font-family: var(--font-display);
+  font-size: var(--t-xl);
+  font-weight: 500;
+  line-height: 1.1;
+  color: var(--text);
+}
+
+/* The qualifier. Always present, never competing with the figure. */
+.cm-figure-note {
+  font-size: var(--t-micro);
+  color: var(--text-muted);
+}
+
+.cm-head-actions {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--s-2);
+}
+
+.cm-captured {
+  margin: 0;
+  font-size: var(--t-micro);
+  color: var(--text-muted);
+}
+
+.cm-capture {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-2);
+  padding: var(--s-2) var(--s-4);
+  font: inherit;
+  font-size: var(--t-sm);
+  color: var(--text);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--r-sm);
+  cursor: pointer;
+  transition: border-color var(--d-fast) var(--ease), background var(--d-fast) var(--ease);
+}
+
+.cm-capture:hover:not(:disabled) {
+  border-color: var(--rule-strong);
+  background: var(--surface-2);
+}
+
+.cm-capture:disabled {
+  color: var(--text-muted);
+  cursor: progress;
+}
+
+.cm-note {
+  margin: 0;
+  padding: var(--s-3) var(--s-4);
+  font-size: var(--t-sm);
+  border-left: 2px solid var(--rule-strong);
+  background: var(--surface-inset);
+}
+
+.cm-note-error {
+  border-left-color: var(--critical);
+  color: var(--critical-ink);
+  background: var(--critical-wash);
+}
+
+/* A stated limitation, not an error — it shares the warning's voice. */
+.cm-thin {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--s-2);
+  margin: 0;
+  padding: var(--s-3) var(--s-4);
+  font-size: var(--t-sm);
+  color: var(--warning-ink);
+  background: var(--warning-wash);
+  border-left: 2px solid var(--warning);
+}
+
+.cm-thin svg {
+  flex: none;
+  margin-top: 0.15em;
+}
+
+/* --------------------------------------------------------------- panels */
+
+.cm-panel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-5);
+}
+
+.cm-panel-head h2 {
+  margin: 0 0 var(--s-2);
+  font-family: var(--font-display);
+  font-size: var(--t-lg);
+  font-weight: 500;
+}
+
+.cm-panel-head p {
+  max-width: var(--measure);
+  margin: 0;
+  font-size: var(--t-sm);
+  color: var(--text-muted);
+}
+
+/* ------------------------------------------------------------- the dot plot */
+
+.cm-plot {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-3);
+}
+
+.cm-plot-track {
+  position: relative;
+  height: 3.5rem;
+  border-bottom: 1px solid var(--rule);
+}
+
+/* The middle half of the market, as ground rather than as a shape. */
+.cm-plot-iqr {
+  position: absolute;
+  top: 1rem;
+  bottom: 0;
+  background: var(--surface-inset);
+}
+
+.cm-plot-median {
+  position: absolute;
+  top: 0.75rem;
+  bottom: 0;
+  width: 1px;
+  background: var(--rule-strong);
+}
+
+.cm-dot {
+  position: absolute;
+  bottom: -4px;
+  width: 9px;
+  height: 9px;
+  margin-left: -4.5px;
+  background: var(--ink-700);
+  border: 1px solid var(--canvas);
+  border-radius: 50%;
+}
+
+/* The floor is the one price worth picking out. */
+.cm-dot-floor {
+  background: var(--accent);
+  width: 11px;
+  height: 11px;
+  margin-left: -5.5px;
+  bottom: -5px;
+}
+
+/* Hollow: a price nobody can buy at is still information. */
+.cm-dot-oos {
+  background: var(--canvas);
+  border-color: var(--ink-400);
+}
+
+.cm-plot-you {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  margin-left: -1px;
+  background: var(--signal, var(--accent));
+}
+
+.cm-plot-you-flag {
+  position: absolute;
+  top: -0.1rem;
+  left: 0.3rem;
+  font-size: var(--t-micro);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--signal, var(--accent));
+  white-space: nowrap;
+}
+
+.cm-plot-axis {
+  display: flex;
+  justify-content: space-between;
+  font-size: var(--t-micro);
+  color: var(--text-muted);
+}
+
+/* ------------------------------------------------------- the floor, in words */
+
+.cm-structure,
+.cm-position-facts,
+.cm-trend {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(11rem, 1fr));
+  gap: var(--s-5) var(--s-6);
+  margin: 0;
+}
+
+.cm-structure dt,
+.cm-position-facts dt,
+.cm-trend dt {
+  font-size: var(--t-micro);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.cm-structure dd,
+.cm-position-facts dd,
+.cm-trend dd {
+  margin: 2px 0 0;
+  font-family: var(--font-display);
+  font-size: var(--t-lg);
+  color: var(--text);
+}
+
+/* The sentence that says what the number means. */
+.cm-structure p {
+  max-width: 22rem;
+  margin: var(--s-2) 0 0;
+  font-size: var(--t-micro);
+  color: var(--text-muted);
+}
+
+/* --------------------------------------------------------- your own price */
+
+.cm-position {
+  padding: var(--s-5) 0;
+  border-top: 1px solid var(--rule);
+  border-bottom: 1px solid var(--rule);
+}
+
+.cm-price-input {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+  max-width: 12rem;
+}
+
+.cm-price-input span {
+  font-size: var(--t-micro);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.cm-price-input input {
+  padding: var(--s-2) var(--s-3);
+  font: inherit;
+  font-family: var(--font-mono);
+  font-size: var(--t-base);
+  color: var(--text);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--r-sm);
+}
+
+.cm-price-input input:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+.cm-position-hint {
+  margin: 0;
+  font-size: var(--t-sm);
+  color: var(--text-muted);
+}
+
+/* ----------------------------------------------------------- marketplaces */
+
+.cm-marketplaces {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  border-top: 1px solid var(--rule);
+}
+
+.cm-marketplaces li {
+  display: grid;
+  grid-template-columns: 1fr auto auto;
+  gap: var(--s-4);
+  align-items: baseline;
+  padding: var(--s-3) 0;
+  border-bottom: 1px solid var(--rule);
+}
+
+.cm-mp-name {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-2);
+  font-size: var(--t-sm);
+}
+
+.cm-mp-name svg {
+  flex: none;
+  color: var(--ink-400);
+}
+
+.cm-mp-price {
+  font-size: var(--t-base);
+}
+
+.cm-mp-count {
+  min-width: 5.5rem;
+  text-align: right;
+  font-size: var(--t-micro);
+  color: var(--text-muted);
+}
+
+/* ------------------------------------------------------------- the table */
+
+.cm-table-scroll {
+  overflow-x: auto;
+}
+
+.cm-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--t-sm);
+}
+
+.cm-table th,
+.cm-table td {
+  padding: var(--s-3) var(--s-4) var(--s-3) 0;
+  text-align: left;
+  white-space: nowrap;
+  border-bottom: 1px solid var(--rule);
+}
+
+.cm-table thead th {
+  font-size: var(--t-micro);
+  font-weight: 500;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  border-bottom-color: var(--rule-heavy);
+}
+
+.cm-table .num {
+  text-align: right;
+  padding-right: 0;
+  padding-left: var(--s-4);
+}
+
+.cm-table tbody th {
+  font-weight: 500;
+}
+
+.cm-table tbody th a {
+  color: inherit;
+  text-decoration-color: var(--rule-strong);
+}
+
+/* The floor, marked the same way it is marked in the plot. */
+.cm-row-floor th,
+.cm-row-floor td {
+  background: var(--accent-wash);
+}
+
+/* ------------------------------------------------------------- the history */
+
+.cm-history-note {
+  max-width: var(--measure);
+  margin: 0;
+  padding: var(--s-4);
+  font-size: var(--t-sm);
+  color: var(--text-muted);
+  background: var(--surface-inset);
+  border-left: 2px solid var(--rule-strong);
+}
+
+.cm-points {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  border-top: 1px solid var(--rule);
+}
+
+.cm-points li {
+  display: grid;
+  grid-template-columns: 7rem auto 1fr;
+  gap: var(--s-4);
+  align-items: baseline;
+  padding: var(--s-2) 0;
+  border-bottom: 1px solid var(--rule);
+}
+
+.cm-point-date {
+  font-size: var(--t-sm);
+  color: var(--text-muted);
+}
+
+.cm-point-price {
+  font-size: var(--t-base);
+}
+
+.cm-point-count {
+  font-size: var(--t-micro);
+  color: var(--text-muted);
+}
+
+/* --------------------------------------------------------------- empty */
+
+.cm-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--s-4);
+  max-width: var(--measure);
+  padding: var(--s-8) 0;
+}
+
+.cm-empty h2 {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: var(--t-lg);
+  font-weight: 500;
+}
+
+.cm-empty p {
+  margin: 0;
+  font-size: var(--t-sm);
+  color: var(--text-muted);
+}
+
+/* ---------------------------------------------------------------- narrow */
+
+@media (max-width: 40rem) {
+  .cm-head {
+    align-items: flex-start;
+  }
+
+  .cm-points li {
+    grid-template-columns: 1fr auto;
+  }
+
+  .cm-point-count {
+    grid-column: 1 / -1;
+  }
+}
+
+/* ------------------------------------------------ the other condition markets
+ *
+ * Set below the main figures and visually quieter, because that is exactly
+ * their status: real, worth seeing, and not what the price is argued against.
+ */
+
+.cm-conditions {
+  padding: var(--s-4) var(--s-5);
+  background: var(--surface-inset);
+  border-left: 2px solid var(--rule-strong);
+}
+
+.cm-conditions h2 {
+  margin: 0 0 var(--s-2);
+  font-family: var(--font-display);
+  font-size: var(--t-base);
+  font-weight: 500;
+}
+
+.cm-conditions > p {
+  max-width: var(--measure);
+  margin: 0 0 var(--s-4);
+  font-size: var(--t-micro);
+  color: var(--text-muted);
+}
+
+.cm-conditions ul {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.cm-conditions li {
+  display: grid;
+  grid-template-columns: 7rem 7rem 1fr;
+  gap: var(--s-4);
+  align-items: baseline;
+  padding: var(--s-2) 0;
+  border-top: 1px solid var(--rule);
+}
+
+.cm-cond-name {
+  font-size: var(--t-sm);
+  text-transform: capitalize;
+}
+
+.cm-cond-count,
+.cm-cond-range {
+  font-size: var(--t-micro);
+  color: var(--text-muted);
+}

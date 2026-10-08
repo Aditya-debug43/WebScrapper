@@ -9,7 +9,7 @@ import { sql } from "drizzle-orm";
 import { buildApp, type BuiltApp } from "../../src/app.js";
 import { MemoryEmailAdapter, type EmailAdapter } from "../../src/email/index.js";
 import { schema } from "../../src/db/schema.js";
-import type { MarketOfferProvider } from "../../src/ingestion/types.js";
+import type { MarketOfferProvider, ProductMarketProvider } from "../../src/ingestion/types.js";
 import type { AIProvider } from "../../src/ai/index.js";
 import * as t from "../../src/db/schema.js";
 
@@ -118,12 +118,14 @@ export async function createTestAppWith(email: EmailAdapter, opts: SeedOptions =
  */
 export async function createDiscoveryTestApp(opts: {
   marketProvider?: MarketOfferProvider;
+  productMarketProvider?: ProductMarketProvider;
   aiProvider?: AIProvider;
   seed?: SeedOptions;
 } = {}): Promise<Harness> {
   const email = new MemoryEmailAdapter();
   const built = await bootstrap(email, opts.seed ?? {}, {
     marketProvider: opts.marketProvider,
+    productMarketProvider: opts.productMarketProvider,
     aiProvider: opts.aiProvider,
   });
   return { ...built, email };
@@ -132,7 +134,11 @@ export async function createDiscoveryTestApp(opts: {
 async function bootstrap(
   email: EmailAdapter,
   opts: SeedOptions,
-  providers: { marketProvider?: MarketOfferProvider; aiProvider?: AIProvider } = {}
+  providers: {
+    marketProvider?: MarketOfferProvider;
+    productMarketProvider?: ProductMarketProvider;
+    aiProvider?: AIProvider;
+  } = {}
 ): Promise<BuiltApp> {
   const client = new PGlite();
   await client.waitReady;

@@ -1,0 +1,54 @@
+{
+  "search_metadata": {
+    "id": "fixture_9442821917205690228",
+    "status": "Success"
+  },
+  "search_parameters": {
+    "engine": "google_product",
+    "product_id": "9442821917205690228",
+    "gl": "in",
+    "hl": "en"
+  },
+  "product_results": {
+    "title": "Poco X6 Pro 5G 128GB",
+    "brand": "Poco",
+    "thumbnails": [
+      "https://fixture.test/9442821917205690228.jpg"
+    ],
+    "price_range": "₹25,789-₹25,789",
+    "product_attributes": [
+      {
+        "name": "storage capacity",
+        "value": "128 GB"
+      },
+      {
+        "name": "brand",
+        "value": "Poco"
+      }
+    ],
+    "price_insights": {
+      "price_history": true,
+      "price_tracking_available": true
+    },
+    "stores": [
+      {
+        "position": 1,
+        "name": "Gadgets Now",
+        "merchant_id": "gn003",
+        "link": "https://gadgetsnow.test/p",
+        "title": "Gadgets Now",
+        "price": "₹25,789",
+        "extracted_price": 25789,
+        "total": "₹25,789",
+        "extracted_total": 25789,
+        "shipping": "Free",
+        "rating": 4.2,
+        "reviews": 480,
+        "details_and_offers": [
+          "In stock online",
+          "Free delivery"
+        ]
+      }
+    ]
+  }
+}
