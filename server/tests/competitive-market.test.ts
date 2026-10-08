@@ -12,6 +12,7 @@ import {
 } from "../src/modules/market/competition.js";
 import { normaliseProductMarket, parsePriceRange, parseShipping } from "../src/ingestion/providers/serpapi.market.js";
 import { deterministicPrice } from "../src/modules/pricing/deterministic.js";
+import { plausibleMrp } from "../src/ingestion/providers/serpapi.provider.js";
 import { ProviderError } from "../src/ingestion/types.js";
 
 /**
@@ -839,5 +840,41 @@ describe("the deterministic price", () => {
     const v = deterministicPrice(dist(), crowdedFloor, { observationCount: 9, medianMinor: 2_500_000 });
     assert.ok(v.factors.length >= 3);
     for (const f of v.factors) assert.ok(f.length > 20, `"${f}" is not an explanation`);
+  });
+});
+
+/* ======================================== a printed maximum below the price */
+
+describe("an MRP beneath the selling price is a misparse", () => {
+  /**
+   * FOUND IN PRODUCTION, by the verification script rather than by anything
+   * in the request path.
+   *
+   * Two captured rows: a curtain selling at ₹1,160 with an "MRP" of ₹20, and
+   * another at ₹724 with ₹50. Every individual number is plausible, which is
+   * why the parser accepted them — only the RELATIONSHIP between them is
+   * impossible. A printed maximum is a legal ceiling in India; nothing can be
+   * sold above it, so a figure beneath the selling price is not one.
+   *
+   * Left alone, it feeds a 5,700% discount into anything that renders one.
+   */
+  test("a maximum below the price is dropped, not clamped", () => {
+    assert.equal(plausibleMrp(2_000, 116_000), null, "₹20 against ₹1,160 is not a ceiling");
+    assert.equal(plausibleMrp(5_000, 72_400), null);
+  });
+
+  test("a real maximum survives untouched", () => {
+    assert.equal(plausibleMrp(150_000, 116_000), 150_000);
+    assert.equal(plausibleMrp(116_000, 116_000), 116_000, "equal is legal — sold at the printed price");
+  });
+
+  test("absent stays absent, and is never inferred from the price", () => {
+    assert.equal(plausibleMrp(null, 116_000), null);
+    assert.equal(plausibleMrp(0, 116_000), null, "zero is not a ceiling either");
+    assert.equal(plausibleMrp(-100, 116_000), null);
+  });
+
+  test("with no price to compare against, the figure is taken as given", () => {
+    assert.equal(plausibleMrp(150_000, null), 150_000, "nothing contradicts it, so nothing rejects it");
   });
 });

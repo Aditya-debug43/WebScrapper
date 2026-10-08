@@ -135,6 +135,19 @@ function parseCondition(result: SerpShoppingResult): MarketOffer["condition"] {
  * analysis layer excludes unknown-stock offers from in-stock statistics,
  * which is the conservative reading.
  */
+/**
+ * A printed maximum that is below the price being charged is not a maximum.
+ *
+ * Exported so the rule can be tested on its own: it is a one-line comparison,
+ * and the reason it exists — two real rows that every other check accepted —
+ * is worth pinning down where it cannot drift.
+ */
+export function plausibleMrp(mrpMinor: number | null, priceMinor: number | null): number | null {
+  if (mrpMinor == null || mrpMinor <= 0) return null;
+  if (priceMinor != null && mrpMinor < priceMinor) return null;
+  return mrpMinor;
+}
+
 function parseStock(result: SerpShoppingResult): boolean | null {
   const text = `${result.snippet ?? ""} ${(result.extensions ?? []).join(" ")}`.toLowerCase();
   if (/out of stock|sold out|unavailable/.test(text)) return false;
@@ -268,7 +281,22 @@ export function normaliseSerpResponse(
       externalId: result.product_id ?? null,
       url: result.product_link ?? result.link ?? null,
       priceMinor,
-      mrpMinor: toMinor(result.extracted_old_price),
+      /**
+       * An MRP below the selling price is not an MRP.
+       *
+       * A printed maximum is a legal ceiling in India, so a figure beneath
+       * what the item is selling for is a misparse — the provider's
+       * "old price" field occasionally carries something else entirely.
+       * Production had two of them: a curtain listed at ₹1,160 with an
+       * "MRP" of ₹20, and another at ₹724 with ₹50. Both passed every
+       * parser check, because each number is individually plausible; only
+       * their relationship is impossible.
+       *
+       * Stored as null — not known — which is the truth. Clamping it up to
+       * the selling price would invent a ceiling, and keeping it would feed
+       * a 5,700% discount into anything that renders one.
+       */
+      mrpMinor: plausibleMrp(toMinor(result.extracted_old_price), priceMinor),
       shippingFeeMinor: delivery.feeMinor,
       currency,
       rating: typeof result.rating === "number" ? result.rating : null,

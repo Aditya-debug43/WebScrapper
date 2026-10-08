@@ -8,6 +8,8 @@
     "db:generate": "drizzle-kit generate",
     "db:migrate": "tsx src/scripts/migrate.ts",
     "db:rebuild-market-snapshots": "tsx src/scripts/rebuild-market-snapshots.ts",
+    "db:repair-mrp": "tsx src/scripts/repair-implausible-mrp.ts",
+    "db:repair-mrp:prod": "node dist/scripts/repair-implausible-mrp.js",
     "db:rebuild-market-snapshots:prod": "node dist/scripts/rebuild-market-snapshots.js",
     "db:seed": "tsx src/scripts/seed.ts",
     "db:verify": "tsx src/scripts/verify.ts",
