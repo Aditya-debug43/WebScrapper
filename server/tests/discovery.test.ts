@@ -141,9 +141,23 @@ class CountingMarketProvider implements ProductMarketProvider {
    */
   variantIds = new Set<string>();
 
+  /** Milliseconds each call takes, so overlap can be observed. */
+  latencyMs = 0;
+  /** The most calls that were ever in flight at once. */
+  peakConcurrency = 0;
+  private inFlight = 0;
+
   async fetchProduct(externalProductId: string, opts: { currency?: string } = {}) {
     this.calls++;
     this.ids.push(externalProductId);
+
+    this.inFlight++;
+    this.peakConcurrency = Math.max(this.peakConcurrency, this.inFlight);
+    try {
+      if (this.latencyMs > 0) await new Promise((r) => setTimeout(r, this.latencyMs));
+    } finally {
+      this.inFlight--;
+    }
 
     if (this.failNext) {
       this.failNext = false;
@@ -285,6 +299,8 @@ beforeEach(() => {
   marketProvider.calls = 0;
   marketProvider.ids = [];
   marketProvider.variantIds.clear();
+  marketProvider.latencyMs = 0;
+  marketProvider.peakConcurrency = 0;
   // A failure armed by one test must not fire inside the next one.
   provider.failNext = false;
   marketProvider.failNext = false;
@@ -405,6 +421,44 @@ describe("one market question costs one provider call", () => {
     const results = await Promise.all(inFlight);
     assert.ok(results.every((r) => r.status === 200));
     assert.equal(provider.calls, 1, "ten simultaneous askers, one provider call");
+  });
+
+  /**
+   * THE CATALOGUE IDS ARE OPENED TOGETHER, NOT ONE AFTER ANOTHER.
+   *
+   * This is a correctness property rather than a performance one, and it was
+   * found in production the expensive way. The calls are independent, so
+   * running them in sequence made a capture cost the SUM of them: about 8
+   * seconds per call from that host, four ids plus the search, 34 seconds
+   * total. API Gateway allows an integration 29.
+   *
+   * The user saw a 503 while the server carried on and wrote the market
+   * correctly half a minute later — the worst shape a failure can take,
+   * because the interface said it failed and the database said it had not.
+   *
+   * Asserted on observed overlap rather than on elapsed time: a wall-clock
+   * assertion would be flaky on a loaded machine, while "more than one call
+   * was in flight at once" is exactly the claim and cannot be satisfied by a
+   * sequential implementation however fast the machine is.
+   */
+  test("a capture opens its catalogue ids concurrently", async () => {
+    marketProvider.latencyMs = 60;
+
+    const { body: search } = await api("GET", "/search?q=concurrency%20probe%20phone");
+    const { status } = await api("POST", "/tracked", { ref: search.data.results[0].ref });
+    assert.equal(status, 201);
+
+    assert.ok(marketProvider.calls > 1, `only ${marketProvider.calls} id(s) were opened`);
+    assert.ok(
+      marketProvider.peakConcurrency > 1,
+      `calls never overlapped (peak ${marketProvider.peakConcurrency}) — the ids are being opened one at a time, ` +
+        "which makes a capture cost the sum of its calls rather than the slowest of them"
+    );
+    assert.equal(
+      marketProvider.peakConcurrency,
+      marketProvider.calls,
+      "every id should go out together; a lower peak means something is still serialising them"
+    );
   });
 
   /** The requirement in its strongest form. */

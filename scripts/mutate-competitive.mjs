@@ -198,6 +198,15 @@ const MUTATIONS = [
     to: "    if (false) {\n      const existing = await this.repo.productByExternalId(",
   },
   {
+    id: "CM-M23",
+    why: "catalogue ids opened one at a time — a capture costs the sum of its calls and outlives the gateway timeout",
+    file: "src/modules/market/market.service.ts",
+    // Await each call as it is created, so the batch below resolves already
+    // -settled promises and the whole thing runs in sequence.
+    find: "    const pending = ids.map((id) =>\n      this.provider.fetchProduct(id, {",
+    to: "    const pending = [] as Array<Promise<ProductMarket>>;\n    for (const _id of ids) pending.push(Promise.resolve(await this.provider.fetchProduct(_id, { country: env.MARKET_DATA_COUNTRY, currency: env.MARKET_DATA_CURRENCY })));\n    void ids.map((id) =>\n      (() => this.provider.fetchProduct(id, {",
+  },
+  {
     id: "CM-M21",
     why: "sellers no longer deduplicated across catalogue ids — competition double-counted",
     file: "src/modules/market/market.repository.ts",

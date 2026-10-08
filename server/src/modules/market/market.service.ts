@@ -122,6 +122,20 @@ function verifyAgainstAnchor(
 /** How many catalogue ids one capture may open. The main cost dial. */
 const DEFAULT_CLUSTER_LIMIT = 4;
 
+/**
+ * How long an INTERACTIVE capture may spend opening catalogue ids.
+ *
+ * API Gateway gives an integration 29 seconds and then returns a 503 of its
+ * own — one with no error envelope, so the interface cannot even say what
+ * went wrong. Meanwhile the server finishes the work and writes a perfectly
+ * good market that nobody was told about.
+ *
+ * 18 seconds leaves room for the search call that preceded this, the writes
+ * that follow it, and the round trip. The scheduler passes no deadline at
+ * all: it has no gateway in front of it and would rather wait.
+ */
+const INTERACTIVE_DEADLINE_MS = 18_000;
+
 /** Below this many sellers, the word "market" is doing too much work. */
 export const MIN_SELLERS_FOR_MARKET = 3;
 
@@ -174,7 +188,10 @@ export class MarketService {
    * STORED capture rather than trusted from the request, so a client cannot
    * ask for a market around a price nobody offered.
    */
-  async captureFromResult(ref: string, opts: { clusterLimit?: number; force?: boolean } = {}): Promise<MarketCaptureResult> {
+  async captureFromResult(
+    ref: string,
+    opts: { clusterLimit?: number; force?: boolean; deadlineMs?: number } = {}
+  ): Promise<MarketCaptureResult> {
     const resolved = await this.snapshots.resolveResult(ref);
     if (!resolved) {
       throw new AppError("NOT_FOUND", "That search result could not be resolved. Search again and retry.");
@@ -205,6 +222,8 @@ export class MarketService {
       anchorUrl: offer.url,
       clusterLimit: opts.clusterLimit,
       force: opts.force,
+      // Somebody clicked a button and is watching a spinner.
+      deadlineMs: opts.deadlineMs ?? INTERACTIVE_DEADLINE_MS,
     });
   }
 
@@ -218,7 +237,12 @@ export class MarketService {
    */
   async captureFromQuery(
     query: string,
-    opts: { anchorExternalProductId?: string | null; clusterLimit?: number; force?: boolean } = {}
+    opts: {
+      anchorExternalProductId?: string | null;
+      clusterLimit?: number;
+      force?: boolean;
+      deadlineMs?: number;
+    } = {}
   ): Promise<MarketCaptureResult> {
     const snapshot = await this.snapshots.snapshotFor(query, {
       maxAgeSeconds: opts.force ? FRESHNESS.userRefresh() : FRESHNESS.recommendation(),
@@ -235,11 +259,15 @@ export class MarketService {
       anchorExternalProductId: opts.anchorExternalProductId ?? null,
       clusterLimit: opts.clusterLimit,
       force: opts.force,
+      deadlineMs: opts.deadlineMs,
     });
   }
 
   /** Re-open a product this system already holds. */
-  async refreshProduct(productId: string, opts: { clusterLimit?: number; force?: boolean } = {}): Promise<MarketCaptureResult> {
+  async refreshProduct(
+    productId: string,
+    opts: { clusterLimit?: number; force?: boolean; deadlineMs?: number } = {}
+  ): Promise<MarketCaptureResult> {
     const product = await this.repo.productById(productId);
     if (!product) throw new AppError("NOT_FOUND", `No product with id ${productId}.`);
 
@@ -254,7 +282,7 @@ export class MarketService {
      */
     const known = await this.repo.catalogIdsFor(productId, this.provider.name, limit);
     if (known.length > 0) {
-      const fetched = await this.openIds(known);
+      const fetched = await this.openIds(known, { deadlineMs: opts.deadlineMs });
       if (fetched.markets.length === 0) {
         throw new AppError("MARKET_DATA_UNAVAILABLE", describeFailures(fetched.failures));
       }
@@ -304,6 +332,7 @@ export class MarketService {
       anchorExternalProductId: product.external_product_id,
       clusterLimit: limit,
       force: opts.force,
+      deadlineMs: opts.deadlineMs,
     });
   }
 
@@ -317,6 +346,8 @@ export class MarketService {
     clusterLimit?: number;
     /** Skip the freshness short-circuit. A deliberate "read it again now". */
     force?: boolean;
+    /** Set when somebody is waiting on the other end of a request. */
+    deadlineMs?: number;
   }): Promise<MarketCaptureResult> {
     const limit = input.clusterLimit ?? DEFAULT_CLUSTER_LIMIT;
 
@@ -382,7 +413,9 @@ export class MarketService {
       }
     }
 
-    const fetched = await this.openIds(cluster.members.map((m) => m.externalProductId));
+    const fetched = await this.openIds(cluster.members.map((m) => m.externalProductId), {
+      deadlineMs: input.deadlineMs,
+    });
     if (fetched.markets.length === 0) {
       throw new AppError("MARKET_DATA_UNAVAILABLE", describeFailures(fetched.failures));
     }
@@ -473,36 +506,103 @@ export class MarketService {
    * returned rather than swallowed so a systematically failing provider does
    * not look like a product with few sellers.
    */
-  private async openIds(ids: string[]): Promise<{ markets: ProductMarket[]; calls: number; failures: string[] }> {
+  private async openIds(
+    ids: string[],
+    opts: { deadlineMs?: number } = {}
+  ): Promise<{ markets: ProductMarket[]; calls: number; failures: string[] }> {
+    /**
+     * IN PARALLEL, and that is a correctness property, not a micro-optimisation.
+     *
+     * These calls are independent — each asks a different catalogue id for its
+     * own sellers — and running them one after another made the total latency
+     * the SUM of them. Measured against production: a single provider call
+     * from that host takes about 8 seconds, so a capture of four ids plus the
+     * search took 34 seconds. API Gateway gives an integration 29. The user
+     * saw a 503 while the server went on working and wrote the market
+     * correctly half a minute later: the worst shape a failure can have,
+     * because the interface says it failed and the database says it did not.
+     *
+     * Run together they cost the slowest call rather than all of them.
+     *
+     * WHAT THIS GIVES UP, deliberately: the sequential version stopped early
+     * on a quota or auth error, since one means the rest will fail too. That
+     * saving is gone — a capture with a dead key now spends all N attempts.
+     * N is four. Paying four doomed calls once, on a misconfiguration that
+     * needs fixing anyway, is a far better trade than making every capture
+     * four times slower than it needs to be for everyone else.
+     */
+    /**
+     * A DEADLINE FOR THE WHOLE BATCH, when the caller is a waiting request.
+     *
+     * The per-call timeout cannot do this job. It is 30 seconds — correct for
+     * the scheduler, which has nothing in front of it — but API Gateway gives
+     * an interactive request 29 in total, so a single slow call can overrun
+     * the entire budget on its own and the client gets a 503 from the gateway
+     * with no error envelope in it, while the server finishes the work and
+     * writes a perfectly good market nobody was told about.
+     *
+     * So an interactive capture takes what has arrived by its deadline and
+     * reports the rest as unanswered. A market of three sellers now is worth
+     * more than a market of four the caller never receives. The scheduler
+     * passes no deadline and waits for everything.
+     */
+    const pending = ids.map((id) =>
+      this.provider.fetchProduct(id, {
+        country: env.MARKET_DATA_COUNTRY,
+        currency: env.MARKET_DATA_CURRENCY,
+      })
+    );
+
+    const settled = await (opts.deadlineMs == null
+      ? Promise.allSettled(pending)
+      : Promise.all(
+          pending.map((p) =>
+            Promise.race([
+              p.then(
+                (value) => ({ status: "fulfilled", value }) as PromiseSettledResult<ProductMarket>,
+                (reason) => ({ status: "rejected", reason }) as PromiseSettledResult<ProductMarket>
+              ),
+              new Promise<PromiseSettledResult<ProductMarket>>((resolve) =>
+                setTimeout(
+                  () =>
+                    resolve({
+                      status: "rejected",
+                      reason: new ProviderError(
+                        this.provider.name,
+                        `Did not answer within the ${opts.deadlineMs}ms this request could wait.`,
+                        "timeout",
+                        true
+                      ),
+                    }),
+                  opts.deadlineMs
+                ).unref?.()
+              ),
+            ])
+          )
+        ));
+
     const markets: ProductMarket[] = [];
     const failures: string[] = [];
-    let calls = 0;
 
-    for (const id of ids) {
-      try {
-        const market = await this.provider.fetchProduct(id, {
-          country: env.MARKET_DATA_COUNTRY,
-          currency: env.MARKET_DATA_CURRENCY,
-        });
-        calls++;
-        this.usage.productCalls++;
-        markets.push(market);
-      } catch (cause) {
-        calls++;
-        this.usage.productCalls++;
-        this.usage.catalogIdFailures++;
-        const message = cause instanceof ProviderError ? `${cause.kind}: ${cause.message}` : String(cause);
-        failures.push(`${id} — ${message}`);
-        /**
-         * A quota or auth failure will fail for every remaining id too, so
-         * stop spending calls on it. A single malformed response will not.
-         */
-        if (cause instanceof ProviderError && (cause.kind === "quota" || cause.kind === "auth")) break;
+    settled.forEach((result, i) => {
+      this.usage.productCalls++;
+      if (result.status === "fulfilled") {
+        markets.push(result.value);
+        return;
       }
-    }
+      this.usage.catalogIdFailures++;
+      const cause = result.reason;
+      const message = cause instanceof ProviderError ? `${cause.kind}: ${cause.message}` : String(cause);
+      failures.push(`${ids[i]} — ${message}`);
+    });
 
     if (markets.length > 0) this.usage.productsOpened++;
-    return { markets, calls, failures };
+    /**
+     * `calls` counts attempts, not successes: a failed call is still a call
+     * the provider charged for, and a cost record that only counted the ones
+     * that worked would understate the spend exactly when it mattered most.
+     */
+    return { markets, calls: settled.length, failures };
   }
 
   /* ==================================================== reading the market */

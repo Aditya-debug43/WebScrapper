@@ -118,7 +118,13 @@ export function registerMarketRoutes(app: FastifyInstance, market: MarketService
     async (request) => {
       const { id } = request.params as { id: string };
       const body = (request.body ?? {}) as { clusterLimit?: number; force?: boolean };
-      const result = await market.refreshProduct(id, { clusterLimit: body.clusterLimit, force: body.force });
+      // A waiting request, so it takes what arrives inside the gateway's
+      // budget rather than overrunning it and losing the answer entirely.
+      const result = await market.refreshProduct(id, {
+        clusterLimit: body.clusterLimit,
+        force: body.force,
+        deadlineMs: 18_000,
+      });
       return {
         data: {
           productId: result.productId,

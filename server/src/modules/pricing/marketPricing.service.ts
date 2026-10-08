@@ -116,7 +116,11 @@ export class MarketPricingService {
     const needsCapture = opts.refresh || (view.distribution?.sellerCount ?? 0) < MIN_USABLE_SELLERS;
     if (needsCapture) {
       try {
-        await this.market.refreshProduct(productId, { force: Boolean(opts.refresh) });
+        await this.market.refreshProduct(productId, {
+          force: Boolean(opts.refresh),
+          // Behind a request too: a partial market now beats none at all.
+          deadlineMs: 18_000,
+        });
         view = await this.market.marketFor(productId, { yourPriceMinor: opts.yourPriceMinor ?? null });
         captured = true;
       } catch (cause) {
