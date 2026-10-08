@@ -142,7 +142,21 @@ const schema = z
      */
     SERPAPI_KEY: z.string().min(1).optional(),
 
-    MARKET_DATA_TIMEOUT_MS: z.coerce.number().int().positive().default(15_000),
+    /**
+     * 30s, raised from 15s when the competitive capture went live.
+     *
+     * 15s was chosen when there was one endpoint to call and it was fast.
+     * There are now two, the product endpoint is the slower of them, and a
+     * capture makes one search call plus one per catalogue id. Measured from
+     * the production host, a cold search alone took 8.6s — so the old budget
+     * left almost nothing, and the first real capture there failed on it.
+     *
+     * The cost of being generous is bounded: a provider that has genuinely
+     * stopped answering costs one wait per catalogue id, once, and the
+     * capture is recorded as failed either way. The cost of being tight is a
+     * product that silently never gets a market.
+     */
+    MARKET_DATA_TIMEOUT_MS: z.coerce.number().int().positive().default(30_000),
     MARKET_DATA_COUNTRY: z.string().length(2).default("in"),
     MARKET_DATA_CURRENCY: z.string().length(3).default("INR"),
     MARKET_DATA_FIXTURE_DIR: z.string().default("./fixtures/market-data"),
